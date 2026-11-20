@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field, HttpUrl, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-class HTTPClientSettings(BaseModel):
+class HttpClientSettings(BaseModel):
     """Connection, limit and retry settings shared by every client.
 
     Each service below inherits these and overrides defaults
