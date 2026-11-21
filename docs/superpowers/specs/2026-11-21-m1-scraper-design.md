@@ -40,8 +40,10 @@ a client and a pipeline module, each tested on its own.
 
 ## Constraints
 
-- Defaults from M0: 1 request/second, 2 concurrent requests
-  (`CoffeeSiteSettings`). About 2.5 hours for a full pass.
+- Speed: 5 requests/second by default, with concurrency worked out from the
+  rate (see *Speed controls* below). About 31 minutes for a full pass, in
+  line with Tyler's experience of the site from v1. Hard ceiling 10/second.
+  ADR 0005.
 - robots.txt (checked 2026-11-21) allows `/review/`, sets no crawl delay, and
   blocks named AI crawlers. Our User-Agent is the M0 placeholder until the
   public repo exists.
@@ -139,7 +141,7 @@ and HTML-in-SQLite (pages hard to inspect by eye during M2). SQLite over DuckDB
 for the manifest because the workload is single-row upserts during a long run,
 and SQLite in WAL mode allows reading progress from another process while the
 scraper writes; DuckDB is kept for analysis and can read the SQLite file
-directly. Recorded as ADR 0005.
+directly. Recorded as ADR 0006.
 
 ## Design
 
@@ -266,18 +268,51 @@ drives fetching so it can stop on pushback.
 `now` is passed in (the CLI uses the current UTC time), so tests control time
 without a time-mocking library.
 
+### Speed controls
+
+Decided with Tyler: one simple setting by default, both settings for
+experiments, and every run reports its real load.
+
+- `--rate R` (requests per second). Default 5, must be > 0 and ≤ 10.
+- Concurrency is worked out from the rate unless given:
+  `concurrency_for_rate(rate) = max(1, ceil(rate))`, one second's worth of
+  requests in flight.
+- `--concurrency C` may be given with `--rate`; it must be between
+  `ceil(rate)` (below that, the rate can't be reached) and `2 × ceil(rate)`
+  (above that, extra requests only wait at the rate limiter while holding
+  connections). `--concurrency` without `--rate` is rejected.
+- The rules live in `CoffeeSiteSettings`, so env vars
+  (`COFFEE_REVIEW_COFFEE_SITE__RATE_PER_SEC`, `..._MAX_CONCURRENCY`) follow
+  them too. Each rejection says what to do instead.
+
+### Run measurement
+
+Every summary reports what the run actually did to the site:
+
+- **requests**: every HTTP attempt, sitemaps and retries included, counted by
+  the client as it sends.
+- **elapsed** and **average achieved rate** (requests ÷ elapsed), from a
+  monotonic clock passed into `run_scrape`, so tests control it.
+- **average response time**: how long the site took to answer, measured
+  around the request itself (not the rate-limiter wait). A low achieved rate
+  with slow responses means the site is struggling.
+- **the rate and concurrency used**, so runs can be compared from their logs.
+
 ### CLI and logging
 
-- `coffee-review scrape [--full] [--limit N]`. `--limit` exists so a first real
-  run can be a handful of pages.
+- `coffee-review scrape [--full] [--limit N] [--rate R] [--concurrency C]`.
+  `--limit` exists so a first real run can be a handful of pages.
 - Exit codes: 0 finished, 1 error, 2 stopped by pushback. *My call:* a run that
   finishes with some failed pages still exits 0; the failures are in the
   summary and retried next run.
 - Logs go to the terminal (INFO) and to `data/logs/scrape-<UTC timestamp>.log`
   (DEBUG). The `httpx` logger is set to WARNING so routine request lines don't
   flood the output.
-- Final line, e.g.
-  `scrape finished: 12 fetched (3 new, 9 changed), 9,388 unchanged, 0 failed, 1 delisted`.
+- Final lines, e.g.
+  ```
+  scrape finished: 12 fetched (3 new, 9 changed), 9,388 unchanged, 0 failed, 0 gone, 1 delisted
+    in 14s · 24 requests · avg 1.7/s · avg response 0.48s · rate 5.0/s, concurrency 5
+  ```
 
 ## Testing
 
@@ -311,7 +346,7 @@ From the roadmap, made concrete:
   page requests; failures retried on the next run; incremental rules covered.
 - Against the real site: `coffee-review scrape --limit 20` works and a rerun
   fetches nothing. Tyler runs the first full scrape when ready.
-- ADR 0005 written (SQLite manifest, and the storage boundary); roadmap and
+- ADRs 0005 (speed) and 0006 (SQLite manifest, and the storage boundary); roadmap and
   conventions updated.
 
 ## Left to the builder

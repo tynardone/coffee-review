@@ -65,9 +65,10 @@ v1 sprawled. The causes Tyler named, which this design is built to prevent:
 - coffeereview.com: ~9,300 review pages, discovered through
   `sitemap_index.xml` (~17 requests). Respect `robots.txt` and keep the request
   rate low. Review page HTML varies across the site's history.
-  *My call:* scraper defaults are 1 request/second and 2 concurrent requests,
-  so a first full pass takes about 2.5 hours. That's acceptable for a one-off,
-  and later incremental runs are seconds. Because the raw store is written per
+  Scraper speed defaults to 5 requests/second (about 31 minutes for a full
+  pass), adjustable from the CLI; see the M1 design and ADR 0005. (An earlier
+  draft said 1/second and 2.5 hours; Tyler's experience from v1 showed that
+  was more cautious than needed.) Later incremental runs are seconds. Because the raw store is written per
   page and the incremental logic skips what's already saved, an interrupted
   full scrape resumes simply by running again.
 - OpenExchangeRates free tier: 1,000 requests/month, USD base only. One
