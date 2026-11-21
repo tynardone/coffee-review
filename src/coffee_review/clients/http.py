@@ -13,7 +13,7 @@ import logging
 import random
 from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
-from typing import TYPE_CHECKING, Any, Self
+from typing import TYPE_CHECKING, Any, ClassVar, Self
 
 import httpx
 from aiolimiter import AsyncLimiter
@@ -75,7 +75,12 @@ class BaseHttpClient:
 
     async with SomeClient(settings) as client:
         await client.some_method()
+
+    Subclasses can narrow ``retryable_status`` when some statuses mean "stop",
+    not "try again" (the coffeereview.com scraper treats 429 as pushback).
     """
+
+    retryable_status: ClassVar[frozenset[int]] = RETRYABLE_STATUS
 
     def __init__(
         self,
@@ -148,7 +153,7 @@ class BaseHttpClient:
                     last_error = f"{type(exc).__name__}: {exc}"
 
             if resp is not None:
-                if resp.status_code not in RETRYABLE_STATUS:
+                if resp.status_code not in self.retryable_status:
                     resp.raise_for_status()  # 4xx/other errors raise immediately
                     return resp
                 last_error = f"HTTP {resp.status_code}"

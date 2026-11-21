@@ -191,3 +191,21 @@ async def test_context_manager_closes_client() -> None:
         assert client._client is not None
 
     assert client._client is None
+
+
+async def test_subclass_can_narrow_retryable_status(
+    recorded_sleeps: list[float],
+) -> None:
+    class NoRetryClient(BaseHttpClient):
+        retryable_status = frozenset()
+
+    server = ScriptedServer(httpx.Response(503))
+    client = NoRetryClient(
+        fast_settings(), transport=httpx.MockTransport(server.handler)
+    )
+
+    async with client:
+        with pytest.raises(httpx.HTTPStatusError):
+            await client.request("GET", "page")
+
+    assert server.calls == 1

@@ -1,23 +1,73 @@
-"""Scraper for coffeereview.com.
+"""Client for coffeereview.com: fetches sitemaps and review pages.
 
-This module fetches pages and returns raw HTML. Parsing lives in
-``coffee_review.parsers``.
+Every fetch returns one of four results instead of raising, so the pipeline
+can decide what happens next:
+
+- ``Fetched``: the page, ready to save.
+- ``Failed``: a temporary failure (network, 5xx); try again next run.
+- ``Gone``: the page isn't there any more (404, redirected elsewhere).
+- ``Pushback``: the site is telling us to stop (429, 403, a challenge page).
+
+Parsing lives in ``coffee_review.parsers``.
 """
 
 from __future__ import annotations
 
-import asyncio
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
+from urllib.parse import urlsplit
 
-from coffee_review.clients.http import BaseHttpClient
+import httpx
+
+from coffee_review.clients.http import BaseHttpClient, RetriesExhaustedError
 
 if TYPE_CHECKING:
-    import httpx
-
     from coffee_review.config import CoffeeSiteSettings
+    from coffee_review.models import SitemapEntry
+
+# Markers of a Cloudflare challenge ("checking your browser") page.
+CHALLENGE_MARKERS = ("challenge-platform", "cf-chl-", "<title>Just a moment...</title>")
+PUSHBACK_STATUS = frozenset({403, 429})
+GONE_STATUS = frozenset({404, 410})
+
+
+@dataclass(frozen=True)
+class Fetched:
+    text: str
+
+
+@dataclass(frozen=True)
+class Failed:
+    error: str
+
+
+@dataclass(frozen=True)
+class Gone:
+    reason: str
+
+
+@dataclass(frozen=True)
+class Pushback:
+    reason: str
+    url: str
+    status: int | None
+
+
+type FetchResult = Fetched | Failed | Gone | Pushback
+
+
+def is_challenge(response: httpx.Response) -> bool:
+    """True if the response is a Cloudflare challenge page, whatever its status."""
+    if response.headers.get("cf-mitigated") == "challenge":
+        return True
+    return any(marker in response.text for marker in CHALLENGE_MARKERS)
 
 
 class CoffeeScraper(BaseHttpClient):
+    # 429 and 503 are not retried here: they come back to the pipeline, which
+    # decides whether the site is pushing back.
+    retryable_status = frozenset({408, 500, 502, 504})
+
     def __init__(
         self,
         settings: CoffeeSiteSettings,
@@ -30,21 +80,35 @@ class CoffeeScraper(BaseHttpClient):
             transport=transport,
         )
 
-    async def fetch_sitemap(self) -> str:
-        raise NotImplementedError  # built in M1
+    async def fetch_sitemap(self, url: str) -> FetchResult:
+        """Fetch a sitemap (index or child) as text."""
+        return await self._fetch(url, expected_path=None)
 
-    async def fetch_review_page(self, slug: str) -> str:
-        raise NotImplementedError  # built in M1
+    async def fetch_review_page(self, entry: SitemapEntry) -> FetchResult:
+        """Fetch one review page. A redirect to any other page counts as Gone."""
+        return await self._fetch(entry.url, expected_path=urlsplit(entry.url).path)
 
-    async def fetch_review_pages(self, slugs: list[str]) -> dict[str, str | Exception]:
-        """Fetch many reviews at once. Semaphore and rate limit keep this polite
-        however many slugs are passed in.
+    async def _fetch(self, url: str, *, expected_path: str | None) -> FetchResult:
+        try:
+            response = await self.request("GET", url)
+        except RetriesExhaustedError as exc:
+            return Failed(error=str(exc))
+        except httpx.HTTPStatusError as exc:
+            return self._classify_error(exc.response, url)
 
-        Failures are returned in place of the HTML instead of raised, so one
-        bad page doesn't end the run.
-        """
-        # TODO(M1): gather without return_exceptions=True raises on the first
-        # failure, which contradicts the docstring. Fix when the scraper is built.
-        results = await asyncio.gather(*(self.fetch_review_page(s) for s in slugs))
+        if is_challenge(response):
+            return Pushback(reason="Cloudflare challenge", url=url, status=200)
+        if expected_path is not None and response.url.path != expected_path:
+            return Gone(reason=f"redirected to {response.url.path}")
+        return Fetched(text=response.text)
 
-        return dict(zip(slugs, results, strict=True))
+    @staticmethod
+    def _classify_error(response: httpx.Response, url: str) -> FetchResult:
+        status = response.status_code
+        if is_challenge(response):
+            return Pushback(reason="Cloudflare challenge", url=url, status=status)
+        if status in PUSHBACK_STATUS:
+            return Pushback(reason=f"HTTP {status}", url=url, status=status)
+        if status in GONE_STATUS:
+            return Gone(reason=f"HTTP {status}")
+        return Failed(error=f"HTTP {status}")
