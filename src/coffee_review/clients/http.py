@@ -13,12 +13,14 @@ import logging
 import random
 from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
-from typing import TYPE_CHECKING, Self
+from typing import TYPE_CHECKING, Any, Self
 
 import httpx
 from aiolimiter import AsyncLimiter
 
 if TYPE_CHECKING:
+    from types import TracebackType
+
     from coffee_review.config import HttpClientSettings
 
 logger = logging.getLogger(__name__)
@@ -122,10 +124,15 @@ class BaseHttpClient:
         await self.open()
         return self
 
-    async def __aexit__(self, exc_type, exc, tb) -> None:
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: TracebackType | None,
+    ) -> None:
         await self.close()
 
-    async def request(self, method: str, path: str, **kwargs) -> httpx.Response:
+    async def request(self, method: str, path: str, **kwargs: Any) -> httpx.Response:
         if self._client is None:
             raise RuntimeError("Client not open; use 'async with' or call open()")
         s = self.settings
