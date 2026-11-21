@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from collections import Counter, deque
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Literal
@@ -20,7 +21,7 @@ from coffee_review.clients.coffee_site import (
     Gone,
     Pushback,
 )
-from coffee_review.models import FetchReason, ScrapeSummary
+from coffee_review.models import FetchReason, RunMeasurement, ScrapeSummary
 from coffee_review.parsers.sitemap import (
     SitemapParseError,
     dedupe_entries,
@@ -36,6 +37,7 @@ from coffee_review.pipeline.fetch_rules import (
 from coffee_review.storage.raw_store import open_raw_store
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
     from datetime import datetime
 
     from coffee_review.config import Settings
@@ -78,24 +80,67 @@ async def run_scrape(
     full: bool,
     limit: int | None,
     now: datetime,
+    clock: Callable[[], float] = time.monotonic,
 ) -> ScrapeSummary:
-    """Fetch new and changed reviews into ``store``; stop on any pushback."""
+    """Fetch new and changed reviews into ``store``; stop on any pushback.
+
+    Every outcome, early endings included, comes back measured (ADR 0005).
+    """
+    site = settings.coffee_site
+    logger.info(
+        "scrape starting: rate %.1f/s, concurrency %d",
+        site.rate_per_sec,
+        site.max_concurrency,
+    )
+    started = clock()
+    requests_before = client.stats.requests
+    response_before = client.stats.response_seconds
+
+    summary = await _scrape_steps(
+        settings, client=client, store=store, full=full, limit=limit, now=now
+    )
+
+    requests = client.stats.requests - requests_before
+    response_seconds = client.stats.response_seconds - response_before
+    measured = summary.model_copy(
+        update={
+            "measurement": RunMeasurement(
+                requests=requests,
+                elapsed_seconds=clock() - started,
+                mean_response_seconds=response_seconds / requests if requests else None,
+                rate_per_sec=site.rate_per_sec,
+                max_concurrency=site.max_concurrency,
+            )
+        }
+    )
+    log = {"finished": logger.info, "stopped": logger.warning, "error": logger.error}
+    log[measured.outcome](measured.describe())
+    return measured
+
+
+async def _scrape_steps(
+    settings: Settings,
+    *,
+    client: CoffeeScraper,
+    store: RawStore,
+    full: bool,
+    limit: int | None,
+    now: datetime,
+) -> ScrapeSummary:
+    """The scrape itself: sitemaps, delistings, selection, fetching."""
     listing = await _read_sitemaps(client, str(settings.coffee_site.sitemap_url))
     if isinstance(listing, ScrapeSummary):
-        logger.error(listing.describe())
         return listing
     entries = listing
 
     manifest = store.load_manifest()
     delistings = find_delistings(entries, manifest)
     if delisting_exceeds_limit(delistings, len(manifest)):
-        summary = _ended_early(
+        return _ended_early(
             "error",
             f"sitemap would delist {len(delistings.delisted)} of {len(manifest)} "
             f"reviews (limit {DELISTING_LIMIT:.0%}); nothing marked",
         )
-        logger.error(summary.describe())
-        return summary
     store.mark_delisted(delistings.delisted, now)
     store.mark_relisted(delistings.relisted)
 
@@ -106,7 +151,7 @@ async def run_scrape(
         for _ in range(settings.coffee_site.max_concurrency):
             workers.create_task(run.work(client))
 
-    summary = ScrapeSummary(
+    return ScrapeSummary(
         outcome="stopped" if run.stopped_reason else "finished",
         fetched=dict(run.fetched),
         unchanged=len(entries) - len(selected),
@@ -117,9 +162,6 @@ async def run_scrape(
         remaining=len(run.queue) + len(selected) - len(planned),
         stopped_reason=run.stopped_reason,
     )
-    log = logger.warning if run.stopped_reason else logger.info
-    log(summary.describe())
-    return summary
 
 
 async def _read_sitemaps(

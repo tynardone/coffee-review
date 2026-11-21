@@ -209,3 +209,46 @@ async def test_subclass_can_narrow_retryable_status(
             await client.request("GET", "page")
 
     assert server.calls == 1
+
+
+class FakeClock:
+    """A clock that moves only when a test (or fake server) advances it."""
+
+    def __init__(self) -> None:
+        self.now = 0.0
+
+    def __call__(self) -> float:
+        return self.now
+
+
+async def test_stats_count_every_attempt_including_retries(
+    recorded_sleeps: list[float],
+) -> None:
+    server = ScriptedServer(httpx.Response(503), httpx.Response(200))
+
+    async with server.client() as client:
+        await client.request("GET", "page")
+
+    assert client.stats.requests == 2
+
+
+async def test_stats_time_only_the_send(recorded_sleeps: list[float]) -> None:
+    clock = FakeClock()
+
+    def slow_handler(request: httpx.Request) -> httpx.Response:
+        clock.now += 0.5  # the "network" takes half a second
+        return httpx.Response(200)
+
+    client = BaseHttpClient(
+        fast_settings(), transport=httpx.MockTransport(slow_handler), clock=clock
+    )
+    async with client:
+        await client.request("GET", "a")
+        await client.request("GET", "b")
+
+    assert client.stats.requests == 2
+    assert client.stats.mean_response_seconds == pytest.approx(0.5)
+
+
+def test_stats_mean_is_none_before_any_request() -> None:
+    assert ScriptedServer().client().stats.mean_response_seconds is None

@@ -70,6 +70,51 @@ class FetchReason(StrEnum):
     FULL = "full"
 
 
+def format_elapsed(seconds: float) -> str:
+    """``45s``, ``32m 05s`` or ``1h 02m 03s``."""
+    total = round(seconds)
+    hours, rest = divmod(total, 3600)
+    minutes, secs = divmod(rest, 60)
+    if hours:
+        return f"{hours}h {minutes:02d}m {secs:02d}s"
+    if minutes:
+        return f"{minutes}m {secs:02d}s"
+    return f"{secs}s"
+
+
+class RunMeasurement(_Frozen):
+    """What a run actually did to the site, so speeds can be compared (ADR 0005).
+
+    ``requests`` counts every HTTP attempt: sitemaps, pages and retries.
+    ``mean_response_seconds`` times the request itself, not the wait for a
+    rate-limit slot; it is None when nothing was sent.
+    """
+
+    requests: int
+    elapsed_seconds: float
+    mean_response_seconds: float | None
+    rate_per_sec: float
+    max_concurrency: int
+
+    @property
+    def achieved_rate(self) -> float:
+        return self.requests / self.elapsed_seconds if self.elapsed_seconds else 0.0
+
+    def describe(self) -> str:
+        response = (
+            f"{self.mean_response_seconds:.2f}s"
+            if self.mean_response_seconds is not None
+            else "—"
+        )
+        return (
+            f"  in {format_elapsed(self.elapsed_seconds)}"
+            f" · {self.requests:,} requests"
+            f" · avg {self.achieved_rate:.1f}/s"
+            f" · avg response {response}"
+            f" · rate {self.rate_per_sec:.1f}/s, concurrency {self.max_concurrency}"
+        )
+
+
 class ScrapeSummary(_Frozen):
     """The result of one scrape run."""
 
@@ -82,9 +127,10 @@ class ScrapeSummary(_Frozen):
     relisted: int
     remaining: int
     stopped_reason: str | None
+    measurement: RunMeasurement | None = None
 
     def describe(self) -> str:
-        """One line for the terminal and the log."""
+        """The summary line, plus the measurement line once it's attached."""
         total = sum(self.fetched.values())
         reasons = ", ".join(
             f"{self.fetched[reason]} {reason}"
@@ -101,4 +147,6 @@ class ScrapeSummary(_Frozen):
             line += f" (stopped: {self.stopped_reason}; {self.remaining} remaining)"
         elif self.outcome == "error":
             line += f" (error: {self.stopped_reason})"
+        if self.measurement is not None:
+            line += "\n" + self.measurement.describe()
         return line

@@ -15,8 +15,8 @@ from coffee_review.clients.coffee_site import (
     Gone,
     Pushback,
 )
-from coffee_review.config import CoffeeSiteSettings
 from coffee_review.models import SitemapEntry
+from tests.fakes import unthrottled_site_settings
 
 SITE = "https://www.coffeereview.com"
 CHALLENGE_HTML = (
@@ -43,9 +43,7 @@ class FakeServer:
 
 
 def scraper(server: FakeServer) -> CoffeeScraper:
-    settings = CoffeeSiteSettings(
-        rate_per_sec=1000, max_retries=2, backoff_base_seconds=0.01
-    )
+    settings = unthrottled_site_settings(max_retries=2, backoff_base_seconds=0.01)
     return CoffeeScraper(settings, transport=httpx.MockTransport(server.handler))
 
 

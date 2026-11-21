@@ -11,6 +11,8 @@ from __future__ import annotations
 import asyncio
 import logging
 import random
+import time
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
 from typing import TYPE_CHECKING, Any, ClassVar, Self
@@ -19,6 +21,7 @@ import httpx
 from aiolimiter import AsyncLimiter
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
     from types import TracebackType
 
     from coffee_review.config import HttpClientSettings
@@ -70,6 +73,22 @@ def _parse_retry_after(value: str | None) -> float | None:
     return max(0.0, (when - datetime.now(UTC)).total_seconds())
 
 
+@dataclass
+class RequestStats:
+    """Every attempt this client sent, and how long the site took to answer.
+
+    Response time is measured around the send only, not the wait for a
+    concurrency or rate-limit slot, so it reflects the site, not our limits.
+    """
+
+    requests: int = 0
+    response_seconds: float = 0.0
+
+    @property
+    def mean_response_seconds(self) -> float | None:
+        return self.response_seconds / self.requests if self.requests else None
+
+
 class BaseHttpClient:
     """Async HTTP client with limits and retries. Use it as an async context manager::
 
@@ -88,8 +107,11 @@ class BaseHttpClient:
         *,
         headers: dict[str, str] | None = None,
         transport: httpx.AsyncBaseTransport | None = None,
+        clock: Callable[[], float] = time.monotonic,
     ) -> None:
         self.settings = settings
+        self.stats = RequestStats()
+        self._clock = clock  # lets tests control measured response times
         self._semaphore = asyncio.Semaphore(settings.max_concurrency)
         self._limiter = _make_limiter(settings.rate_per_sec)
         self._headers = {"User-Agent": settings.user_agent, **(headers or {})}
@@ -147,10 +169,14 @@ class BaseHttpClient:
         for attempt in range(s.max_retries + 1):
             resp: httpx.Response | None = None
             async with self._semaphore, self._limiter:
+                sent_at = self._clock()
                 try:
                     resp = await self._client.request(method, path, **kwargs)
                 except RETRYABLE_EXCEPTIONS as exc:
                     last_error = f"{type(exc).__name__}: {exc}"
+                finally:
+                    self.stats.requests += 1
+                    self.stats.response_seconds += self._clock() - sent_at
 
             if resp is not None:
                 if resp.status_code not in self.retryable_status:

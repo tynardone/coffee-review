@@ -6,6 +6,7 @@ InMemoryRawStore (held to the real store's contract) records the results.
 
 from __future__ import annotations
 
+import time
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
@@ -13,12 +14,14 @@ import httpx
 import pytest
 
 from coffee_review.clients.coffee_site import CoffeeScraper
-from coffee_review.config import CoffeeSiteSettings, Settings
+from coffee_review.config import Settings
 from coffee_review.models import FetchReason, SitemapEntry
 from coffee_review.pipeline.scrape import run_scrape
-from tests.fakes import FakeSite, InMemoryRawStore, Reply
+from tests.fakes import FakeSite, InMemoryRawStore, Reply, unthrottled_site_settings
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from coffee_review.models import ScrapeSummary
 
 SITE = "https://www.coffeereview.com"
@@ -38,12 +41,8 @@ def _no_real_sleeps(recorded_sleeps: list[float]) -> None:
 def settings() -> Settings:
     # One worker makes the fetch order deterministic; no retries keeps
     # failure tests to one request per page.
-    return Settings(
-        _env_file=None,
-        coffee_site=CoffeeSiteSettings(
-            max_concurrency=1, rate_per_sec=1000, max_retries=0
-        ),
-    )
+    site = unthrottled_site_settings(max_concurrency=1, max_retries=0)
+    return Settings(_env_file=None).model_copy(update={"coffee_site": site})
 
 
 def index_xml(*sitemaps: str) -> str:
@@ -92,11 +91,18 @@ async def scrape(
     now: datetime = FIRST_RUN,
     full: bool = False,
     limit: int | None = None,
+    clock: Callable[[], float] = time.monotonic,
 ) -> ScrapeSummary:
     config = settings()
     async with CoffeeScraper(config.coffee_site, transport=site.transport) as client:
         return await run_scrape(
-            config, client=client, store=store, full=full, limit=limit, now=now
+            config,
+            client=client,
+            store=store,
+            full=full,
+            limit=limit,
+            now=now,
+            clock=clock,
         )
 
 
@@ -297,3 +303,33 @@ async def test_full_refetches_everything() -> None:
     summary = await scrape(site_with(THREE), store, now=LATER_RUN, full=True)
 
     assert summary.fetched == {FetchReason.FULL: 3}
+
+
+async def test_summary_counts_sitemap_and_page_requests() -> None:
+    summary = await scrape(site_with(THREE), InMemoryRawStore())
+
+    assert summary.measurement is not None
+    assert summary.measurement.requests == 5  # index + 1 review sitemap + 3 pages
+
+
+async def test_summary_elapsed_from_clock() -> None:
+    ticks = iter([100.0, 130.0])
+
+    summary = await scrape(
+        site_with(THREE), InMemoryRawStore(), clock=lambda: next(ticks)
+    )
+
+    assert summary.measurement is not None
+    assert summary.measurement.elapsed_seconds == 30.0
+    assert summary.measurement.rate_per_sec == 1000
+    assert summary.measurement.max_concurrency == 1
+
+
+async def test_early_ending_is_measured_too() -> None:
+    site = site_with(THREE)
+    site.routes["/sitemap_index.xml"] = httpx.Response(429)
+
+    summary = await scrape(site, InMemoryRawStore())
+
+    assert summary.measurement is not None
+    assert summary.measurement.requests == 1

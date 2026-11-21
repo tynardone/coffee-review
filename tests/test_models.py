@@ -7,7 +7,13 @@ from datetime import UTC, datetime, timedelta, timezone
 import pytest
 from pydantic import ValidationError
 
-from coffee_review.models import FetchReason, ScrapeSummary, SitemapEntry
+from coffee_review.models import (
+    FetchReason,
+    RunMeasurement,
+    ScrapeSummary,
+    SitemapEntry,
+    format_elapsed,
+)
 
 URL = "https://www.coffeereview.com/review/x/"
 NOON_UTC = datetime(2026, 11, 21, 12, tzinfo=UTC)
@@ -89,3 +95,40 @@ def test_describe_stopped() -> None:
 
 def test_describe_nothing_fetched_has_no_parentheses() -> None:
     assert summary(fetched={}).describe().startswith("scrape finished: 0 fetched, ")
+
+
+def measurement(**overrides: object) -> RunMeasurement:
+    fields: dict[str, object] = {
+        "requests": 9431,
+        "elapsed_seconds": 1925,
+        "mean_response_seconds": 0.52,
+        "rate_per_sec": 5.0,
+        "max_concurrency": 5,
+    }
+    fields.update(overrides)
+    return RunMeasurement.model_validate(fields)
+
+
+def test_describe_reports_measurements() -> None:
+    lines = summary(measurement=measurement()).describe().splitlines()
+
+    assert lines[1] == (
+        "  in 32m 05s · 9,431 requests · avg 4.9/s · avg response 0.52s"
+        " · rate 5.0/s, concurrency 5"
+    )
+
+
+def test_describe_without_requests_shows_no_response_time() -> None:
+    quiet = measurement(requests=0, elapsed_seconds=0, mean_response_seconds=None)
+
+    assert quiet.describe() == (
+        "  in 0s · 0 requests · avg 0.0/s · avg response — · rate 5.0/s, concurrency 5"
+    )
+
+
+@pytest.mark.parametrize(
+    ("seconds", "text"),
+    [(45, "45s"), (1925, "32m 05s"), (3723, "1h 02m 03s"), (0.4, "0s")],
+)
+def test_format_elapsed(seconds: float, text: str) -> None:
+    assert format_elapsed(seconds) == text

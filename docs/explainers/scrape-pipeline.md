@@ -121,9 +121,31 @@ asked for, is a change to `open_raw_store` alone.
 - **`try: ... finally: store.close()`**: this closes the SQLite connection
   however the run ends, whether it returns normally or something raises.
 
-## 4. `run_scrape()`: the five steps
+## 4. `run_scrape()` and `_scrape_steps()`: measure, then the five steps
 
-This is the main function. Each step below matches a block in the code.
+`run_scrape` is a thin wrapper that measures the run (ADR 0005):
+
+```python
+started = clock()
+requests_before = client.stats.requests
+summary = await _scrape_steps(...)
+measured = summary.model_copy(update={"measurement": RunMeasurement(...)})
+```
+
+- **What it measures:** the number of requests sent (sitemaps, pages and
+  retries; the client counts every attempt), how long the run took, the
+  average response time, and the rate and concurrency used.
+- **Why a wrapper:** every way a run can end, early or not, passes through
+  this one place, so every summary gets measured and logged exactly once.
+- **Why the counts are "before" and "after" differences:** if the same
+  client is used for two runs, each summary still counts only its own
+  requests.
+- **Why `clock` is passed in** (it defaults to `time.monotonic`): tests can
+  control the elapsed time, the same way they control `now`. A monotonic
+  clock never jumps backwards, even if the system time changes, so it's the
+  right kind for measuring how long something took.
+
+`_scrape_steps` does the actual work. Each step below matches a block in it.
 
 ### Step 1: read the sitemaps
 
@@ -195,7 +217,8 @@ async with asyncio.TaskGroup() as workers:
         workers.create_task(run.work(client))
 ```
 
-**What happens:** this starts `max_concurrency` workers (2 by default), and
+**What happens:** this starts `max_concurrency` workers (5 by default, worked
+out from `--rate`; see ADR 0005), and
 they share one queue. The `async with` block doesn't end until every worker
 has finished.
 
@@ -235,8 +258,9 @@ run after 12 attempts.
 So `remaining` answers "how many still need fetching", counting both the
 reviews this run didn't get to and the ones it was never going to try.
 
-**The log level:** the summary is logged at WARNING if the run stopped and at
-INFO otherwise, so a stopped run stands out in the log.
+**The log level:** `run_scrape` logs the measured summary at INFO when the run
+finished, WARNING when it stopped and ERROR when it ended in an error, so
+problem runs stand out in the log.
 
 ## 5. `_read_sitemaps()`: all or nothing
 

@@ -14,10 +14,12 @@ Usage::
 
 from __future__ import annotations
 
+import math
 from functools import lru_cache
 from pathlib import Path
+from typing import Any, Self
 
-from pydantic import BaseModel, Field, HttpUrl, SecretStr
+from pydantic import BaseModel, Field, HttpUrl, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Placeholder until the public repository exists; then point it at the repo URL.
@@ -46,13 +48,59 @@ class HttpClientSettings(BaseModel):
     user_agent: str = USER_AGENT
 
 
+# Scrape speed (ADR 0005). 5/s is about 31 minutes for a full pass.
+DEFAULT_RATE_PER_SEC = 5.0
+MAX_RATE_PER_SEC = 10.0
+
+
+def concurrency_for_rate(rate_per_sec: float) -> int:
+    """Concurrency that can sustain ``rate_per_sec``: one second's worth in flight."""
+    return max(1, math.ceil(rate_per_sec))
+
+
 class CoffeeSiteSettings(HttpClientSettings):
-    """coffeereview.com. Deliberately slow: about 2.5 hours for a full pass."""
+    """coffeereview.com.
+
+    Speed is one setting, ``rate_per_sec``; ``max_concurrency`` is worked out
+    from it unless given, and a given value must suit the rate. The same rules
+    apply whether values come from the CLI or the environment.
+    """
 
     base_url: HttpUrl = HttpUrl("https://www.coffeereview.com/")
     sitemap_url: HttpUrl = HttpUrl("https://www.coffeereview.com/sitemap_index.xml")
-    rate_per_sec: float = Field(default=1.0, gt=0)
-    max_concurrency: int = Field(default=2, ge=1)
+    rate_per_sec: float = Field(default=DEFAULT_RATE_PER_SEC, gt=0, le=MAX_RATE_PER_SEC)
+    max_concurrency: int = Field(
+        default=concurrency_for_rate(DEFAULT_RATE_PER_SEC), ge=1
+    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _work_out_concurrency(cls, data: Any) -> Any:
+        """Fill in max_concurrency from the rate when it wasn't given."""
+        if isinstance(data, dict) and data.get("max_concurrency") is None:
+            try:
+                rate = float(data.get("rate_per_sec", DEFAULT_RATE_PER_SEC))
+            except TypeError, ValueError:
+                return data  # field validation reports the bad rate
+            data = {**data, "max_concurrency": concurrency_for_rate(rate)}
+        return data
+
+    @model_validator(mode="after")
+    def _check_concurrency_suits_rate(self) -> Self:
+        lowest = concurrency_for_rate(self.rate_per_sec)
+        highest = 2 * lowest
+        rate = f"{self.rate_per_sec:g}/s"
+        if self.max_concurrency < lowest:
+            raise ValueError(
+                f"concurrency {self.max_concurrency} can't reach a rate of {rate}; "
+                f"use at least {lowest}, or lower the rate"
+            )
+        if self.max_concurrency > highest:
+            raise ValueError(
+                f"concurrency {self.max_concurrency} is more than a rate of {rate} "
+                f"can use; use at most {highest}, or raise the rate"
+            )
+        return self
 
 
 class ForexApiSettings(HttpClientSettings):

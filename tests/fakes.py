@@ -7,10 +7,11 @@ real store), so tests using them check behavior, not which calls were made.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import httpx
 
+from coffee_review.config import CoffeeSiteSettings
 from coffee_review.models import ManifestRecord
 from coffee_review.storage.raw_store import PageNotFoundError
 
@@ -114,6 +115,16 @@ class InMemoryRawStore:
 
     def close(self) -> None:
         pass
+
+
+def unthrottled_site_settings(**overrides: Any) -> CoffeeSiteSettings:
+    """Site settings with the rate limit effectively off, for tests only.
+
+    Real settings refuse more than 10 requests/second (ADR 0005). Tests talk to
+    a fake site and shouldn't wait, so they skip that validation on purpose:
+    ``model_copy`` sets fields without validating them.
+    """
+    return CoffeeSiteSettings().model_copy(update={"rate_per_sec": 1000, **overrides})
 
 
 type Reply = httpx.Response | Callable[[], httpx.Response]

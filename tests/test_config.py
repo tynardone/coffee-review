@@ -11,7 +11,12 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from coffee_review.config import Settings, get_settings
+from coffee_review.config import (
+    CoffeeSiteSettings,
+    Settings,
+    concurrency_for_rate,
+    get_settings,
+)
 
 
 def load_settings() -> Settings:
@@ -24,12 +29,58 @@ def test_settings_load_with_empty_environment() -> None:
     assert settings.forex_api.api_key is None
 
 
-def test_coffee_site_defaults_are_polite() -> None:
+def test_coffee_site_sitemap_url() -> None:
     site = load_settings().coffee_site
 
-    assert site.rate_per_sec == 1.0
-    assert site.max_concurrency == 2
     assert str(site.sitemap_url) == "https://www.coffeereview.com/sitemap_index.xml"
+
+
+# --- scrape speed (ADR 0005) -------------------------------------------------
+
+
+def test_rate_defaults_to_5_with_concurrency_5() -> None:
+    site = CoffeeSiteSettings()
+
+    assert site.rate_per_sec == 5.0
+    assert site.max_concurrency == 5
+
+
+@pytest.mark.parametrize(
+    ("rate", "concurrency"), [(0.5, 1), (1, 1), (2.5, 3), (10, 10)]
+)
+def test_concurrency_worked_out_from_rate(rate: float, concurrency: int) -> None:
+    assert concurrency_for_rate(rate) == concurrency
+    assert CoffeeSiteSettings(rate_per_sec=rate).max_concurrency == concurrency
+
+
+def test_rate_above_ceiling_rejected() -> None:
+    with pytest.raises(ValidationError, match="10"):
+        CoffeeSiteSettings(rate_per_sec=10.5)
+
+
+def test_zero_rate_rejected() -> None:
+    with pytest.raises(ValidationError):
+        CoffeeSiteSettings(rate_per_sec=0)
+
+
+def test_concurrency_too_low_rejected() -> None:
+    with pytest.raises(ValidationError, match="at least 5"):
+        CoffeeSiteSettings(rate_per_sec=5, max_concurrency=2)
+
+
+def test_concurrency_too_high_rejected() -> None:
+    with pytest.raises(ValidationError, match="at most 4"):
+        CoffeeSiteSettings(rate_per_sec=2, max_concurrency=5)
+
+
+def test_concurrency_in_range_accepted() -> None:
+    assert CoffeeSiteSettings(rate_per_sec=3, max_concurrency=5).max_concurrency == 5
+
+
+def test_speed_from_env_follows_same_rules(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("COFFEE_REVIEW_COFFEE_SITE__RATE_PER_SEC", "3")
+
+    assert load_settings().coffee_site.max_concurrency == 3
 
 
 def test_nested_env_override(monkeypatch: pytest.MonkeyPatch) -> None:
