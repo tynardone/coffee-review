@@ -135,6 +135,25 @@ class Settings(BaseSettings):
     data_dir: Path = Path("data")
     log_level: str = "INFO"
 
+    def with_scrape_speed(
+        self, rate_per_sec: float, max_concurrency: int | None
+    ) -> Self:
+        """A copy with a new scrape speed, checked by CoffeeSiteSettings' rules.
+
+        With ``max_concurrency=None`` the concurrency is worked out from the
+        rate. Raises pydantic.ValidationError for a rate or pair it rejects.
+        """
+        site = CoffeeSiteSettings.model_validate(
+            {
+                **self.coffee_site.model_dump(
+                    exclude={"rate_per_sec", "max_concurrency"}
+                ),
+                "rate_per_sec": rate_per_sec,
+                "max_concurrency": max_concurrency,
+            }
+        )
+        return self.model_copy(update={"coffee_site": site})
+
 
 @lru_cache
 def get_settings() -> Settings:

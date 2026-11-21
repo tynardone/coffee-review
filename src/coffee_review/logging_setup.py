@@ -1,0 +1,64 @@
+"""Logging for command-line runs: the terminal, plus an optional run log file.
+
+The terminal shows plain messages at the configured level. The file, when
+given, keeps everything at DEBUG with timestamps, so a run can be examined
+afterwards (which reviews were fetched and why, every warning).
+"""
+
+from __future__ import annotations
+
+import logging
+import sys
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from datetime import datetime
+    from pathlib import Path
+
+PACKAGE_LOGGER = "coffee_review"
+FILE_FORMAT = "%(asctime)s %(levelname)s %(name)s: %(message)s"
+
+# Marks handlers this module added, so it can replace them without touching
+# anyone else's (pytest's, for example).
+_OWNED = "_coffee_review_handler"
+
+
+def configure_logging(level: str, log_file: Path | None) -> None:
+    """Send the package's logs to the terminal at ``level``, and all of it to a file."""
+    logger = logging.getLogger(PACKAGE_LOGGER)
+    remove_handlers()
+    logger.setLevel(logging.DEBUG)
+
+    terminal = logging.StreamHandler(sys.stderr)
+    terminal.setLevel(level.upper())
+    terminal.setFormatter(logging.Formatter("%(message)s"))
+    _add(logger, terminal)
+
+    if log_file is not None:
+        log_file.parent.mkdir(parents=True, exist_ok=True)
+        file_handler = logging.FileHandler(log_file, encoding="utf-8")
+        file_handler.setLevel(logging.DEBUG)
+        file_handler.setFormatter(logging.Formatter(FILE_FORMAT))
+        _add(logger, file_handler)
+
+    # httpx logs every request at INFO; at 5 requests a second that drowns
+    # everything else. Its warnings still come through.
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+
+
+def remove_handlers() -> None:
+    """Remove (and close) the handlers configure_logging added."""
+    logger = logging.getLogger(PACKAGE_LOGGER)
+    for handler in [h for h in logger.handlers if getattr(h, _OWNED, False)]:
+        logger.removeHandler(handler)
+        handler.close()
+
+
+def scrape_log_path(data_dir: Path, now: datetime) -> Path:
+    """Where a scrape started at ``now`` writes its log."""
+    return data_dir / "logs" / f"scrape-{now:%Y%m%dT%H%M%SZ}.log"
+
+
+def _add(logger: logging.Logger, handler: logging.Handler) -> None:
+    setattr(handler, _OWNED, True)
+    logger.addHandler(handler)

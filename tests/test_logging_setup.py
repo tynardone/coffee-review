@@ -1,0 +1,71 @@
+"""Tests for coffee_review.logging_setup."""
+
+from __future__ import annotations
+
+import logging
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING
+
+import pytest
+
+from coffee_review.logging_setup import (
+    configure_logging,
+    remove_handlers,
+    scrape_log_path,
+)
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
+    from pathlib import Path
+
+
+@pytest.fixture(autouse=True)
+def _restore_logging() -> Iterator[None]:
+    """configure_logging changes process-wide loggers; undo it after each test."""
+    httpx_level = logging.getLogger("httpx").level
+    yield
+    remove_handlers()
+    logging.getLogger("httpx").setLevel(httpx_level)
+
+
+def test_log_file_gets_debug_lines(tmp_path: Path) -> None:
+    log_file = tmp_path / "logs" / "run.log"
+    configure_logging("INFO", log_file)
+
+    logging.getLogger("coffee_review.pipeline").debug("fetching kenya-karinga-4")
+
+    assert "fetching kenya-karinga-4" in log_file.read_text(encoding="utf-8")
+
+
+def test_terminal_respects_level(capsys: pytest.CaptureFixture[str]) -> None:
+    configure_logging("WARNING", None)
+
+    logging.getLogger("coffee_review.pipeline").info("quiet")
+    logging.getLogger("coffee_review.pipeline").warning("loud")
+
+    err = capsys.readouterr().err
+    assert "loud" in err
+    assert "quiet" not in err
+
+
+def test_httpx_logger_quieted() -> None:
+    configure_logging("DEBUG", None)
+
+    assert logging.getLogger("httpx").level == logging.WARNING
+
+
+def test_configure_twice_does_not_duplicate(capsys: pytest.CaptureFixture[str]) -> None:
+    configure_logging("INFO", None)
+    configure_logging("INFO", None)
+
+    logging.getLogger("coffee_review").info("once")
+
+    assert capsys.readouterr().err.count("once") == 1
+
+
+def test_scrape_log_path_format(tmp_path: Path) -> None:
+    now = datetime(2026, 11, 21, 9, 5, 7, tzinfo=UTC)
+
+    assert scrape_log_path(tmp_path, now) == (
+        tmp_path / "logs" / "scrape-20261121T090507Z.log"
+    )

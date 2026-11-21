@@ -7,10 +7,24 @@ milestone that builds each stage.
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from importlib.metadata import version
 from typing import Annotated
 
 import typer
+from pydantic import ValidationError
+
+from coffee_review.config import MAX_RATE_PER_SEC, get_settings
+from coffee_review.logging_setup import configure_logging, scrape_log_path
+from coffee_review.pipeline.scrape import scrape
+
+# Exit codes. 2 is Click's own code for a usage error (a bad option), so a
+# stopped run gets 3: a script can tell "you typed it wrong" from "the site
+# pushed back".
+EXIT_FINISHED = 0
+EXIT_ERROR = 1
+EXIT_STOPPED = 3
+EXIT_CODES = {"finished": EXIT_FINISHED, "error": EXIT_ERROR, "stopped": EXIT_STOPPED}
 
 app = typer.Typer(
     help="Scrape, parse, clean and enrich coffeereview.com reviews.",
@@ -37,3 +51,61 @@ def main(
     ] = False,
 ) -> None:
     """Scrape, parse, clean and enrich coffeereview.com reviews."""
+
+
+@app.command("scrape")
+def scrape_command(
+    full: Annotated[
+        bool,
+        typer.Option("--full", help="Fetch every review, not just new or changed."),
+    ] = False,
+    limit: Annotated[
+        int | None,
+        typer.Option(min=1, help="Fetch at most this many pages this run."),
+    ] = None,
+    rate: Annotated[
+        float | None,
+        typer.Option(
+            help=(
+                f"Requests per second (default 5, at most {MAX_RATE_PER_SEC:g}). "
+                "Concurrency is worked out from it."
+            ),
+        ),
+    ] = None,
+    concurrency: Annotated[
+        int | None,
+        typer.Option(
+            help=(
+                "Requests in flight at once; needs --rate. "
+                "Between ceil(rate) and 2x that."
+            ),
+        ),
+    ] = None,
+) -> None:
+    """Download new and changed reviews into data/raw. Stops on any pushback.
+
+    Exit codes: 0 finished, 1 error, 2 bad options, 3 stopped by the site.
+    """
+    settings = get_settings()
+    if concurrency is not None and rate is None:
+        raise typer.BadParameter(
+            "--concurrency needs --rate; it only means something relative to a rate",
+            param_hint="--concurrency",
+        )
+    if rate is not None:
+        try:
+            settings = settings.with_scrape_speed(rate, concurrency)
+        except ValidationError as exc:
+            raise typer.BadParameter(
+                _first_message(exc), param_hint="--rate / --concurrency"
+            ) from None
+
+    now = datetime.now(UTC)
+    configure_logging(settings.log_level, scrape_log_path(settings.data_dir, now))
+    summary = scrape(settings, full=full, limit=limit, now=now)
+    raise typer.Exit(EXIT_CODES[summary.outcome])
+
+
+def _first_message(exc: ValidationError) -> str:
+    message = str(exc.errors()[0]["msg"])
+    return message.removeprefix("Value error, ")

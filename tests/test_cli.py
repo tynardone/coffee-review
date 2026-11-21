@@ -3,10 +3,17 @@
 from __future__ import annotations
 
 from importlib.metadata import version
+from typing import TYPE_CHECKING, Any
 
+import pytest
 from typer.testing import CliRunner
 
+from coffee_review import cli
 from coffee_review.cli import app
+from coffee_review.models import ScrapeSummary
+
+if TYPE_CHECKING:
+    from coffee_review.config import Settings
 
 runner = CliRunner()
 
@@ -24,3 +31,109 @@ def test_help_works_without_env() -> None:
 
     assert result.exit_code == 0
     assert "coffeereview.com" in result.output
+
+
+def canned_summary(outcome: str) -> ScrapeSummary:
+    return ScrapeSummary.model_validate(
+        {
+            "outcome": outcome,
+            "fetched": {},
+            "unchanged": 0,
+            "failed": 0,
+            "gone_slugs": [],
+            "delisted": 0,
+            "relisted": 0,
+            "remaining": 0,
+            "stopped_reason": None if outcome == "finished" else "because",
+        }
+    )
+
+
+class ScrapeSpy:
+    """Stands in for pipeline.scrape: records what the CLI passed, returns a summary."""
+
+    def __init__(self, outcome: str = "finished") -> None:
+        self.outcome = outcome
+        self.calls: list[dict[str, Any]] = []
+
+    def __call__(self, settings: Settings, **kwargs: Any) -> ScrapeSummary:
+        self.calls.append({"settings": settings, **kwargs})
+        return canned_summary(self.outcome)
+
+
+@pytest.fixture
+def spy(monkeypatch: pytest.MonkeyPatch) -> ScrapeSpy:
+    fake = ScrapeSpy()
+    monkeypatch.setattr(cli, "scrape", fake)
+    monkeypatch.setattr(cli, "configure_logging", lambda level, log_file: None)
+    return fake
+
+
+@pytest.mark.parametrize(
+    ("outcome", "code"),
+    [("finished", 0), ("error", 1), ("stopped", 3)],
+)
+def test_scrape_exit_codes(spy: ScrapeSpy, outcome: str, code: int) -> None:
+    spy.outcome = outcome
+
+    assert runner.invoke(app, ["scrape"]).exit_code == code
+
+
+def test_scrape_passes_options(spy: ScrapeSpy) -> None:
+    runner.invoke(app, ["scrape", "--full", "--limit", "5"])
+
+    assert spy.calls[0]["full"] is True
+    assert spy.calls[0]["limit"] == 5
+
+
+def test_scrape_defaults(spy: ScrapeSpy) -> None:
+    runner.invoke(app, ["scrape"])
+
+    site = spy.calls[0]["settings"].coffee_site
+    assert spy.calls[0]["full"] is False
+    assert spy.calls[0]["limit"] is None
+    assert (site.rate_per_sec, site.max_concurrency) == (5.0, 5)
+
+
+def test_scrape_rejects_zero_limit(spy: ScrapeSpy) -> None:
+    result = runner.invoke(app, ["scrape", "--limit", "0"])
+
+    assert result.exit_code == 2  # Click's usage-error code
+    assert spy.calls == []
+
+
+def test_scrape_rate_option_sets_rate_and_concurrency(spy: ScrapeSpy) -> None:
+    runner.invoke(app, ["scrape", "--rate", "3"])
+
+    site = spy.calls[0]["settings"].coffee_site
+    assert (site.rate_per_sec, site.max_concurrency) == (3.0, 3)
+
+
+def test_scrape_rate_and_concurrency_together(spy: ScrapeSpy) -> None:
+    runner.invoke(app, ["scrape", "--rate", "3", "--concurrency", "5"])
+
+    assert spy.calls[0]["settings"].coffee_site.max_concurrency == 5
+
+
+def test_scrape_concurrency_requires_rate(spy: ScrapeSpy) -> None:
+    result = runner.invoke(app, ["scrape", "--concurrency", "4"])
+
+    assert result.exit_code == 2
+    assert "--concurrency needs --rate" in result.output
+    assert spy.calls == []
+
+
+def test_scrape_rejects_unreachable_concurrency(spy: ScrapeSpy) -> None:
+    result = runner.invoke(app, ["scrape", "--rate", "5", "--concurrency", "2"])
+
+    assert result.exit_code == 2
+    assert "use at least 5" in result.output
+    assert spy.calls == []
+
+
+def test_scrape_rejects_rate_above_ceiling(spy: ScrapeSpy) -> None:
+    result = runner.invoke(app, ["scrape", "--rate", "50"])
+
+    assert result.exit_code == 2
+    assert "10" in result.output
+    assert spy.calls == []

@@ -40,7 +40,8 @@ flowchart TD
 ```
 
 Every path ends with a `ScrapeSummary`. The CLI turns its `outcome` into an
-exit code: `finished` → 0, `stopped` → 2, `error` → 1.
+exit code: `finished` → 0, `error` → 1, `stopped` → 3. (2 is taken by Click
+for bad options.)
 
 ---
 
@@ -465,7 +466,7 @@ answers 429.
 | | The worker takes `a`, which comes back `Fetched`, and `save_page(a)` runs. | queue: b, c |
 | | The worker takes `b`, which comes back `Pushback("HTTP 429")`, and `_stop` runs. | queue: c; stopped |
 | | The loop check sees the stop and the worker exits. | |
-| | Summary: `stopped`, 1 fetched, remaining = 1 (`c`), exit code 2. | |
+| | Summary: `stopped`, 1 fetched, remaining = 1 (`c`), exit code 3. | |
 | **Second run** | The manifest has only `a`. | |
 | | The rules select `b` and `c` (both `NEW`); `a` is unchanged. | queue: b, c |
 | | Both come back `Fetched` and are saved. | |

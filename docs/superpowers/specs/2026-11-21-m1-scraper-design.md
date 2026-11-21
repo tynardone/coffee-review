@@ -74,7 +74,7 @@ page. One 503 is usually a hiccup; several in a row trip the 5-in-a-row stop.
 
 On pushback the run sends no new requests, lets in-flight requests finish and
 saves their results, logs the cause (reason, URL, status) and how many reviews
-were left to fetch, prints the summary, and exits with code **2**. The next run
+were left to fetch, prints the summary, and exits with code **3**. The next run
 resumes naturally because the rerun rules skip what's already saved.
 
 ### Rerun rules
@@ -257,7 +257,7 @@ drives fetching so it can stop on pushback.
 `run_scrape(settings, *, full: bool, limit: int | None, now: datetime) -> ScrapeSummary`:
 
 1. Fetch and parse the index and every review sitemap. Any failure → stop
-   (exit 2 if pushback, else exit 1); nothing else happens.
+   (exit 3 if pushback, else exit 1); nothing else happens.
 2. Load the manifest; apply delisting marks.
 3. `select_reviews_to_fetch(...)`, ordered newest lastmod first *(my call: new
    reviews land first if a run stops early)*; apply `--limit`.
@@ -302,7 +302,9 @@ Every summary reports what the run actually did to the site:
 
 - `coffee-review scrape [--full] [--limit N] [--rate R] [--concurrency C]`.
   `--limit` exists so a first real run can be a handful of pages.
-- Exit codes: 0 finished, 1 error, 2 stopped by pushback. *My call:* a run that
+- Exit codes: 0 finished, 1 error, 2 bad options (Click's usage-error code),
+  3 stopped by pushback. *My call:* stopped was first planned as 2, which
+  collides with Click's usage errors; 3 lets a script tell them apart. A run that
   finishes with some failed pages still exits 0; the failures are in the
   summary and retried next run.
 - Logs go to the terminal (INFO) and to `data/logs/scrape-<UTC timestamp>.log`
