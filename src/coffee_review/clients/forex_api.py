@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from coffee_review.clients.http import BaseHttpClient
 
@@ -31,13 +31,13 @@ class ForexApiClient(BaseHttpClient):
     ) -> None:
         if settings.api_key is None:
             raise MissingApiKeyError
+        # The key goes in a header, not the ``app_id`` query parameter the API
+        # also accepts: URLs are written to logs and error messages, headers aren't.
         super().__init__(
-            settings, headers={"Accept": "application/json"}, transport=transport
+            settings,
+            headers={
+                "Accept": "application/json",
+                "Authorization": f"Token {settings.api_key.get_secret_value()}",
+            },
+            transport=transport,
         )
-        # OpenExchangeRates takes the key as the ``app_id`` query parameter.
-        self._auth_params = {"app_id": settings.api_key.get_secret_value()}
-
-    async def request(self, method: str, path: str, **kwargs: Any) -> httpx.Response:
-        """Send a request with ``app_id`` added to the caller's query params."""
-        kwargs["params"] = {**(kwargs.get("params") or {}), **self._auth_params}
-        return await super().request(method, path, **kwargs)

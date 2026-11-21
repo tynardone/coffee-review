@@ -1,6 +1,7 @@
 """Tests for coffee_review.config.
 
-Every test passes ``_env_file=None`` so a developer's real ``.env`` is never read.
+The autouse ``clean_env`` fixture (tests/conftest.py) keeps real env vars and
+``.env`` out; ``_env_file=None`` below is a second guard for direct ``Settings()``.
 """
 
 from __future__ import annotations
@@ -8,7 +9,7 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from coffee_review.config import Settings
+from coffee_review.config import Settings, get_settings
 
 
 def load_settings() -> Settings:
@@ -50,3 +51,9 @@ def test_invalid_value_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
 
     with pytest.raises(ValidationError):
         load_settings()
+
+
+def test_get_settings_ignores_local_env_file() -> None:
+    # Tests run from an empty temp directory (tests/conftest.py), so a real
+    # .env in the checkout is never read, even through the cached get_settings().
+    assert get_settings().forex_api.api_key is None

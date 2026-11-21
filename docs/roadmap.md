@@ -10,7 +10,7 @@ Why things are the way they are: [decisions/](decisions/).
 ## M0. Foundations
 
 - [x] Settings load with an empty environment; real base URLs; `COFFEE_REVIEW_` prefix
-- [x] FX client sends its key as `app_id`
+- [x] FX client sends its key in the `Authorization` header, never in the URL
 - [x] Typer CLI entry point (`coffee-review --help`, `--version`)
 - [x] pytest harness; tests for the HTTP client
 - [x] Strict mypy, pre-commit hooks, GitHub Actions workflow
@@ -79,4 +79,4 @@ Designed when reached.
 
 ## Backlog
 
-Nothing yet.
+- M1: is capping a 429 `Retry-After` at `backoff_max_seconds` polite enough for coffeereview.com, or should the scraper honor the full wait (or stop the run)?

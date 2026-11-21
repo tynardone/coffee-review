@@ -174,7 +174,7 @@ async def test_retry_after_is_capped(recorded_sleeps: list[float]) -> None:
     async with server.client() as client:
         await client.request("GET", "page")
 
-    assert recorded_sleeps[0] <= BACKOFF_MAX
+    assert recorded_sleeps[0] == BACKOFF_MAX
 
 
 async def test_request_before_open_raises() -> None:
