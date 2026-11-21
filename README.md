@@ -28,6 +28,45 @@ uv run pre-commit install
 uv run coffee-review --help
 ```
 
+## Running the scraper
+
+Start small, then go full:
+
+```bash
+uv run coffee-review scrape --limit 20   # try it: fetch 20 pages
+uv run coffee-review scrape              # everything new or changed
+```
+
+The first full run fetches about 9,400 pages, about 31 minutes at the default
+5 requests per second. It's resumable: if it stops for any reason, run it
+again and it continues where it left off. Later runs fetch only new and
+changed reviews, in seconds.
+
+**Speed.** `--rate R` sets requests per second (at most 10); concurrency is
+worked out from it. For experiments, `--rate R --concurrency C` sets both,
+within sensible bounds. See [ADR 0005](docs/decisions/0005-scrape-speed.md).
+
+**Reading the result.** Every run ends with two lines, e.g.
+
+```
+scrape finished: 12 fetched (3 new, 9 changed), 9,388 unchanged, 0 failed, 0 gone, 1 delisted
+  in 14s · 24 requests · avg 1.7/s · avg response 0.48s · rate 5.0/s, concurrency 5
+```
+
+If the achieved rate is well below the setting and responses are slow, the
+site is struggling: lower `--rate`.
+
+**Exit codes.** 0 finished · 1 error · 2 bad options · 3 stopped because the
+site pushed back (a 429, 403, challenge page, or 5 failures in a row).
+
+**Logs.** The terminal shows progress; the full DEBUG log of each run is in
+`data/logs/scrape-<UTC time>.log`. The manifest can be inspected while a run is
+going:
+
+```bash
+sqlite3 data/raw/manifest.sqlite "select status, count(*) from reviews group by 1"
+```
+
 ## Checks
 
 ```bash

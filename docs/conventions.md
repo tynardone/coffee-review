@@ -29,12 +29,19 @@ Imports only point along the arrows. Nothing imports `cli` or `pipeline`.
 That's what lets them be tested with plain inputs, and what stops one stage
 reaching into another.
 
+**Only `storage/` knows data formats and paths.** Everything else holds a
+storage Protocol (`RawStore`, …) and talks in project terms: slugs, models,
+datetimes, strings. One factory (`open_raw_store`) picks the implementation, so
+swapping storage is a change in one place ([ADR 0006](decisions/0006-sqlite-manifest-and-storage-boundary.md)).
+
 When it's unclear where new code goes, ask what it *does*:
 
 | It... | It goes in |
 |-------|-----------|
 | makes an HTTP request | `clients/` |
 | reads or writes a file under `data/` | `storage/` |
+| talks to the manifest or saved pages | `storage/` (through a Protocol) |
+| decides which reviews to fetch | `pipeline/fetch_rules.py` (pure) |
 | turns raw HTML/XML into a model | `parsers/` |
 | turns one table into another | `transforms/` |
 | runs a stage from start to finish | `pipeline/` |
@@ -85,6 +92,13 @@ way in paths, module names and CLI commands.
   `tests/fixtures/`, kept small and trimmed to the markup a test needs.
 - Write the test first and watch it fail. For code that already exists, break
   the code on purpose once to prove the test catches it.
+- **Prefer fakes behind a Protocol over mocks.** A fake is a small working
+  implementation (`InMemoryRawStore`, `FakeSite` in `tests/fakes.py`); a mock
+  only records calls. Hold a fake to the real thing's contract tests so it
+  can't drift.
+- Tests may deliberately bypass validation (for example
+  `unthrottled_site_settings()` turns the rate limit off); say so in the
+  helper's docstring.
 
 ## Working
 

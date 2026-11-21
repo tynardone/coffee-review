@@ -23,11 +23,16 @@ the docs exist.
 
 ## M1. Scraper
 
-- [ ] Fetch and parse the sitemap index and child sitemaps into (URL, lastmod)
-- [ ] Fetch review pages politely; failures returned per page, never ending the run
-- [ ] Raw store: gzipped HTML + manifest
-- [ ] Incremental logic (new, unknown times, changed since download, 24-hour lookback)
-- [ ] `coffee-review scrape [--full]`
+- [x] Fetch and parse the sitemap index and child sitemaps into (URL, lastmod)
+- [x] Fetch review pages politely; failures returned per page, never ending the run
+- [x] Raw store: gzipped HTML + SQLite manifest, behind the `RawStore` Protocol
+- [x] Incremental logic (new, failed, never fetched, changed, 24-hour lookback; gone pages skipped)
+- [x] Stop on pushback (429, 403, challenge page, 5 failures in a row)
+- [x] Delisted reviews kept and marked; 5% guard against a broken sitemap
+- [x] `coffee-review scrape [--full] [--limit N] [--rate R] [--concurrency C]`
+- [x] Run measurement: requests, elapsed, achieved rate, mean response time
+- [x] First real run with `--limit 20` (2026-11-21: 2 runs, 40 pages, 0 failures, avg response ~0.5s)
+- [ ] First full scrape (Tyler, when ready)
 
 **Done when:** a full scrape and a no-op incremental rerun both work, failures
 are logged and retried on the next run, and the incremental rules are covered
@@ -79,4 +84,5 @@ Designed when reached.
 
 ## Backlog
 
-- M1: is capping a 429 `Retry-After` at `backoff_max_seconds` polite enough for coffeereview.com, or should the scraper honor the full wait (or stop the run)?
+- ~~M1: is capping a 429 `Retry-After` at `backoff_max_seconds` polite enough?~~ Resolved: the scraper never retries a 429; it stops the run.
+- Measure the right `--rate` from real runs and record it (ADR 0005 allows up to 10/s).
