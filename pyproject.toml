@@ -53,6 +53,7 @@ extend-select = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
 addopts = ["--strict-markers", "-m", "not network"]
 markers = [
     "slow: takes more than a second or two",
