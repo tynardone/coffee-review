@@ -1,0 +1,299 @@
+"""End-to-end tests for the scrape pipeline, against a fake site and a fake store.
+
+No network and no files: FakeSite answers the HTTP requests and
+InMemoryRawStore (held to the real store's contract) records the results.
+"""
+
+from __future__ import annotations
+
+from datetime import UTC, datetime, timedelta
+from typing import TYPE_CHECKING
+
+import httpx
+import pytest
+
+from coffee_review.clients.coffee_site import CoffeeScraper
+from coffee_review.config import CoffeeSiteSettings, Settings
+from coffee_review.models import FetchReason, SitemapEntry
+from coffee_review.pipeline.scrape import run_scrape
+from tests.fakes import FakeSite, InMemoryRawStore, Reply
+
+if TYPE_CHECKING:
+    from coffee_review.models import ScrapeSummary
+
+SITE = "https://www.coffeereview.com"
+T = datetime(2026, 11, 1, 12, tzinfo=UTC)
+# Reviews were last edited well before the first run, so the 24-hour lookback
+# rule never fires by accident in these tests.
+OLD = T - timedelta(days=2)
+FIRST_RUN = T + timedelta(days=1)
+LATER_RUN = T + timedelta(days=2)
+
+
+@pytest.fixture(autouse=True)
+def _no_real_sleeps(recorded_sleeps: list[float]) -> None:
+    """Retries back off with asyncio.sleep; never actually wait in these tests."""
+
+
+def settings() -> Settings:
+    # One worker makes the fetch order deterministic; no retries keeps
+    # failure tests to one request per page.
+    return Settings(
+        _env_file=None,
+        coffee_site=CoffeeSiteSettings(
+            max_concurrency=1, rate_per_sec=1000, max_retries=0
+        ),
+    )
+
+
+def index_xml(*sitemaps: str) -> str:
+    body = "".join(f"<sitemap><loc>{SITE}{path}</loc></sitemap>" for path in sitemaps)
+    return (
+        '<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
+        f"{body}</sitemapindex>"
+    )
+
+
+def review_sitemap_xml(lastmods: dict[str, datetime]) -> str:
+    body = "".join(
+        f"<url><loc>{SITE}/review/{slug}/</loc>"
+        f"<lastmod>{lastmod.isoformat()}</lastmod></url>"
+        for slug, lastmod in lastmods.items()
+    )
+    return (
+        f'<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">{body}</urlset>'
+    )
+
+
+def site_with(
+    lastmods: dict[str, datetime], pages: dict[str, Reply] | None = None
+) -> FakeSite:
+    """A site whose one review sitemap lists ``lastmods``; pages default to 200."""
+    routes: dict[str, Reply] = {
+        "/sitemap_index.xml": httpx.Response(
+            200, text=index_xml("/review-sitemap.xml")
+        ),
+        "/review-sitemap.xml": httpx.Response(200, text=review_sitemap_xml(lastmods)),
+    }
+    for slug in lastmods:
+        routes[f"/review/{slug}/"] = httpx.Response(200, text=f"<html>{slug}</html>")
+    for slug, reply in (pages or {}).items():
+        routes[f"/review/{slug}/"] = reply
+    return FakeSite(routes)
+
+
+THREE = {"a": OLD, "b": OLD - timedelta(hours=1), "c": OLD - timedelta(hours=2)}
+
+
+async def scrape(
+    site: FakeSite,
+    store: InMemoryRawStore,
+    *,
+    now: datetime = FIRST_RUN,
+    full: bool = False,
+    limit: int | None = None,
+) -> ScrapeSummary:
+    config = settings()
+    async with CoffeeScraper(config.coffee_site, transport=site.transport) as client:
+        return await run_scrape(
+            config, client=client, store=store, full=full, limit=limit, now=now
+        )
+
+
+def page_requests(site: FakeSite) -> list[str]:
+    return [path for path in site.requested if path.startswith("/review/")]
+
+
+def seed(store: InMemoryRawStore, slugs: list[str]) -> None:
+    for slug in slugs:
+        entry = SitemapEntry(slug=slug, url=f"{SITE}/review/{slug}/", lastmod=OLD)
+        store.save_page(entry, "<html/>", FIRST_RUN, lookback=False)
+
+
+async def test_first_run_fetches_everything() -> None:
+    store = InMemoryRawStore()
+
+    summary = await scrape(site_with(THREE), store)
+
+    assert summary.outcome == "finished"
+    assert summary.fetched == {FetchReason.NEW: 3}
+    assert set(store.pages) == {"a", "b", "c"}
+    assert store.read_page("a") == "<html>a</html>"
+
+
+async def test_rerun_fetches_no_pages() -> None:
+    store = InMemoryRawStore()
+    await scrape(site_with(THREE), store)
+    site = site_with(THREE)
+
+    summary = await scrape(site, store, now=LATER_RUN)
+
+    assert page_requests(site) == []
+    assert summary.unchanged == 3
+    assert summary.describe().startswith("scrape finished: 0 fetched, 3 unchanged")
+
+
+async def test_changed_review_refetched() -> None:
+    store = InMemoryRawStore()
+    await scrape(site_with(THREE), store)
+    site = site_with({**THREE, "b": FIRST_RUN + timedelta(hours=1)})
+
+    summary = await scrape(site, store, now=LATER_RUN)
+
+    assert page_requests(site) == ["/review/b/"]
+    assert summary.fetched == {FetchReason.CHANGED: 1}
+
+
+async def test_pushback_stops_and_next_run_resumes() -> None:
+    store = InMemoryRawStore()
+    first = site_with(THREE, pages={"b": httpx.Response(429)})
+
+    stopped = await scrape(first, store)
+
+    assert stopped.outcome == "stopped"
+    assert stopped.stopped_reason == f"HTTP 429 at {SITE}/review/b/"
+    assert stopped.remaining == 1
+    assert page_requests(first) == ["/review/a/", "/review/b/"]
+    assert set(store.pages) == {"a"}
+
+    second = site_with(THREE)
+    resumed = await scrape(second, store, now=LATER_RUN)
+
+    assert resumed.outcome == "finished"
+    assert page_requests(second) == ["/review/b/", "/review/c/"]
+    assert set(store.pages) == {"a", "b", "c"}
+
+
+async def test_five_failures_in_a_row_stop() -> None:
+    lastmods = {f"r{i}": OLD - timedelta(hours=i) for i in range(6)}
+    pages: dict[str, Reply] = {slug: httpx.Response(500) for slug in lastmods}
+    store = InMemoryRawStore()
+
+    summary = await scrape(site_with(lastmods, pages), store)
+
+    assert summary.outcome == "stopped"
+    assert summary.failed == 5
+    assert summary.remaining == 1
+    assert summary.stopped_reason is not None
+    assert "5 failures in a row" in summary.stopped_reason
+
+
+async def test_success_resets_failure_streak() -> None:
+    lastmods = {f"r{i}": OLD - timedelta(hours=i) for i in range(9)}
+    pages: dict[str, Reply] = {
+        slug: httpx.Response(500) for slug in lastmods if slug != "r4"
+    }
+    store = InMemoryRawStore()
+
+    summary = await scrape(site_with(lastmods, pages), store)
+
+    assert summary.outcome == "finished"
+    assert summary.failed == 8
+
+
+async def test_gone_pages_do_not_stop_and_are_not_refetched() -> None:
+    lastmods = {f"r{i}": OLD - timedelta(hours=i) for i in range(6)}
+    pages: dict[str, Reply] = {slug: httpx.Response(404) for slug in lastmods}
+    store = InMemoryRawStore()
+
+    summary = await scrape(site_with(lastmods, pages), store)
+    rerun_site = site_with(lastmods, pages)
+    await scrape(rerun_site, store, now=LATER_RUN)
+
+    assert summary.outcome == "finished"
+    assert sorted(summary.gone_slugs) == sorted(lastmods)
+    assert page_requests(rerun_site) == []
+
+
+async def test_failed_pages_retried_next_run() -> None:
+    store = InMemoryRawStore()
+    await scrape(site_with(THREE, pages={"c": httpx.Response(500)}), store)
+    site = site_with(THREE)
+
+    summary = await scrape(site, store, now=LATER_RUN)
+
+    assert page_requests(site) == ["/review/c/"]
+    assert summary.fetched == {FetchReason.FAILED: 1}
+
+
+async def test_sitemap_failure_marks_nothing_delisted() -> None:
+    store = InMemoryRawStore()
+    seed(store, ["old"])
+    site = site_with(THREE)
+    site.routes["/review-sitemap.xml"] = httpx.Response(500)
+
+    summary = await scrape(site, store)
+
+    assert summary.outcome == "error"
+    assert store.records["old"].delisted_at is None
+    assert page_requests(site) == []
+
+
+async def test_sitemap_pushback_stops() -> None:
+    site = site_with(THREE)
+    site.routes["/sitemap_index.xml"] = httpx.Response(429)
+
+    summary = await scrape(site, InMemoryRawStore())
+
+    assert summary.outcome == "stopped"
+
+
+async def test_index_without_review_sitemaps_is_error() -> None:
+    site = site_with(THREE)
+    site.routes["/sitemap_index.xml"] = httpx.Response(
+        200, text=index_xml("/post-sitemap.xml")
+    )
+    store = InMemoryRawStore()
+    seed(store, ["a"])
+
+    summary = await scrape(site, store)
+
+    assert summary.outcome == "error"
+    assert store.records["a"].delisted_at is None
+
+
+async def test_delisted_review_marked_and_relisted() -> None:
+    listed = {f"r{i}": OLD for i in range(30)}
+    store = InMemoryRawStore()
+    seed(store, [*listed, "old"])
+
+    summary = await scrape(site_with(listed), store, now=LATER_RUN)
+    assert summary.delisted == 1
+    assert store.records["old"].delisted_at == LATER_RUN
+
+    relisted = await scrape(site_with({**listed, "old": OLD}), store, now=LATER_RUN)
+    assert relisted.relisted == 1
+    assert store.records["old"].delisted_at is None
+
+
+async def test_delisting_guard_blocks_mass_delisting() -> None:
+    store = InMemoryRawStore()
+    seed(store, [f"r{i}" for i in range(100)])
+    site = site_with({f"r{i}": OLD for i in range(90)})
+
+    summary = await scrape(site, store)
+
+    assert summary.outcome == "error"
+    assert summary.stopped_reason is not None
+    assert "10 of 100" in summary.stopped_reason
+    assert all(record.delisted_at is None for record in store.records.values())
+    assert page_requests(site) == []
+
+
+async def test_limit_caps_fetches() -> None:
+    store = InMemoryRawStore()
+
+    summary = await scrape(site_with(THREE), store, limit=2)
+
+    assert set(store.pages) == {"a", "b"}
+    assert summary.remaining == 1
+    assert summary.outcome == "finished"
+
+
+async def test_full_refetches_everything() -> None:
+    store = InMemoryRawStore()
+    await scrape(site_with(THREE), store)
+
+    summary = await scrape(site_with(THREE), store, now=LATER_RUN, full=True)
+
+    assert summary.fetched == {FetchReason.FULL: 3}

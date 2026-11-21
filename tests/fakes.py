@@ -9,11 +9,13 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+import httpx
+
 from coffee_review.models import ManifestRecord
 from coffee_review.storage.raw_store import PageNotFoundError
 
 if TYPE_CHECKING:
-    from collections.abc import Collection
+    from collections.abc import Callable, Collection
     from datetime import datetime
 
     from coffee_review.models import SitemapEntry
@@ -112,3 +114,32 @@ class InMemoryRawStore:
 
     def close(self) -> None:
         pass
+
+
+type Reply = httpx.Response | Callable[[], httpx.Response]
+
+
+class FakeSite:
+    """A fake web site: each path answers with a fixed response or a callable.
+
+    Use a callable when a page should answer differently over time (e.g. a 429
+    on the first run, then 200). ``requested`` lists every path asked for, in
+    order, so tests can check what a run did or didn't fetch.
+    """
+
+    def __init__(self, routes: dict[str, Reply]) -> None:
+        self.routes = routes
+        self.requested: list[str] = []
+        self.transport = httpx.MockTransport(self._handle)
+
+    def _handle(self, request: httpx.Request) -> httpx.Response:
+        path = request.url.path
+        self.requested.append(path)
+        reply = self.routes.get(path)
+        if reply is None:
+            return httpx.Response(404)
+        response = reply() if callable(reply) else reply
+        # A fresh copy each time, so the same route can be served repeatedly.
+        return httpx.Response(
+            response.status_code, headers=response.headers, content=response.content
+        )
