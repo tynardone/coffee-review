@@ -15,6 +15,7 @@ Usage::
 from __future__ import annotations
 
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic import BaseModel, Field, HttpUrl, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -82,6 +83,8 @@ class Settings(BaseSettings):
     forex_api: ForexApiSettings = Field(default_factory=ForexApiSettings)
     bls_api: BLSApiSettings = Field(default_factory=BLSApiSettings)
 
+    # Root of every data layer (raw, parsed, ...) and of run logs.
+    data_dir: Path = Path("data")
     log_level: str = "INFO"
 
 

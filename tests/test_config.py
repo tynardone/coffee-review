@@ -6,6 +6,8 @@ The autouse ``clean_env`` fixture (tests/conftest.py) keeps real env vars and
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 from pydantic import ValidationError
 
@@ -57,3 +59,7 @@ def test_get_settings_ignores_local_env_file() -> None:
     # Tests run from an empty temp directory (tests/conftest.py), so a real
     # .env in the checkout is never read, even through the cached get_settings().
     assert get_settings().forex_api.api_key is None
+
+
+def test_data_dir_default() -> None:
+    assert load_settings().data_dir == Path("data")
