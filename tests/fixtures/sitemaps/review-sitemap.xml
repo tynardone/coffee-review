@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?><?xml-stylesheet type="text/xsl" href="//www.coffeereview.com/wp-content/plugins/wordpress-seo/css/main-sitemap.xsl"?>
+<!-- Trimmed from https://www.coffeereview.com/review-sitemap10.xml (2026-11-21).
+     The entry without <lastmod> and the /about/ entry are synthetic edge cases. -->
+<urlset xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1" xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+	<url>
+		<loc>https://www.coffeereview.com/review/lauras-secret/</loc>
+		<lastmod>2026-07-31T17:39:14+00:00</lastmod>
+	</url>
+	<url>
+		<loc>https://www.coffeereview.com/review/kenya-karinga-4/</loc>
+		<lastmod>2026-08-03T20:31:04+00:00</lastmod>
+	</url>
+	<url>
+		<loc>https://www.coffeereview.com/review/colombia-jesus-arbey-iquira-pink-bourbon-2/</loc>
+	</url>
+	<url>
+		<loc>https://www.coffeereview.com/about/</loc>
+		<lastmod>2026-08-04T14:56:27+00:00</lastmod>
+	</url>
+</urlset>
