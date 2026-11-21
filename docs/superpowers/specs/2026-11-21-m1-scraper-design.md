@@ -34,7 +34,7 @@ a client and a pipeline module, each tested on its own.
 
 - Saving a Cloudflare challenge page, an error page or a redirect target as if
   it were a review.
-- Marking reviews removed because a sitemap failed to download.
+- Marking reviews delisted because a sitemap failed to download.
 - Sending more requests after the site has said no.
 - A partially written page or manifest after a crash.
 
@@ -115,15 +115,20 @@ Decided with Tyler: failures come in two kinds.
 Without this split, a handful of dead links in the sitemap would stop every
 run before it finished, and look like pushback when it isn't.
 
-### Removed reviews are kept
+### Delisted reviews are kept
+
+*Delisted* means no longer listed in the sitemap. We can't tell whether the
+site deleted the review or moved its URL, and we never delete anything
+ourselves, so the word describes only what we observe. (Renamed from
+"removed", which read like deletion from our own store.)
 
 After **all** review sitemaps downloaded and parsed successfully, any manifest
-slug that wasn't in them and has no `removed_at` gets `removed_at = now`. A slug
-that reappears gets `removed_at` cleared. Saved HTML is never deleted. If any
-sitemap fails, the run stops before fetching pages and marks nothing removed.
+slug that wasn't in them and has no `delisted_at` gets `delisted_at = now`. A slug
+that reappears gets `delisted_at` cleared. Saved HTML is never deleted. If any
+sitemap fails, the run stops before fetching pages and marks nothing delisted.
 
 *My call:* a sanity guard. If a run would mark more than 5% of the manifest
-removed (about 470 reviews), it marks nothing, logs the count, and stops with
+delisted (about 470 reviews), it marks nothing, logs the count, and stops with
 exit 1. A sitemap that parses but is suspiciously small (a Yoast change, a
 mostly empty 200) is far more likely than hundreds of real deletions.
 
@@ -150,8 +155,8 @@ swapped in one place.
   - `save_page(entry: SitemapEntry, html: str, fetched_at: datetime, *, lookback: bool) -> None`
   - `record_failure(entry: SitemapEntry, error: str, attempted_at: datetime) -> None`
   - `record_gone(entry: SitemapEntry, reason: str, attempted_at: datetime) -> None`
-  - `mark_removed(slugs: Collection[str], at: datetime) -> None`
-  - `mark_restored(slugs: Collection[str]) -> None`
+  - `mark_delisted(slugs: Collection[str], at: datetime) -> None`
+  - `mark_relisted(slugs: Collection[str]) -> None`
   - `read_page(slug: str) -> str`
 - `GzipSqliteRawStore` implements it. It is the only code that knows about
   `.html.gz` files, SQLite, file paths, WAL mode or `data_dir`.
@@ -187,13 +192,13 @@ plain values. *My call.*
 ### Models
 
 - `SitemapEntry(slug: str, url: str, lastmod: datetime | None)`, frozen.
-- `ManifestRecord(slug, url, lastmod, fetched_at, last_attempt_at, status, last_error, lookback_done, first_seen_at, removed_at)`,
+- `ManifestRecord(slug, url, lastmod, fetched_at, last_attempt_at, status, last_error, lookback_done, first_seen_at, delisted_at)`,
   frozen. `status` is `"ok"`, `"failed"` or `"gone"`. `fetched_at` is the last
   *successful* fetch; `last_attempt_at` is the last attempt of any outcome. All
   datetimes timezone-aware UTC.
 - `FetchReason`: `StrEnum` with the six reasons above.
 - `ScrapeSummary`: counts of fetched-by-reason, unchanged, failed, gone,
-  removed, restored, remaining; the slugs that went `gone` this run;
+  delisted, relisted, remaining; the slugs that went `gone` this run;
   `stopped_reason: str | None`.
 
 pydantic models, per the roadmap's "typed models at every handoff".
@@ -251,7 +256,7 @@ drives fetching so it can stop on pushback.
 
 1. Fetch and parse the index and every review sitemap. Any failure → stop
    (exit 2 if pushback, else exit 1); nothing else happens.
-2. Load the manifest; apply removal/restoration marks.
+2. Load the manifest; apply delisting marks.
 3. `select_reviews_to_fetch(...)`, ordered newest lastmod first *(my call: new
    reviews land first if a run stops early)*; apply `--limit`.
 4. Fetch with the client's concurrency; save each result as it arrives; stop on
@@ -272,7 +277,7 @@ without a time-mocking library.
   (DEBUG). The `httpx` logger is set to WARNING so routine request lines don't
   flood the output.
 - Final line, e.g.
-  `scrape finished: 12 fetched (3 new, 9 changed), 9,388 unchanged, 0 failed, 1 removed`.
+  `scrape finished: 12 fetched (3 new, 9 changed), 9,388 unchanged, 0 failed, 1 delisted`.
 
 ## Testing
 
@@ -288,12 +293,12 @@ in-memory implementation of a Protocol instead of mocked calls.
   (an index and a child sitemap trimmed to a few entries), plus inline edge
   cases: missing lastmod, non-review URLs, bad dates.
 - **`GzipSqliteRawStore`**: round trips in `tmp_path`; upsert; failures keep the old file;
-  removal and restoration; atomic write leaves no temp files.
+  delisting and relisting; atomic write leaves no temp files.
 - **client**: MockTransport for each `Fetched`/`Failed`/`Gone`/`Pushback` case,
   including a challenge page served with 200 and a redirect to the homepage.
 - **pipeline**: end-to-end with a fake site (MockTransport) and `InMemoryRawStore`:
   first run, no-op rerun (zero page requests), changed review, pushback stops
-  and the next run resumes, sitemap failure marks nothing removed, six 404s
+  and the next run resumes, sitemap failure marks nothing delisted, six 404s
   in a row don't stop the run and aren't refetched next time.
 - **one `network` test**: fetch the real sitemap index and check it lists
   review sitemaps. Skipped by default.

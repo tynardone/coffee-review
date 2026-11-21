@@ -60,8 +60,11 @@ way in paths, module names and CLI commands.
 - **Modules are nouns** for what they hold: `review_store.py`, `forex_api.py`.
 - **Functions are verbs** for what they do: `fetch_sitemap`, `parse_review`,
   `normalize_price`.
-- **One name per concept**, everywhere: *review*, *slug*, *lastmod*. Don't alias
-  (no `article` for a review, no `modified` for lastmod).
+- **One name per concept**, everywhere: *review*, *slug*, *lastmod*, *delisted*.
+  Don't alias (no `article` for a review, no `modified` for lastmod).
+- **Names say what we observe, not what we assume.** A review missing from the
+  sitemap is *delisted*, not "removed" or "deleted": we can't see why it's gone,
+  and "removed" reads like we deleted it ourselves.
 - **Classes only where there's state to hold**: HTTP clients, stores. Parsing and
   transforming are plain functions.
 - **Leading underscore** for module-private helpers (`_parse_retry_after`). Tests

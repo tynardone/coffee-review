@@ -59,8 +59,8 @@ def summary(**overrides: object) -> ScrapeSummary:
         "unchanged": 9388,
         "failed": 0,
         "gone_slugs": [],
-        "removed": 1,
-        "restored": 0,
+        "delisted": 1,
+        "relisted": 0,
         "remaining": 0,
         "stopped_reason": None,
     }
@@ -71,7 +71,7 @@ def summary(**overrides: object) -> ScrapeSummary:
 def test_describe_finished() -> None:
     assert summary().describe() == (
         "scrape finished: 12 fetched (3 new, 9 changed), 9,388 unchanged, "
-        "0 failed, 0 gone, 1 removed"
+        "0 failed, 0 gone, 1 delisted"
     )
 
 

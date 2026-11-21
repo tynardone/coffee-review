@@ -56,7 +56,7 @@ class ManifestRecord(_Frozen):
     last_error: str | None
     lookback_done: bool
     first_seen_at: UtcDatetime
-    removed_at: UtcDatetime | None
+    delisted_at: UtcDatetime | None
 
 
 class FetchReason(StrEnum):
@@ -78,8 +78,8 @@ class ScrapeSummary(_Frozen):
     unchanged: int
     failed: int
     gone_slugs: list[str]
-    removed: int
-    restored: int
+    delisted: int
+    relisted: int
     remaining: int
     stopped_reason: str | None
 
@@ -95,7 +95,7 @@ class ScrapeSummary(_Frozen):
         line = (
             f"scrape {self.outcome}: {fetched}, {self.unchanged:,} unchanged, "
             f"{self.failed} failed, {len(self.gone_slugs)} gone, "
-            f"{self.removed} removed"
+            f"{self.delisted} delisted"
         )
         if self.outcome == "stopped":
             line += f" (stopped: {self.stopped_reason}; {self.remaining} remaining)"
