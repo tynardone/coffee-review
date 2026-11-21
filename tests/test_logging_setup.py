@@ -69,3 +69,29 @@ def test_scrape_log_path_format(tmp_path: Path) -> None:
     assert scrape_log_path(tmp_path, now) == (
         tmp_path / "logs" / "scrape-20261121T090507Z.log"
     )
+
+
+def test_log_file_timestamps_are_utc(tmp_path: Path) -> None:
+    # Same clock as the file name (scrape_log_path uses UTC), whatever the
+    # machine's local time zone is.
+    configure_logging("INFO", tmp_path / "run.log")
+    file_handler = next(
+        h
+        for h in logging.getLogger("coffee_review").handlers
+        if isinstance(h, logging.FileHandler)
+    )
+    record = logging.makeLogRecord(
+        {
+            "name": "coffee_review.pipeline",
+            "levelname": "INFO",
+            "msg": "hello",
+            "created": datetime(
+                2026, 11, 21, 23, 43, 11, 250000, tzinfo=UTC
+            ).timestamp(),
+            "msecs": 250.0,
+        }
+    )
+
+    line = file_handler.format(record)
+
+    assert line == "2026-11-21T23:43:11.250Z INFO coffee_review.pipeline: hello"
