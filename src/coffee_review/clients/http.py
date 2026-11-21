@@ -1,5 +1,5 @@
 """
-Shared async http plumbing: concurrency cap, rate limit, retries with exponential
+Shared async HTTP plumbing: concurrency cap, rate limit, retries with exponential
 backoff and full jitter, and Retry-After handling.
 
 Service clients subclass ``BaseHttpClient`` and call ``self.request(...)``.
@@ -13,7 +13,7 @@ import logging
 import random
 from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Self
 
 import httpx
 from aiolimiter import AsyncLimiter
@@ -69,7 +69,7 @@ def _parse_retry_after(value: str | None) -> float | None:
 
 
 class BaseHttpClient:
-    """Async Http client with limits and retries. Use it as an async context manager::
+    """Async HTTP client with limits and retries. Use it as an async context manager::
 
     async with SomeClient(settings) as client:
         await client.some_method()
@@ -90,7 +90,7 @@ class BaseHttpClient:
         self._client: httpx.AsyncClient | None = None
 
     async def open(self) -> None:
-        if self._client is None:
+        if self._client is not None:
             return
         s = self.settings
         self._client = httpx.AsyncClient(
@@ -117,3 +117,51 @@ class BaseHttpClient:
         s = self.settings
         cap = min(s.backoff_max_seconds, s.backoff_base_seconds * 2**attempt)
         return random.uniform(0, cap)
+
+    async def __aenter__(self) -> Self:
+        await self.open()
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb) -> None:
+        await self.close()
+
+    async def request(self, method: str, path: str, **kwargs) -> httpx.Response:
+        if self._client is None:
+            raise RuntimeError("Client not open; use 'async with' or call open()")
+        s = self.settings
+        url = str(self._client.base_url.join(path))  # full URL for logs and errors
+        last_error = "unknown"
+
+        for attempt in range(s.max_retries + 1):
+            resp: httpx.Response | None = None
+            async with self._semaphore, self._limiter:
+                try:
+                    resp = await self._client.request(method, path, **kwargs)
+                except RETRYABLE_EXCEPTIONS as exc:
+                    last_error = f"{type(exc).__name__}: {exc}"
+
+            if resp is not None:
+                if resp.status_code not in RETRYABLE_STATUS:
+                    resp.raise_for_status()  # 4xx/other errors raise immediately
+                    return resp
+                last_error = f"HTTP {resp.status_code}"
+
+            if attempt == s.max_retries:
+                break
+
+            delay = self._backoff_delay(attempt)
+            if resp is not None:
+                retry_after = _parse_retry_after(resp.headers.get("Retry-After"))
+                if retry_after is not None:
+                    delay = max(delay, min(retry_after, s.backoff_max_seconds))
+            logger.warning(
+                "%s %s -> %s; retry %d in %.1fs",
+                method,
+                url,
+                last_error,
+                attempt + 1,
+                delay,
+            )
+            await asyncio.sleep(delay)
+
+        raise RetriesExhaustedError(method, url, s.max_retries + 1, last_error)

@@ -39,16 +39,16 @@ class HttpClientSettings(BaseModel):
     user_agent: str = "myproject/0.1 (contact: tynardone@gmail.com)"
 
 
-class CoffeeSiteSettings(HTTPClientSettings):
+class CoffeeSiteSettings(HttpClientSettings):
     base_url: HttpUrl = HttpUrl("www.base")
     sitemap_url: HttpUrl = HttpUrl("www.sitemap")
 
 
-class ForexApiSettings(HTTPClientSettings):
+class ForexApiSettings(HttpClientSettings):
     api_key: SecretStr
 
 
-class BLSApiSettings(HTTPClientSettings):
+class BLSApiSettings(HttpClientSettings):
     pass
 
 
