@@ -23,6 +23,9 @@ build-backend = "uv_build"
 [dependency-groups]
 dev = [
     "mypy>=2.4.1",
+    "pytest>=9.2.0",
+    "pytest-asyncio>=1.5.0",
+    "pytest-cov>=7.1.0",
     "ruff>=0.17.6",
 ]
 
@@ -46,3 +49,16 @@ extend-select = [
     "NPY",      # Some numpy-specific things
     "FURB",     # Suggest more idiomatic Python patterns
 ]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+addopts = ["--strict-markers", "-m", "not network"]
+markers = [
+    "slow: takes more than a second or two",
+    "network: talks to a real external service; never run in CI",
+]
+
+[tool.coverage.run]
+source = ["coffee_review"]
+branch = true
