@@ -1,7 +1,7 @@
 [project]
 name = "coffee-review"
 version = "0.1.0"
-description = "Add your description here"
+description = "Scrape, parse, clean and enrich coffeereview.com reviews."
 readme = "README.md"
 authors = [
     { name = "Tyler Nardone", email = "tynardone@gmail.com" }
