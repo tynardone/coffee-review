@@ -7,6 +7,7 @@ milestone that builds each stage.
 
 from __future__ import annotations
 
+import logging
 from datetime import UTC, datetime
 from importlib.metadata import version
 from typing import Annotated
@@ -17,6 +18,7 @@ from rich.console import Console
 
 from coffee_review.config import MAX_RATE_PER_SEC, get_settings
 from coffee_review.logging_setup import configure_logging, run_log_path
+from coffee_review.pipeline.parse import parse
 from coffee_review.pipeline.scrape import scrape
 from coffee_review.progress_display import RichRunProgress
 
@@ -27,6 +29,8 @@ EXIT_FINISHED = 0
 EXIT_ERROR = 1
 EXIT_STOPPED = 3
 EXIT_CODES = {"finished": EXIT_FINISHED, "error": EXIT_ERROR, "stopped": EXIT_STOPPED}
+
+logger = logging.getLogger(__name__)
 
 app = typer.Typer(
     help="Scrape, parse, clean and enrich coffeereview.com reviews.",
@@ -131,6 +135,33 @@ def scrape_command(
         ),
     )
     raise typer.Exit(EXIT_CODES[summary.outcome])
+
+
+@app.command("parse")
+def parse_command() -> None:
+    """Parse every saved review page into data/parsed, and write a report.
+
+    Exit codes: 0 finished (issues are in the report), 1 error.
+    """
+    settings = get_settings()
+    now = datetime.now(UTC)
+    console = Console(stderr=True)
+    configure_logging(
+        settings.log_level,
+        run_log_path(settings.data_dir, "parse", now),
+        console=console,
+    )
+    progress = RichRunProgress(
+        console, label="parsing", outcomes=("roasted", "green", "issue")
+    )
+    try:
+        result = parse(settings, progress=progress)
+    except Exception as exc:
+        logger.debug("parse failed", exc_info=True)  # full traceback, log file only
+        logger.error("parse failed: %s: %s", type(exc).__name__, exc)
+        typer.echo(f"parse failed: {exc}", err=True)
+        raise typer.Exit(EXIT_ERROR) from None
+    typer.echo(f"report: {result.report_location}")
 
 
 def _first_message(exc: ValidationError) -> str:
