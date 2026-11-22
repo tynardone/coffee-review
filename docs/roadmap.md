@@ -32,7 +32,7 @@ the docs exist.
 - [x] `coffee-review scrape [--full] [--limit N] [--rate R] [--concurrency C]`
 - [x] Run measurement: requests, elapsed, achieved rate, mean response time
 - [x] First real run with `--limit 20` (2026-11-21: 2 runs, 40 pages, 0 failures, avg response ~0.5s)
-- [ ] First full scrape (Tyler, when ready)
+- [x] First full scrape (2026-11-22: 9,440 reviews, 261 MB; 4 encoded-slug pages fixed and refetched)
 
 **Done when:** a full scrape and a no-op incremental rerun both work, failures
 are logged and retried on the next run, and the incremental rules are covered

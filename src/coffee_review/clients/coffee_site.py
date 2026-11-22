@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
-from urllib.parse import urlsplit
+from urllib.parse import unquote, urlsplit
 
 import httpx
 
@@ -98,9 +98,10 @@ class CoffeeScraper(BaseHttpClient):
         If ``stop`` is set while this page is being retried, no further retry is
         sent and the page comes back Failed (to be fetched again next run).
         """
-        return await self._fetch(
-            entry.url, expected_path=urlsplit(entry.url).path, stop=stop
-        )
+        # Compare decoded paths: the sitemap lists "ka%ca%bbu-..." but the site
+        # answers at "kaʻu-..." (httpx reports response paths decoded). Same page.
+        expected_path = unquote(urlsplit(entry.url).path)
+        return await self._fetch(entry.url, expected_path=expected_path, stop=stop)
 
     async def _fetch(
         self, url: str, *, expected_path: str | None, stop: asyncio.Event | None

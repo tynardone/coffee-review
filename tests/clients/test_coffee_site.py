@@ -198,3 +198,51 @@ async def test_stop_turns_a_pending_retry_into_failed() -> None:
     assert isinstance(result, Failed)
     assert "stopped" in result.error
     assert client.stats.requests == 1
+
+
+ENCODED = SitemapEntry(
+    slug="ka%ca%bbu-natural-typica",
+    url=f"{SITE}/review/ka%ca%bbu-natural-typica/",
+    lastmod=None,
+)
+
+
+async def test_percent_encoded_slug_redirected_to_its_decoded_spelling_is_fetched() -> (
+    None
+):
+    # What the site really does: the sitemap lists the percent-encoded address,
+    # and the site redirects to the same page spelled with the real characters.
+    server = FakeServer(
+        {
+            "/review/kaʻu-natural-typica/": [
+                # Headers are ASCII, so the target arrives percent-encoded, in
+                # upper case where the sitemap used lower case.
+                httpx.Response(
+                    301,
+                    headers={"Location": f"{SITE}/review/ka%CA%BBu-natural-typica/"},
+                ),
+                httpx.Response(200, text="<html>kaʻu</html>"),
+            ]
+        }
+    )
+    async with scraper(server) as client:
+        result = await client.fetch_review_page(ENCODED)
+
+    assert result == Fetched(text="<html>kaʻu</html>")
+
+
+async def test_percent_encoded_slug_redirected_elsewhere_is_still_gone() -> None:
+    server = FakeServer(
+        {
+            "/review/kaʻu-natural-typica/": [
+                httpx.Response(
+                    301, headers={"Location": f"{SITE}/review/kona-peaberry/"}
+                )
+            ],
+            "/review/kona-peaberry/": [httpx.Response(200, text="<html/>")],
+        }
+    )
+    async with scraper(server) as client:
+        result = await client.fetch_review_page(ENCODED)
+
+    assert result == Gone(reason="redirected to /review/kona-peaberry/")
