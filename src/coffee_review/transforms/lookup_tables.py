@@ -10,7 +10,17 @@ that only ``storage/`` knows data formats.
   yet is still known;
 - ``places.csv``: hand-kept: other spellings, Hawaiʻi, islands, broad areas,
   US states and Canadian provinces, with each place's standard name, the
-  country it's in, and what kind of place it is.
+  country it's in, and what kind of place it is;
+- ``currency_codes.csv``: every ISO 4217 code, generated the same way;
+- ``currencies.csv``: hand-kept: other ways prices write a currency (``NT``,
+  ``£``, ``Kč``), and the code each means;
+- ``roaster_currencies.csv``: symbols that mean different currencies in
+  different countries (``$``, ``¥``), read using the roaster's country
+  (Decision 7); a ``*`` row is the symbol's meaning everywhere else;
+- ``units.csv``: every way prices write a unit, its standard name, its kind
+  (weight, volume or count), and grams per unit for weights.
+
+``scripts/generate_lookup_tables.py`` writes the two generated tables.
 """
 
 from __future__ import annotations
@@ -27,6 +37,7 @@ if TYPE_CHECKING:
     from collections.abc import Mapping
 
 type PlaceKind = Literal["country", "state", "province", "island", "area"]
+type UnitKind = Literal["weight", "volume", "count"]
 MULTIPLE = "Multiple"  # the "country" of a broad area or blend
 
 _APOSTROPHES = str.maketrans({"’": "'", "‘": "'", "ʻ": "'", "`": "'", "´": "'"})
@@ -56,6 +67,66 @@ def normalise_place(text: str) -> str:
     """
     text = _QUOTES.sub("", text.translate(_APOSTROPHES))
     return " ".join(text.split()).strip(" .,;:").lower()
+
+
+@dataclass(frozen=True)
+class Unit:
+    """A unit a price can be quoted in."""
+
+    name: str  # the standard name: "ounce", "fluid ounce", "capsule"
+    kind: UnitKind
+    grams: float | None  # grams per unit, for weights only
+
+
+def normalise_symbol(text: str) -> str:
+    """A currency as written, without case, spaces or full stops: ``NT $`` → ``NT$``."""
+    return "".join(text.split()).replace(".", "").upper()
+
+
+def normalise_unit(text: str) -> str:
+    """A unit as written, ignoring case and full stops: ``oz.`` → ``oz``."""
+    return " ".join(text.replace(".", " ").split()).lower()
+
+
+@cache
+def load_currencies() -> Mapping[str, str]:
+    """Every currency spelling → its ISO 4217 code, keyed by ``normalise_symbol``.
+
+    Every ISO code means itself; ``currencies.csv`` adds other spellings.
+    Symbols whose meaning depends on the country (``$``, ``¥``) aren't here: see
+    ``load_roaster_currencies``.
+    """
+    currencies = {row["code"]: row["code"] for row in _read_csv("currency_codes.csv")}
+    for row in _read_csv("currencies.csv"):
+        currencies[normalise_symbol(row["alias"])] = row["currency"]
+    return MappingProxyType(currencies)
+
+
+@cache
+def load_roaster_currencies() -> Mapping[str, Mapping[str, str]]:
+    """Symbol → {roaster country, or ``*`` for anywhere else → ISO code}."""
+    by_symbol: dict[str, dict[str, str]] = {}
+    for row in _read_csv("roaster_currencies.csv"):
+        symbol = normalise_symbol(row["symbol"])
+        by_symbol.setdefault(symbol, {})[row["roaster_country"]] = row["currency"]
+    return MappingProxyType(
+        {symbol: MappingProxyType(rows) for symbol, rows in by_symbol.items()}
+    )
+
+
+@cache
+def load_units() -> Mapping[str, Unit]:
+    """Every unit spelling, keyed by ``normalise_unit``."""
+    return MappingProxyType(
+        {
+            normalise_unit(row["alias"]): Unit(
+                name=row["name"],
+                kind=cast("UnitKind", row["kind"]),
+                grams=float(row["grams"]) if row["grams"] else None,
+            )
+            for row in _read_csv("units.csv")
+        }
+    )
 
 
 @cache

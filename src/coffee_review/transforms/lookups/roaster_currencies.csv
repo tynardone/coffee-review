@@ -1,0 +1,37 @@
+symbol,roaster_country,currency
+$,*,USD
+$,Canada,CAD
+$,Australia,AUD
+$,Hong Kong,HKD
+$,Singapore,SGD
+$,New Zealand,NZD
+¥,Japan,JPY
+¥,China,CNY
+E,Austria,EUR
+E,Belgium,EUR
+E,Croatia,EUR
+E,Cyprus,EUR
+E,Estonia,EUR
+E,Finland,EUR
+E,France,EUR
+E,Germany,EUR
+E,Greece,EUR
+E,Ireland,EUR
+E,Italy,EUR
+E,Latvia,EUR
+E,Lithuania,EUR
+E,Luxembourg,EUR
+E,Malta,EUR
+E,Netherlands,EUR
+E,Portugal,EUR
+E,Slovakia,EUR
+E,Slovenia,EUR
+E,Spain,EUR
+pesos,Mexico,MXN
+pesos,Colombia,COP
+pesos,Chile,CLP
+pesos,Argentina,ARS
+pesos,Philippines,PHP
+pesos,Dominican Republic,DOP
+pesos,Uruguay,UYU
+pesos,Cuba,CUP

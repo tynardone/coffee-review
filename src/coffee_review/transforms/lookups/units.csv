@@ -1,0 +1,65 @@
+alias,name,kind,grams
+ounce,ounce,weight,28.349523125
+ounces,ounce,weight,28.349523125
+oz,ounce,weight,28.349523125
+onzas,ounce,weight,28.349523125
+gram,gram,weight,1.0
+grams,gram,weight,1.0
+g,gram,weight,1.0
+gr,gram,weight,1.0
+gm,gram,weight,1.0
+kilogram,kilogram,weight,1000.0
+kilograms,kilogram,weight,1000.0
+kg,kilogram,weight,1000.0
+kgs,kilogram,weight,1000.0
+kilo,kilogram,weight,1000.0
+kilos,kilogram,weight,1000.0
+pound,pound,weight,453.59237
+pounds,pound,weight,453.59237
+lb,pound,weight,453.59237
+lbs,pound,weight,453.59237
+fluid ounce,fluid ounce,volume,
+fluid ounces,fluid ounce,volume,
+fl oz,fluid ounce,volume,
+millilitre,millilitre,volume,
+millilitres,millilitre,volume,
+milliliter,millilitre,volume,
+milliliters,millilitre,volume,
+ml,millilitre,volume,
+capsule,capsule,count,
+capsules,capsule,count,
+pod,pod,count,
+pods,pod,count,
+k-cup,pod,count,
+k-cups,pod,count,
+vue-pack,pod,count,
+vue-packs,pod,count,
+bag,bag,count,
+bags,bag,count,
+brew bag,bag,count,
+brew bags,bag,count,
+single-serve brew bag,bag,count,
+single-serve brew bags,bag,count,
+packet,packet,count,
+packets,packet,count,
+sachet,packet,count,
+sachets,packet,count,
+stick,packet,count,
+sticks,packet,count,
+tube,packet,count,
+tubes,packet,count,
+pouch,pouch,count,
+pouches,pouch,count,
+cup,cup,count,
+cups,cup,count,
+can,can,count,
+cans,can,count,
+tin,can,count,
+tins,can,count,
+bottle,bottle,count,
+bottles,bottle,count,
+flask,bottle,count,
+flasks,bottle,count,
+disc,disc,count,
+discs,disc,count,
+t discs,disc,count,
