@@ -17,9 +17,10 @@ from coffee_review.models.scrape import ManifestRecord
 from coffee_review.storage.raw_store import PageNotFoundError
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Collection
+    from collections.abc import Callable, Collection, Sequence
     from datetime import datetime
 
+    from coffee_review.models.parsed import Dataset, ParsedReview, ParseIssue
     from coffee_review.models.scrape import SitemapEntry
 
 
@@ -155,3 +156,35 @@ class FakeSite:
         return httpx.Response(
             response.status_code, headers=response.headers, content=response.content
         )
+
+
+class InMemoryParsedStore:
+    """A ParsedStore that keeps the last write in memory."""
+
+    def __init__(self) -> None:
+        self.records: list[ParsedReview] = []
+        self.issues: list[ParseIssue] = []
+        self.report_markdown = ""
+
+    def write(
+        self,
+        records: Sequence[ParsedReview],
+        issues: Sequence[ParseIssue],
+        report_markdown: str,
+    ) -> None:
+        self.records = list(records)
+        self.issues = list(issues)
+        self.report_markdown = report_markdown
+
+    def read_reviews(self, dataset: Dataset) -> list[ParsedReview]:
+        mine = [r for r in self.records if r.dataset == dataset]
+        return sorted(mine, key=lambda r: r.slug)
+
+    def read_issues(self) -> list[ParseIssue]:
+        return sorted(self.issues, key=lambda i: (i.slug, i.kind, i.detail))
+
+    def report_location(self) -> str:
+        return "in memory"
+
+    def close(self) -> None:
+        pass
