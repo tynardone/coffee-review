@@ -15,7 +15,9 @@ No single degree of roast is necessarily better than another. Preferences in roa
 The Agtron is a spectrophotometer which uses infrared light to determine roast degree.
 The higher the Agtron number, the lighter the roast.
 
-A coffee’s degree of roast can be measured with some precision through the use of a specially modified spectrophotometer called an Agtron. We use the M-Basic or “Gourmet” Agtron scale, and for each coffee reviewed, we present readings of both the whole beans before grinding (the number preceding the slash) and the same beans after grinding (the number after the slash). For example, a reading of 55/68 would describe a coffee with an external, whole-bean M-Basic reading of 55 and a ground reading of 68.
+A coffee’s degree of roast can be measured with some precision through the use of a specially modified spectrophotometer called an Agtron. We use the M-Basic or “Gourmet” Agtron scale.
+
+**For each coffee reviewed, we present readings of both the whole beans before grinding (the number preceding the slash) and the same beans after grinding (the number after the slash). For example, a reading of 55/68 would describe a coffee with an external, whole-bean M-Basic reading of 55 and a ground reading of 68.**
 
 | Roast | Agtron | Characteristics |
 | Light | >80 | Light brown to cinnamon color |
