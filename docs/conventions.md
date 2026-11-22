@@ -8,23 +8,37 @@ re-decided in every change. If a rule stops fitting, change it here first, with 
 
 ```
 src/coffee_review/
-  cli.py        Typer app: parses arguments, calls pipeline functions. No logic.
-  config.py     Settings only.
-  models.py     pydantic models: the contracts between stages.
-  clients/      Talk to the outside world over HTTP. Return raw text/JSON.
-  storage/      Read and write each data layer on disk. Know paths and formats.
-  parsers/      Pure functions: raw HTML/XML in, models out. No I/O.
-  transforms/   Pure functions on tables: clean, convert, adjust.
-  pipeline/     One module per stage: wires clients + storage + parsers/transforms.
+  cli.py               Typer app: parses arguments, calls pipeline functions. No logic.
+  config.py            Settings only.
+  logging_setup.py     Terminal + run-log logging for CLI runs. Used by cli only.
+  progress_display.py  The Rich progress bar. Used by cli only.
+  models/              pydantic models: the contracts between stages.
+    common.py          Slugs, UTC datetimes, the frozen base, formatting helpers.
+    scrape.py          Sitemap entries, manifest rows, scrape summaries.
+    parsed.py          Parsed review records and parse issues.
+  clients/             Talk to the outside world over HTTP. Return raw text/JSON.
+  storage/             Read and write each data layer on disk. Know paths and formats.
+  parsers/             Pure functions: raw HTML/XML in, models out. No I/O.
+  transforms/          Pure functions on tables: clean, convert, adjust.
+  pipeline/            One module per stage: wires clients + storage + parsers/transforms.
+    progress.py        The progress Protocol a stage reports through (no display code).
 ```
+
+Every package has an `__init__.py`, including those under `tests/`. Import from
+the module that defines a name (`coffee_review.models.scrape`), not from a
+package that re-exports it.
 
 ### The dependency rule
 
 ```
 cli → pipeline → {clients, storage, parsers, transforms} → {models, config}
+cli → {logging_setup, progress_display}
 ```
 
 Imports only point along the arrows. Nothing imports `cli` or `pipeline`.
+Display and logging setup are the CLI's concern: a pipeline reports progress
+through `pipeline/progress.py`'s Protocol and logs with `logging`, never
+knowing how either is shown.
 `parsers` and `transforms` import no I/O at all (no `httpx`, no file access).
 That's what lets them be tested with plain inputs, and what stops one stage
 reaching into another.
@@ -99,6 +113,14 @@ way in paths, module names and CLI commands.
 - Tests may deliberately bypass validation (for example
   `unthrottled_site_settings()` turns the rate limit off); say so in the
   helper's docstring.
+
+## Python version notes
+
+- The project targets Python 3.14, and ruff formats for it. One visible
+  result: an `except` catching several exceptions without binding them is
+  written without parentheses, `except TypeError, ValueError:` (PEP 758).
+  It's correct, not a Python 2 leftover; the formatter writes it that way.
+- `type X = ...` aliases (PEP 695) are used for named unions and Literals.
 
 ## Working
 
