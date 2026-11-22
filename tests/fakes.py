@@ -10,10 +10,13 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 import httpx
+import polars as pl
 
 from coffee_review.config import CoffeeSiteSettings
+from coffee_review.models.clean import LOG_SCHEMA
 from coffee_review.models.common import require_slug
 from coffee_review.models.scrape import ManifestRecord
+from coffee_review.storage.clean_store import CleanLayerMissingError
 from coffee_review.storage.parsed_store import reviews_frame
 from coffee_review.storage.raw_store import PageNotFoundError
 
@@ -21,8 +24,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Collection, Sequence
     from datetime import datetime
 
-    import polars as pl
-
+    from coffee_review.models.clean import CleanTable
     from coffee_review.models.parsed import Dataset, ParsedReview, ParseIssue
     from coffee_review.models.scrape import SitemapEntry
 
@@ -188,6 +190,41 @@ class InMemoryParsedStore:
 
     def read_issues(self) -> list[ParseIssue]:
         return sorted(self.issues, key=lambda i: (i.slug, i.kind, i.detail))
+
+    def report_location(self) -> str:
+        return "in memory"
+
+    def close(self) -> None:
+        pass
+
+
+class InMemoryCleanStore:
+    """A CleanStore that keeps the last write in memory."""
+
+    def __init__(self) -> None:
+        self.tables: dict[str, pl.DataFrame] = {}
+        self.report_markdown = ""
+        self.writes = 0
+
+    def write(
+        self,
+        roasted: pl.DataFrame,
+        green: pl.DataFrame,
+        log: pl.DataFrame,
+        report_markdown: str,
+    ) -> None:
+        self.tables = {"roasted": roasted, "green": green, "log": log}
+        self.report_markdown = report_markdown
+        self.writes += 1
+
+    def read_table(self, table: CleanTable) -> pl.DataFrame:
+        if table not in self.tables:
+            msg = "no clean data in memory: run clean first"
+            raise CleanLayerMissingError(msg)
+        return self.tables[table]
+
+    def read_previous_log(self) -> pl.DataFrame:
+        return self.tables.get("log", pl.DataFrame(schema=LOG_SCHEMA))
 
     def report_location(self) -> str:
         return "in memory"
