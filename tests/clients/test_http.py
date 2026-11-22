@@ -6,6 +6,7 @@ and the ``recorded_sleeps`` fixture (tests/conftest.py) swaps out asyncio.sleep.
 
 from __future__ import annotations
 
+import asyncio
 from datetime import UTC, datetime, timedelta
 from email.utils import format_datetime
 
@@ -14,6 +15,7 @@ import pytest
 
 from coffee_review.clients.http import (
     BaseHttpClient,
+    RequestAbandonedError,
     RetriesExhaustedError,
     _make_limiter,
     _parse_retry_after,
@@ -252,3 +254,42 @@ async def test_stats_time_only_the_send(recorded_sleeps: list[float]) -> None:
 
 def test_stats_mean_is_none_before_any_request() -> None:
     assert ScriptedServer().client().stats.mean_response_seconds is None
+
+
+async def test_stop_prevents_further_retries(recorded_sleeps: list[float]) -> None:
+    stop = asyncio.Event()
+    calls = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        stop.set()  # pushback arrives elsewhere while this request is out
+        return httpx.Response(500)
+
+    client = BaseHttpClient(fast_settings(), transport=httpx.MockTransport(handler))
+    async with client:
+        with pytest.raises(RequestAbandonedError):
+            await client.request("GET", "page", stop=stop)
+
+    assert calls == 1
+
+
+async def test_stop_during_backoff_ends_the_wait(recorded_sleeps: list[float]) -> None:
+    stop = asyncio.Event()
+    settings = fast_settings().model_copy(update={"backoff_base_seconds": 60})
+    client = BaseHttpClient(
+        settings, transport=httpx.MockTransport(lambda r: httpx.Response(500))
+    )
+
+    async def stop_soon() -> None:
+        await asyncio.sleep(0)
+        stop.set()
+
+    async with client:
+        with pytest.raises(RequestAbandonedError):
+            await asyncio.wait_for(
+                asyncio.gather(client.request("GET", "page", stop=stop), stop_soon()),
+                timeout=2,
+            )
+
+    assert client.stats.requests == 1

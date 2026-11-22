@@ -72,6 +72,16 @@ def scrape_command(
             ),
         ),
     ] = None,
+    allow_delisting: Annotated[
+        bool,
+        typer.Option(
+            "--allow-delisting",
+            help=(
+                "Mark reviews delisted even when so many left the sitemap that "
+                "it looks broken. Use only when you know it's real."
+            ),
+        ),
+    ] = False,
     concurrency: Annotated[
         int | None,
         typer.Option(
@@ -102,7 +112,9 @@ def scrape_command(
 
     now = datetime.now(UTC)
     configure_logging(settings.log_level, scrape_log_path(settings.data_dir, now))
-    summary = scrape(settings, full=full, limit=limit, now=now)
+    summary = scrape(
+        settings, full=full, limit=limit, now=now, allow_delisting=allow_delisting
+    )
     raise typer.Exit(EXIT_CODES[summary.outcome])
 
 

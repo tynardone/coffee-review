@@ -56,6 +56,10 @@ scrape finished: 12 fetched (3 new, 9 changed), 9,388 unchanged, 0 failed, 0 gon
 If the achieved rate is well below the setting and responses are slow, the
 site is struggling: lower `--rate`.
 
+**A broken-looking sitemap.** If more than 25 reviews (and more than 5% of
+those saved) seem to have left the sitemap at once, the run refuses to mark
+them and exits 1. If you know it's real, rerun with `--allow-delisting`.
+
 **Exit codes.** 0 finished · 1 error · 2 bad options · 3 stopped because the
 site pushed back (a 429, 403, challenge page, or 5 failures in a row).
 

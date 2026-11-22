@@ -137,3 +137,15 @@ def test_scrape_rejects_rate_above_ceiling(spy: ScrapeSpy) -> None:
     assert result.exit_code == 2
     assert "10" in result.output
     assert spy.calls == []
+
+
+def test_scrape_passes_allow_delisting(spy: ScrapeSpy) -> None:
+    runner.invoke(app, ["scrape", "--allow-delisting"])
+
+    assert spy.calls[0]["allow_delisting"] is True
+
+
+def test_scrape_does_not_allow_delisting_by_default(spy: ScrapeSpy) -> None:
+    runner.invoke(app, ["scrape"])
+
+    assert spy.calls[0]["allow_delisting"] is False

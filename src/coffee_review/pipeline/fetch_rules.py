@@ -19,8 +19,11 @@ if TYPE_CHECKING:
 LOOKBACK = timedelta(hours=24)
 
 # Marking more than this share of the manifest delisted in one run is treated as
-# a broken sitemap, not real delistings.
+# a broken sitemap, not real delistings...
 DELISTING_LIMIT = 0.05
+# ...but only once it's more than this many reviews, so a small manifest (40
+# rows after a first --limit run) isn't blocked by a handful of real ones.
+DELISTING_MIN_COUNT = 25
 
 
 class Delistings(NamedTuple):
@@ -112,7 +115,12 @@ def find_delistings(
 
 
 def delisting_exceeds_limit(plan: Delistings, manifest_size: int) -> bool:
-    """True if the plan would delist more than DELISTING_LIMIT of the manifest."""
-    if manifest_size == 0:
+    """True if the plan looks like a broken sitemap rather than real delistings.
+
+    That's more than DELISTING_MIN_COUNT reviews *and* more than
+    DELISTING_LIMIT of the manifest at once.
+    """
+    count = len(plan.delisted)
+    if manifest_size == 0 or count <= DELISTING_MIN_COUNT:
         return False
-    return len(plan.delisted) / manifest_size > DELISTING_LIMIT
+    return count / manifest_size > DELISTING_LIMIT

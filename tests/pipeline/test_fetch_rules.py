@@ -143,8 +143,24 @@ def test_find_delistings_relists_reappearing() -> None:
 
 @pytest.mark.parametrize(
     ("delisted", "manifest_size", "exceeds"),
-    [(5, 100, False), (6, 100, True), (0, 0, False)],
-    ids=["exactly-5-percent", "over-5-percent", "empty-manifest"],
+    [
+        (3, 40, False),
+        (25, 40, False),
+        (26, 40, True),
+        (26, 1000, False),
+        (470, 9400, False),
+        (471, 9400, True),
+        (0, 0, False),
+    ],
+    ids=[
+        "few-from-small-manifest",
+        "at-the-floor",
+        "over-floor-and-percent",
+        "over-floor-under-percent",
+        "exactly-5-percent-of-full-site",
+        "over-5-percent-of-full-site",
+        "empty-manifest",
+    ],
 )
 def test_delisting_limit(delisted: int, manifest_size: int, exceeds: bool) -> None:
     plan = Delistings(

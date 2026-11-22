@@ -8,18 +8,21 @@ from __future__ import annotations
 
 import time
 from datetime import UTC, datetime, timedelta
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import httpx
 import pytest
 
-from coffee_review.clients.coffee_site import CoffeeScraper
+from coffee_review.clients.coffee_site import CoffeeScraper, FetchResult
 from coffee_review.config import Settings
 from coffee_review.models import FetchReason, SitemapEntry
+from coffee_review.pipeline import scrape as scrape_module
 from coffee_review.pipeline.scrape import run_scrape
+from coffee_review.storage.raw_store import ManifestSchemaError
 from tests.fakes import FakeSite, InMemoryRawStore, Reply, unthrottled_site_settings
 
 if TYPE_CHECKING:
+    import asyncio
     from collections.abc import Callable
 
     from coffee_review.models import ScrapeSummary
@@ -91,6 +94,7 @@ async def scrape(
     now: datetime = FIRST_RUN,
     full: bool = False,
     limit: int | None = None,
+    allow_delisting: bool = False,
     clock: Callable[[], float] = time.monotonic,
 ) -> ScrapeSummary:
     config = settings()
@@ -102,6 +106,7 @@ async def scrape(
             full=full,
             limit=limit,
             now=now,
+            allow_delisting=allow_delisting,
             clock=clock,
         )
 
@@ -275,13 +280,14 @@ async def test_delisted_review_marked_and_relisted() -> None:
 async def test_delisting_guard_blocks_mass_delisting() -> None:
     store = InMemoryRawStore()
     seed(store, [f"r{i}" for i in range(100)])
-    site = site_with({f"r{i}": OLD for i in range(90)})
+    site = site_with({f"r{i}": OLD for i in range(60)})
 
     summary = await scrape(site, store)
 
     assert summary.outcome == "error"
     assert summary.stopped_reason is not None
-    assert "10 of 100" in summary.stopped_reason
+    assert "40 of 100" in summary.stopped_reason
+    assert "--allow-delisting" in summary.stopped_reason
     assert all(record.delisted_at is None for record in store.records.values())
     assert page_requests(site) == []
 
@@ -333,3 +339,91 @@ async def test_early_ending_is_measured_too() -> None:
 
     assert summary.measurement is not None
     assert summary.measurement.requests == 1
+
+
+class RecordingScraper(CoffeeScraper):
+    """The real client, also noting the stop signal each page fetch was given."""
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self.stops: list[asyncio.Event | None] = []
+
+    async def fetch_review_page(
+        self, entry: SitemapEntry, *, stop: asyncio.Event | None = None
+    ) -> FetchResult:
+        self.stops.append(stop)
+        return await super().fetch_review_page(entry, stop=stop)
+
+
+async def test_pushback_signals_the_client_to_stop_retrying() -> None:
+    config = settings()
+    site = site_with(THREE, pages={"b": httpx.Response(429)})
+    async with RecordingScraper(config.coffee_site, transport=site.transport) as client:
+        await run_scrape(
+            config,
+            client=client,
+            store=InMemoryRawStore(),
+            full=False,
+            limit=None,
+            now=FIRST_RUN,
+        )
+
+    signal = client.stops[0]
+    assert signal is not None
+    assert all(stop is signal for stop in client.stops)
+    assert signal.is_set()
+
+
+async def test_few_delistings_from_small_manifest_are_marked() -> None:
+    # The real manifest after the first --limit runs: 40 rows.
+    store = InMemoryRawStore()
+    seed(store, [f"r{i}" for i in range(40)])
+
+    summary = await scrape(site_with({f"r{i}": OLD for i in range(37)}), store)
+
+    assert summary.outcome == "finished"
+    assert summary.delisted == 3
+
+
+async def test_allow_delisting_overrides_guard() -> None:
+    store = InMemoryRawStore()
+    seed(store, [f"r{i}" for i in range(100)])
+    site = site_with({f"r{i}": OLD for i in range(60)})
+
+    summary = await scrape(site, store, allow_delisting=True)
+
+    assert summary.outcome == "finished"
+    assert summary.delisted == 40
+
+
+class FullDiskStore(InMemoryRawStore):
+    """A store whose disk fills up on the first page save."""
+
+    def save_page(self, *args: Any, **kwargs: Any) -> None:
+        raise OSError("No space left on device")
+
+
+async def test_worker_error_ends_in_a_measured_error_summary(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    summary = await scrape(site_with(THREE), FullDiskStore())
+
+    assert summary.outcome == "error"
+    assert summary.stopped_reason == "OSError: No space left on device"
+    assert summary.measurement is not None
+    assert "Traceback" in caplog.text  # the full error is in the log
+
+
+def test_unreadable_manifest_ends_in_an_error_summary(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def future_manifest(settings: Settings) -> InMemoryRawStore:
+        raise ManifestSchemaError("manifest schema version 99; this code reads 1")
+
+    monkeypatch.setattr(scrape_module, "open_raw_store", future_manifest)
+
+    summary = scrape_module.scrape(settings(), full=False, limit=None, now=FIRST_RUN)
+
+    assert summary.outcome == "error"
+    assert summary.stopped_reason is not None
+    assert "schema version 99" in summary.stopped_reason

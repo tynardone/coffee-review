@@ -30,11 +30,12 @@ from coffee_review.parsers.sitemap import (
 )
 from coffee_review.pipeline.fetch_rules import (
     DELISTING_LIMIT,
+    DELISTING_MIN_COUNT,
     delisting_exceeds_limit,
     find_delistings,
     select_reviews_to_fetch,
 )
-from coffee_review.storage.raw_store import open_raw_store
+from coffee_review.storage.raw_store import ManifestSchemaError, open_raw_store
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -50,12 +51,22 @@ MAX_CONSECUTIVE_FAILURES = 5
 
 
 def scrape(
-    settings: Settings, *, full: bool, limit: int | None, now: datetime
+    settings: Settings,
+    *,
+    full: bool,
+    limit: int | None,
+    now: datetime,
+    allow_delisting: bool = False,
 ) -> ScrapeSummary:
     """Run a scrape with the real client and store."""
 
     async def main() -> ScrapeSummary:
-        store = open_raw_store(settings)
+        try:
+            store = open_raw_store(settings)
+        except ManifestSchemaError as exc:
+            summary = _ended_early("error", str(exc))
+            logger.error(summary.describe())
+            return summary
         try:
             async with CoffeeScraper(settings.coffee_site) as client:
                 return await run_scrape(
@@ -65,6 +76,7 @@ def scrape(
                     full=full,
                     limit=limit,
                     now=now,
+                    allow_delisting=allow_delisting,
                 )
         finally:
             store.close()
@@ -80,9 +92,13 @@ async def run_scrape(
     full: bool,
     limit: int | None,
     now: datetime,
+    allow_delisting: bool = False,
     clock: Callable[[], float] = time.monotonic,
 ) -> ScrapeSummary:
     """Fetch new and changed reviews into ``store``; stop on any pushback.
+
+    ``allow_delisting`` lets a run mark more reviews delisted than the guard
+    normally allows, for when a large delisting is known to be real.
 
     Every outcome, early endings included, comes back measured (ADR 0005).
     """
@@ -96,9 +112,22 @@ async def run_scrape(
     requests_before = client.stats.requests
     response_before = client.stats.response_seconds
 
-    summary = await _scrape_steps(
-        settings, client=client, store=store, full=full, limit=limit, now=now
-    )
+    try:
+        summary = await _scrape_steps(
+            settings,
+            client=client,
+            store=store,
+            full=full,
+            limit=limit,
+            now=now,
+            allow_delisting=allow_delisting,
+        )
+    except Exception as exc:
+        # Something unexpected (disk full, database locked) broke the run. Log
+        # the traceback, and still end with a measured summary and exit 1.
+        # Pages saved before the error stay saved.
+        logger.exception("scrape failed")
+        summary = _ended_early("error", _describe_error(exc))
 
     requests = client.stats.requests - requests_before
     response_seconds = client.stats.response_seconds - response_before
@@ -126,6 +155,7 @@ async def _scrape_steps(
     full: bool,
     limit: int | None,
     now: datetime,
+    allow_delisting: bool,
 ) -> ScrapeSummary:
     """The scrape itself: sitemaps, delistings, selection, fetching."""
     listing = await _read_sitemaps(client, str(settings.coffee_site.sitemap_url))
@@ -136,11 +166,17 @@ async def _scrape_steps(
     manifest = store.load_manifest()
     delistings = find_delistings(entries, manifest)
     if delisting_exceeds_limit(delistings, len(manifest)):
-        return _ended_early(
-            "error",
+        too_many = (
             f"sitemap would delist {len(delistings.delisted)} of {len(manifest)} "
-            f"reviews (limit {DELISTING_LIMIT:.0%}); nothing marked",
+            f"reviews (more than {DELISTING_MIN_COUNT} and {DELISTING_LIMIT:.0%})"
         )
+        if not allow_delisting:
+            return _ended_early(
+                "error",
+                f"{too_many}; nothing marked. If that's real, rerun with "
+                "--allow-delisting",
+            )
+        logger.warning("%s; marking them anyway (--allow-delisting)", too_many)
     store.mark_delisted(delistings.delisted, now)
     store.mark_relisted(delistings.relisted)
 
@@ -200,6 +236,16 @@ async def _fetch_sitemap_text(client: CoffeeScraper, url: str) -> str | ScrapeSu
             return _ended_early("error", f"sitemap {url}: {reason}")
 
 
+def _describe_error(exc: BaseException) -> str:
+    """``Type: message`` for the error that actually happened.
+
+    A worker's exception arrives wrapped in the TaskGroup's ExceptionGroup.
+    """
+    while isinstance(exc, BaseExceptionGroup) and exc.exceptions:
+        exc = exc.exceptions[0]
+    return f"{type(exc).__name__}: {exc}"
+
+
 def _ended_early(outcome: Literal["stopped", "error"], reason: str) -> ScrapeSummary:
     return ScrapeSummary(
         outcome=outcome,
@@ -226,17 +272,21 @@ class _FetchRun:
     gone_slugs: list[str] = field(default_factory=list)
     consecutive_failures: int = 0
     stopped_reason: str | None = None
+    # Set the moment the run stops: workers take no new reviews, and the client
+    # sends no more retries for reviews already in progress.
+    stop_signal: asyncio.Event = field(default_factory=asyncio.Event)
 
     async def work(self, client: CoffeeScraper) -> None:
         """Take reviews off the queue until it's empty or the run is stopped.
 
-        A stop only prevents new requests; a fetch already in flight finishes
-        and its result is saved.
+        After a stop, no new request is sent: not for a new review, and not as a
+        retry. A request already on the wire finishes and its result is saved.
         """
         while self.queue and self.stopped_reason is None:
             entry, reason = self.queue.popleft()
             logger.debug("fetching %s (%s)", entry.slug, reason)
-            self._record(entry, reason, await client.fetch_review_page(entry))
+            result = await client.fetch_review_page(entry, stop=self.stop_signal)
+            self._record(entry, reason, result)
 
     def _record(
         self,
@@ -269,3 +319,4 @@ class _FetchRun:
         if self.stopped_reason is None:
             logger.warning("stopping: %s", reason)
             self.stopped_reason = reason
+            self.stop_signal.set()

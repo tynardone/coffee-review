@@ -102,3 +102,23 @@ def test_open_raw_store_uses_data_dir(tmp_path: Path) -> None:
 
     assert (tmp_path / "raw" / "reviews" / "x.html.gz").exists()
     assert (tmp_path / "raw" / "manifest.sqlite").exists()
+
+
+def test_failed_temp_write_leaves_no_temp_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The disk filling up (or Ctrl-C) during the write itself, before the rename.
+    store = GzipSqliteRawStore(tmp_path)
+    store.save_page(ENTRY, "<html>old</html>", T, lookback=False)
+
+    def disk_full(self: Path, data: bytes) -> int:
+        raise OSError("No space left on device")
+
+    monkeypatch.setattr(Path, "write_bytes", disk_full)
+    with pytest.raises(OSError, match="No space"):
+        store.save_page(ENTRY, "<html>new</html>", T, lookback=False)
+    monkeypatch.undo()
+
+    assert [p.name for p in (tmp_path / "reviews").iterdir()] == ["x.html.gz"]
+    assert store.read_page("x") == "<html>old</html>"
+    store.close()

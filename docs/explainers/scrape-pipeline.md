@@ -26,7 +26,7 @@ flowchart TD
     B --> C[_read_sitemaps<br/>index, then every review sitemap]
     C -->|any problem| X[return a summary:<br/>stopped or error]
     C -->|list of reviews| D[find_delistings]
-    D -->|more than 5% delisted| X
+    D -->|over 25 and 5% delisted| X
     D -->|ok| E[mark delisted / relisted in the store]
     E --> F[select_reviews_to_fetch<br/>then apply --limit]
     F --> G[workers take reviews off one queue]
@@ -49,12 +49,13 @@ for bad options.)
 
 ```python
 from coffee_review.clients.coffee_site import CoffeeScraper, Failed, Fetched, Gone, Pushback
-from coffee_review.models import FetchReason, ScrapeSummary
+from coffee_review.models import FetchReason, RunMeasurement, ScrapeSummary
 from coffee_review.parsers.sitemap import ...
 from coffee_review.pipeline.fetch_rules import ...
 from coffee_review.storage.raw_store import open_raw_store
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
     from datetime import datetime
     from coffee_review.config import Settings
     from coffee_review.models import SitemapEntry
@@ -153,8 +154,7 @@ measured = summary.model_copy(update={"measurement": RunMeasurement(...)})
 ```python
 listing = await _read_sitemaps(client, str(settings.coffee_site.sitemap_url))
 if isinstance(listing, ScrapeSummary):
-    logger.error(listing.describe())
-    return listing
+    return listing   # run_scrape measures and logs it
 entries = listing
 ```
 
@@ -192,6 +192,17 @@ store.mark_relisted(delistings.relisted)
 **Why the guard comes before the writes:** if the sitemap is broken (for
 example, half empty), we want to refuse *before* marking hundreds of reviews
 as delisted. Afterwards would be too late.
+
+**When it trips:** only when more than 25 reviews **and** more than 5% of the
+manifest would be delisted at once. The floor means a small manifest isn't
+blocked by a few real delistings. If a big delisting is real,
+`--allow-delisting` marks them anyway and logs a warning.
+
+**When something unexpected breaks the run** (the disk fills up, the database
+is locked), `run_scrape` catches it around `_scrape_steps`. It logs the full
+traceback, and still returns a measured `error` summary, so the run ends with
+its summary line and exit 1. Pages saved before the error stay saved. Ctrl-C
+isn't caught: it stops the program as normal.
 
 **Why the same `manifest` is used again in step 3:** the delisting marks
 don't affect which reviews get fetched, so there's no need to reload it.
@@ -408,8 +419,17 @@ it only switches between workers at an `await`. In this loop, that's the
    result is still recorded: the page is saved.
 3. Worker B's next `while` check sees the stop, and it exits.
 
-The rule is that no *new* requests start once the run is stopped. Work
-already in flight still finishes, and it's not wasted.
+The rule is that **nothing more is sent once the run is stopped**: no new
+review, and no retry either. `_stop` also sets `stop_signal`, an
+`asyncio.Event` that every page fetch carries into the HTTP client. If worker
+B was backing off before retrying a 500, the client sees the signal, ends the
+wait early, sends nothing, and returns `Failed`, so the page is retried next
+run. Only a request that's already on the wire finishes, and its result is
+saved.
+
+(An earlier version stopped only *new* reviews, so a worker in the middle of
+retries kept sending them. The final review caught it; with 5 workers that
+could have been about 20 requests after a 429.)
 
 ## 10. `_record()`: one result, one action
 

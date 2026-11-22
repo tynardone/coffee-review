@@ -28,7 +28,7 @@ the docs exist.
 - [x] Raw store: gzipped HTML + SQLite manifest, behind the `RawStore` Protocol
 - [x] Incremental logic (new, failed, never fetched, changed, 24-hour lookback; gone pages skipped)
 - [x] Stop on pushback (429, 403, challenge page, 5 failures in a row)
-- [x] Delisted reviews kept and marked; 5% guard against a broken sitemap
+- [x] Delisted reviews kept and marked; guard against a broken sitemap (over 25 and 5%; `--allow-delisting` to override)
 - [x] `coffee-review scrape [--full] [--limit N] [--rate R] [--concurrency C]`
 - [x] Run measurement: requests, elapsed, achieved rate, mean response time
 - [x] First real run with `--limit 20` (2026-11-21: 2 runs, 40 pages, 0 failures, avg response ~0.5s)

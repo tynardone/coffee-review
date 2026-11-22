@@ -9,6 +9,7 @@ Nothing outside of coffee_review.clients should import this module.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import random
 import time
@@ -46,6 +47,19 @@ class RetriesExhaustedError(Exception):
         self.last_error = last_error
         super().__init__(
             f"{method} {url} failed after {attempts} attempts: {last_error}"
+        )
+
+
+class RequestAbandonedError(Exception):
+    """Raised when a stop signal arrives before a retry could be sent."""
+
+    def __init__(self, method: str, url: str, attempts: int, last_error: str):
+        self.method = method
+        self.url = url
+        self.attempts = attempts
+        self.last_error = last_error
+        super().__init__(
+            f"{method} {url} stopped after {attempts} attempt(s): {last_error}"
         )
 
 
@@ -159,7 +173,20 @@ class BaseHttpClient:
     ) -> None:
         await self.close()
 
-    async def request(self, method: str, path: str, **kwargs: Any) -> httpx.Response:
+    async def request(
+        self,
+        method: str,
+        path: str,
+        *,
+        stop: asyncio.Event | None = None,
+        **kwargs: Any,
+    ) -> httpx.Response:
+        """Send a request, retrying retryable failures with backoff.
+
+        ``stop``, when given and set, means "send nothing more": no further
+        attempt starts and a backoff wait ends early, raising
+        RequestAbandonedError.
+        """
         if self._client is None:
             raise RuntimeError("Client not open; use 'async with' or call open()")
         s = self.settings
@@ -167,6 +194,8 @@ class BaseHttpClient:
         last_error = "unknown"
 
         for attempt in range(s.max_retries + 1):
+            if stop is not None and stop.is_set():
+                raise RequestAbandonedError(method, url, attempt, last_error)
             resp: httpx.Response | None = None
             async with self._semaphore, self._limiter:
                 sent_at = self._clock()
@@ -200,6 +229,18 @@ class BaseHttpClient:
                 attempt + 1,
                 delay,
             )
-            await asyncio.sleep(delay)
+            if stop is None:
+                await asyncio.sleep(delay)
+            else:
+                await _sleep_unless_stopped(delay, stop)
 
         raise RetriesExhaustedError(method, url, s.max_retries + 1, last_error)
+
+
+async def _sleep_unless_stopped(delay: float, stop: asyncio.Event) -> None:
+    """Wait ``delay`` seconds, returning early if ``stop`` is set meanwhile.
+
+    The loop's next check then sees the stop and abandons the request.
+    """
+    with contextlib.suppress(TimeoutError):  # timing out is the normal case
+        await asyncio.wait_for(stop.wait(), timeout=delay)

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 
 import httpx
@@ -179,3 +180,21 @@ async def test_sitemap_429_is_pushback() -> None:
         result = await client.fetch_sitemap(f"{SITE}/sitemap_index.xml")
 
     assert isinstance(result, Pushback)
+
+
+async def test_stop_turns_a_pending_retry_into_failed() -> None:
+    stop = asyncio.Event()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        stop.set()
+        return httpx.Response(500)
+
+    settings = unthrottled_site_settings(max_retries=3, backoff_base_seconds=0.01)
+    async with CoffeeScraper(
+        settings, transport=httpx.MockTransport(handler)
+    ) as client:
+        result = await client.fetch_review_page(ENTRY, stop=stop)
+
+    assert isinstance(result, Failed)
+    assert "stopped" in result.error
+    assert client.stats.requests == 1

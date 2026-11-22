@@ -129,10 +129,14 @@ slug that wasn't in them and has no `delisted_at` gets `delisted_at = now`. A sl
 that reappears gets `delisted_at` cleared. Saved HTML is never deleted. If any
 sitemap fails, the run stops before fetching pages and marks nothing delisted.
 
-*My call:* a sanity guard. If a run would mark more than 5% of the manifest
-delisted (about 470 reviews), it marks nothing, logs the count, and stops with
-exit 1. A sitemap that parses but is suspiciously small (a Yoast change, a
-mostly empty 200) is far more likely than hundreds of real deletions.
+*My call:* a sanity guard. If a run would mark more than 25 reviews **and**
+more than 5% of the manifest delisted at once (about 470 on the full site), it
+marks nothing, logs the count, and stops with exit 1. A sitemap that parses but
+is suspiciously small (a Yoast change, a mostly empty 200) is far more likely
+than hundreds of real deletions. The 25-review floor was added after the final
+review: with only the 40 rows of a first `--limit` run, 5% alone would have
+blocked every run over 3 real delistings. When a large delisting is known to
+be real, `--allow-delisting` lets the run mark them anyway, with a warning.
 
 ### Storage: gzipped files plus a SQLite manifest
 

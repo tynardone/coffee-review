@@ -9,6 +9,7 @@ picks it. Swapping storage means a new class and a one-line change there.
 from __future__ import annotations
 
 import gzip
+import os
 import sqlite3
 import tempfile
 from pathlib import Path
@@ -177,17 +178,19 @@ class GzipSqliteRawStore:
     def _write_page_atomically(self, slug: str, data: bytes) -> None:
         """Write to a temp file, then rename over the old page in one step.
 
-        A crash leaves either the old page or the new one, never half a page.
+        If this program crashes or is interrupted, the page is either the old
+        one or the new one, never half of each, and no temp file is left
+        behind. (A power cut could still lose the latest write; that would
+        need an fsync, which this doesn't do.)
         """
-        with tempfile.NamedTemporaryFile(
-            dir=self._pages, suffix=".tmp", delete=False
-        ) as tmp:
-            tmp.write(data)
-        tmp_path = Path(tmp.name)
+        handle, name = tempfile.mkstemp(dir=self._pages, suffix=".tmp")
+        os.close(handle)  # reopened below; mkstemp only reserves a unique name
+        tmp_path = Path(name)
         try:
+            tmp_path.write_bytes(data)
             tmp_path.replace(self._page_path(slug))
         except BaseException:
-            tmp_path.unlink()
+            tmp_path.unlink(missing_ok=True)
             raise
 
     def record_failure(

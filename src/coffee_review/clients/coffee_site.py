@@ -19,9 +19,15 @@ from urllib.parse import urlsplit
 
 import httpx
 
-from coffee_review.clients.http import BaseHttpClient, RetriesExhaustedError
+from coffee_review.clients.http import (
+    BaseHttpClient,
+    RequestAbandonedError,
+    RetriesExhaustedError,
+)
 
 if TYPE_CHECKING:
+    import asyncio
+
     from coffee_review.config import CoffeeSiteSettings
     from coffee_review.models import SitemapEntry
 
@@ -82,17 +88,29 @@ class CoffeeScraper(BaseHttpClient):
 
     async def fetch_sitemap(self, url: str) -> FetchResult:
         """Fetch a sitemap (index or child) as text."""
-        return await self._fetch(url, expected_path=None)
+        return await self._fetch(url, expected_path=None, stop=None)
 
-    async def fetch_review_page(self, entry: SitemapEntry) -> FetchResult:
-        """Fetch one review page. A redirect to any other page counts as Gone."""
-        return await self._fetch(entry.url, expected_path=urlsplit(entry.url).path)
+    async def fetch_review_page(
+        self, entry: SitemapEntry, *, stop: asyncio.Event | None = None
+    ) -> FetchResult:
+        """Fetch one review page. A redirect to any other page counts as Gone.
 
-    async def _fetch(self, url: str, *, expected_path: str | None) -> FetchResult:
+        If ``stop`` is set while this page is being retried, no further retry is
+        sent and the page comes back Failed (to be fetched again next run).
+        """
+        return await self._fetch(
+            entry.url, expected_path=urlsplit(entry.url).path, stop=stop
+        )
+
+    async def _fetch(
+        self, url: str, *, expected_path: str | None, stop: asyncio.Event | None
+    ) -> FetchResult:
         try:
-            response = await self.request("GET", url)
+            response = await self.request("GET", url, stop=stop)
         except RetriesExhaustedError as exc:
             return Failed(error=str(exc))
+        except RequestAbandonedError as exc:
+            return Failed(error=f"stopped before retrying: {exc.last_error}")
         except httpx.HTTPStatusError as exc:
             return self._classify_error(exc.response, url)
 
