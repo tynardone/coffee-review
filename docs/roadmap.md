@@ -64,9 +64,21 @@ review date is `a 9999` ("Month Year"); prices come in `$…/12 ounces`,
 `NT $…/200 grams`, `NA` and more; Agtron uses `0/0`, `/` and `NA/NA` for
 unknown, and some second values exceed 100; 1997–1999 scores use decimals.
 
-- [ ] Write the clean-table contract
-- [ ] Normalize dates, scores, origins, roast levels; split price into amount, currency, quantity, unit
-- [ ] `coffee-review clean`
+- [x] Clean-table contract: pandera models for roasted, green and the cleaning log
+- [x] Dates (`review_month`), rating and scores, roast level, Agtron (2002–03 swap, typo patterns), text sections
+- [x] Places: origin country and region, roaster city, region and country; complete ISO country list, close spellings flagged
+- [x] Price: amount, currency (ISO codes; `$` and `¥` read from the roaster's country), quantity, unit, grams; green lot sizes in kg
+- [x] Cleaning log, report with a *To review* list marked new since the last run, and a warning when anything is new
+- [x] `coffee-review clean` (always a full clean; under a second)
+- [x] First real clean (2026-11-22): 9,440 reviews; contract passes; 0 values lost without a rule; 0 of 8,239 disclosed origins unplaced; 1 of 7,315 real prices unparsed; Agtron 71 swapped, 6 typos corrected
+
+Left as they are, listed in the report (guessing would be wrong):
+
+- 30 multipack prices (`six 8-ounce cans`, `12 9.5-ounce cans`) keep amount and currency, no quantity. A follow-up could multiply them out.
+- `.8 ounces`, `.12 ounces`, `$70/00/4 ounces`, `$19..75/12 ounces`: typos with more than one reading.
+- `#23.00` (probably `$`) and one price with no symbol: currency unknown.
+- 7 roaster locations that aren't places, or are a city alone (`Swiss Water Process`, `Grower`, `$12.75/12 ounces`, `Los Angeles`).
+- Lot sizes in boxes or bags (`6 boxes of 76 lbs each`).
 
 **Done when:** the clean table validates against its schema and the transforms
 have property tests.
@@ -80,6 +92,10 @@ have property tests.
 **Done when:** both are up to date and a rerun costs zero requests.
 
 ## M5. Enrich and final table
+
+Starting input: `data/clean/`, with `price_currency` as ISO codes and
+`review_month` on the 1st (the FX and CPI join keys). dbt-duckdb is revisited
+here ([ADR 0008](decisions/0008-clean-in-polars.md)).
 
 - [ ] Join clean reviews to FX and CPI; USD price and inflation-adjusted USD price, base period documented
 - [ ] Write and publish the final-table schema
