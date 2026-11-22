@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Any
 import httpx
 
 from coffee_review.config import CoffeeSiteSettings
-from coffee_review.models import ManifestRecord
+from coffee_review.models import ManifestRecord, require_slug
 from coffee_review.storage.raw_store import PageNotFoundError
 
 if TYPE_CHECKING:
@@ -109,7 +109,7 @@ class InMemoryRawStore:
 
     def read_page(self, slug: str) -> str:
         try:
-            return self.pages[slug]
+            return self.pages[require_slug(slug)]
         except KeyError:
             raise PageNotFoundError(slug) from None
 

@@ -134,3 +134,10 @@ def test_mark_delisted_and_relisted(store: RawStore) -> None:
 def test_read_missing_page_raises(store: RawStore) -> None:
     with pytest.raises(PageNotFoundError):
         store.read_page("never-saved")
+
+
+@pytest.mark.parametrize("slug", ["../x", "a/b", ""], ids=["dotdot", "slash", "empty"])
+def test_read_page_rejects_unsafe_slug(store: RawStore, slug: str) -> None:
+    # M2 reads pages by slug; a slug that isn't one must never become a path.
+    with pytest.raises(ValueError, match="slug"):
+        store.read_page(slug)

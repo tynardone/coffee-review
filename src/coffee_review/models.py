@@ -6,6 +6,7 @@ timezone-aware UTC, so values can be passed between stages without surprises.
 
 from __future__ import annotations
 
+import re
 from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Annotated, Literal
@@ -16,6 +17,17 @@ from pydantic import AfterValidator, BaseModel, ConfigDict, Field
 # percent-encoded characters. This also rules out anything that could act as a
 # path when a slug becomes a filename ("..", "a/b", "").
 SLUG_PATTERN = r"^[a-z0-9%][a-z0-9%_-]*$"
+
+
+def require_slug(slug: str) -> str:
+    """Return ``slug`` if it's a valid slug; raise ValueError otherwise.
+
+    For code that turns a slug into a file name or key, so a bad one is
+    refused before it can act as a path.
+    """
+    if not re.fullmatch(SLUG_PATTERN, slug):
+        raise ValueError(f"not a valid review slug: {slug!r}")
+    return slug
 
 
 def _to_utc(value: datetime) -> datetime:
