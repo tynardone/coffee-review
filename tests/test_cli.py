@@ -11,6 +11,7 @@ from typer.testing import CliRunner
 from coffee_review import cli
 from coffee_review.cli import app
 from coffee_review.models import ScrapeSummary
+from coffee_review.progress_display import RichScrapeProgress
 
 if TYPE_CHECKING:
     from coffee_review.config import Settings
@@ -65,7 +66,7 @@ class ScrapeSpy:
 def spy(monkeypatch: pytest.MonkeyPatch) -> ScrapeSpy:
     fake = ScrapeSpy()
     monkeypatch.setattr(cli, "scrape", fake)
-    monkeypatch.setattr(cli, "configure_logging", lambda level, log_file: None)
+    monkeypatch.setattr(cli, "configure_logging", lambda *args, **kwargs: None)
     return fake
 
 
@@ -149,3 +150,9 @@ def test_scrape_does_not_allow_delisting_by_default(spy: ScrapeSpy) -> None:
     runner.invoke(app, ["scrape"])
 
     assert spy.calls[0]["allow_delisting"] is False
+
+
+def test_scrape_draws_a_progress_bar(spy: ScrapeSpy) -> None:
+    runner.invoke(app, ["scrape"])
+
+    assert isinstance(spy.calls[0]["progress"], RichScrapeProgress)

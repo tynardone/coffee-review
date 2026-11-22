@@ -17,6 +17,7 @@ from coffee_review.clients.coffee_site import CoffeeScraper, FetchResult
 from coffee_review.config import Settings
 from coffee_review.models import FetchReason, SitemapEntry
 from coffee_review.pipeline import scrape as scrape_module
+from coffee_review.pipeline.progress import NoProgress
 from coffee_review.pipeline.scrape import run_scrape
 from coffee_review.storage.raw_store import ManifestSchemaError
 from tests.fakes import FakeSite, InMemoryRawStore, Reply, unthrottled_site_settings
@@ -26,6 +27,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
     from coffee_review.models import ScrapeSummary
+    from coffee_review.pipeline.progress import ScrapeOutcome, ScrapeProgress
 
 SITE = "https://www.coffeereview.com"
 T = datetime(2026, 11, 1, 12, tzinfo=UTC)
@@ -96,6 +98,7 @@ async def scrape(
     limit: int | None = None,
     allow_delisting: bool = False,
     clock: Callable[[], float] = time.monotonic,
+    progress: ScrapeProgress | None = None,
 ) -> ScrapeSummary:
     config = settings()
     async with CoffeeScraper(config.coffee_site, transport=site.transport) as client:
@@ -108,6 +111,7 @@ async def scrape(
             now=now,
             allow_delisting=allow_delisting,
             clock=clock,
+            progress=progress or NoProgress(),
         )
 
 
@@ -427,3 +431,69 @@ def test_unreadable_manifest_ends_in_an_error_summary(
     assert summary.outcome == "error"
     assert summary.stopped_reason is not None
     assert "schema version 99" in summary.stopped_reason
+
+
+class RecordingProgress:
+    """A ScrapeProgress that writes down every call, for checking the pipeline."""
+
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, object]] = []
+
+    def start(self, total: int) -> None:
+        self.calls.append(("start", total))
+
+    def advance(self, outcome: ScrapeOutcome) -> None:
+        self.calls.append(("advance", outcome))
+
+    def finish(self) -> None:
+        self.calls.append(("finish", None))
+
+
+async def test_progress_starts_with_the_planned_total() -> None:
+    progress = RecordingProgress()
+
+    await scrape(site_with(THREE), InMemoryRawStore(), limit=2, progress=progress)
+
+    assert progress.calls[0] == ("start", 2)
+
+
+async def test_progress_advances_once_per_recorded_page() -> None:
+    progress = RecordingProgress()
+    pages: dict[str, Reply] = {"b": httpx.Response(500), "c": httpx.Response(404)}
+
+    await scrape(site_with(THREE, pages), InMemoryRawStore(), progress=progress)
+
+    assert progress.calls == [
+        ("start", 3),
+        ("advance", "saved"),
+        ("advance", "failed"),
+        ("advance", "gone"),
+        ("finish", None),
+    ]
+
+
+async def test_pushback_does_not_advance_progress() -> None:
+    progress = RecordingProgress()
+    site = site_with(THREE, pages={"b": httpx.Response(429)})
+
+    await scrape(site, InMemoryRawStore(), progress=progress)
+
+    assert progress.calls == [("start", 3), ("advance", "saved"), ("finish", None)]
+
+
+async def test_progress_finishes_even_on_error() -> None:
+    progress = RecordingProgress()
+
+    await scrape(site_with(THREE), FullDiskStore(), progress=progress)
+
+    assert progress.calls[-1] == ("finish", None)
+
+
+async def test_progress_finishes_when_sitemaps_fail() -> None:
+    progress = RecordingProgress()
+    site = site_with(THREE)
+    site.routes["/sitemap_index.xml"] = httpx.Response(429)
+
+    await scrape(site, InMemoryRawStore(), progress=progress)
+
+    assert progress.calls == [("finish", None)]

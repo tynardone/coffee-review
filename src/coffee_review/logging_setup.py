@@ -12,9 +12,13 @@ import sys
 import time
 from typing import TYPE_CHECKING
 
+from rich.logging import RichHandler
+
 if TYPE_CHECKING:
     from datetime import datetime
     from pathlib import Path
+
+    from rich.console import Console
 
 PACKAGE_LOGGER = "coffee_review"
 # ISO 8601 in UTC, e.g. 2026-11-21T23:43:11.250Z: the same clock as the log's
@@ -27,13 +31,30 @@ FILE_DATE_FORMAT = "%Y-%m-%dT%H:%M:%S"
 _OWNED = "_coffee_review_handler"
 
 
-def configure_logging(level: str, log_file: Path | None) -> None:
-    """Send the package's logs to the terminal at ``level``, and all of it to a file."""
+def configure_logging(
+    level: str, log_file: Path | None, *, console: Console | None = None
+) -> None:
+    """Send the package's logs to the terminal at ``level``, and all of it to a file.
+
+    With a Rich ``console``, terminal lines are printed through it, so they
+    appear above a progress bar drawn on the same console instead of breaking it.
+    """
     logger = logging.getLogger(PACKAGE_LOGGER)
     remove_handlers()
     logger.setLevel(logging.DEBUG)
 
-    terminal = logging.StreamHandler(sys.stderr)
+    terminal: logging.Handler
+    if console is None:
+        terminal = logging.StreamHandler(sys.stderr)
+    else:
+        terminal = RichHandler(
+            console=console,
+            show_time=False,
+            show_level=False,
+            show_path=False,
+            markup=False,
+            highlighter=None,
+        )
     terminal.setLevel(level.upper())
     terminal.setFormatter(logging.Formatter("%(message)s"))
     _add(logger, terminal)

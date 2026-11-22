@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import io
 import logging
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 import pytest
+from rich.console import Console
 
 from coffee_review.logging_setup import (
     configure_logging,
@@ -95,3 +97,13 @@ def test_log_file_timestamps_are_utc(tmp_path: Path) -> None:
     line = file_handler.format(record)
 
     assert line == "2026-11-21T23:43:11.250Z INFO coffee_review.pipeline: hello"
+
+
+def test_terminal_lines_go_through_a_rich_console_when_given() -> None:
+    out = io.StringIO()
+    console = Console(file=out, force_terminal=False, width=200)
+
+    configure_logging("INFO", None, console=console)
+    logging.getLogger("coffee_review.pipeline").warning("gone /review/x/: HTTP 404")
+
+    assert out.getvalue().strip() == "gone /review/x/: HTTP 404"

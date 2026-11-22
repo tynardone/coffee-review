@@ -35,6 +35,7 @@ from coffee_review.pipeline.fetch_rules import (
     find_delistings,
     select_reviews_to_fetch,
 )
+from coffee_review.pipeline.progress import NoProgress
 from coffee_review.storage.raw_store import ManifestSchemaError, open_raw_store
 
 if TYPE_CHECKING:
@@ -43,6 +44,7 @@ if TYPE_CHECKING:
 
     from coffee_review.config import Settings
     from coffee_review.models import SitemapEntry
+    from coffee_review.pipeline.progress import ScrapeProgress
     from coffee_review.storage.raw_store import RawStore
 
 logger = logging.getLogger(__name__)
@@ -57,6 +59,7 @@ def scrape(
     limit: int | None,
     now: datetime,
     allow_delisting: bool = False,
+    progress: ScrapeProgress | None = None,
 ) -> ScrapeSummary:
     """Run a scrape with the real client and store."""
 
@@ -77,6 +80,7 @@ def scrape(
                     limit=limit,
                     now=now,
                     allow_delisting=allow_delisting,
+                    progress=progress,
                 )
         finally:
             store.close()
@@ -94,6 +98,7 @@ async def run_scrape(
     now: datetime,
     allow_delisting: bool = False,
     clock: Callable[[], float] = time.monotonic,
+    progress: ScrapeProgress | None = None,
 ) -> ScrapeSummary:
     """Fetch new and changed reviews into ``store``; stop on any pushback.
 
@@ -103,6 +108,7 @@ async def run_scrape(
     Every outcome, early endings included, comes back measured (ADR 0005).
     """
     site = settings.coffee_site
+    progress = progress or NoProgress()
     logger.info(
         "scrape starting: rate %.1f/s, concurrency %d",
         site.rate_per_sec,
@@ -121,6 +127,7 @@ async def run_scrape(
             limit=limit,
             now=now,
             allow_delisting=allow_delisting,
+            progress=progress,
         )
     except Exception as exc:
         # Something unexpected (disk full, database locked) broke the run. Log
@@ -128,6 +135,8 @@ async def run_scrape(
         # Pages saved before the error stay saved.
         logger.exception("scrape failed")
         summary = _ended_early("error", _describe_error(exc))
+    finally:
+        progress.finish()  # before the summary, so it prints below the bar
 
     requests = client.stats.requests - requests_before
     response_seconds = client.stats.response_seconds - response_before
@@ -156,6 +165,7 @@ async def _scrape_steps(
     limit: int | None,
     now: datetime,
     allow_delisting: bool,
+    progress: ScrapeProgress,
 ) -> ScrapeSummary:
     """The scrape itself: sitemaps, delistings, selection, fetching."""
     listing = await _read_sitemaps(client, str(settings.coffee_site.sitemap_url))
@@ -182,7 +192,8 @@ async def _scrape_steps(
 
     selected = select_reviews_to_fetch(entries, manifest, now=now, full=full)
     planned = selected[:limit] if limit is not None else selected
-    run = _FetchRun(store=store, now=now, queue=deque(planned))
+    progress.start(len(planned))
+    run = _FetchRun(store=store, now=now, queue=deque(planned), progress=progress)
     async with asyncio.TaskGroup() as workers:
         for _ in range(settings.coffee_site.max_concurrency):
             workers.create_task(run.work(client))
@@ -267,6 +278,7 @@ class _FetchRun:
     store: RawStore
     now: datetime
     queue: deque[tuple[SitemapEntry, FetchReason]]
+    progress: ScrapeProgress
     fetched: Counter[FetchReason] = field(default_factory=Counter)
     failed: int = 0
     gone_slugs: list[str] = field(default_factory=list)
@@ -301,17 +313,20 @@ class _FetchRun:
                 )
                 self.fetched[reason] += 1
                 self.consecutive_failures = 0
+                self.progress.advance("saved")
             case Failed(error=error):
                 logger.warning("failed %s: %s", entry.url, error)
                 self.store.record_failure(entry, error, self.now)
                 self.failed += 1
                 self.consecutive_failures += 1
+                self.progress.advance("failed")
                 if self.consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
                     self._stop(f"{MAX_CONSECUTIVE_FAILURES} failures in a row")
             case Gone(reason=gone_reason):
                 logger.warning("gone %s: %s", entry.url, gone_reason)
                 self.store.record_gone(entry, gone_reason, self.now)
                 self.gone_slugs.append(entry.slug)
+                self.progress.advance("gone")
             case Pushback(reason=pushback_reason, url=url):
                 self._stop(f"{pushback_reason} at {url}")
 

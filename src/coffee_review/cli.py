@@ -13,10 +13,12 @@ from typing import Annotated
 
 import typer
 from pydantic import ValidationError
+from rich.console import Console
 
 from coffee_review.config import MAX_RATE_PER_SEC, get_settings
 from coffee_review.logging_setup import configure_logging, scrape_log_path
 from coffee_review.pipeline.scrape import scrape
+from coffee_review.progress_display import RichScrapeProgress
 
 # Exit codes. 2 is Click's own code for a usage error (a bad option), so a
 # stopped run gets 3: a script can tell "you typed it wrong" from "the site
@@ -111,9 +113,18 @@ def scrape_command(
             ) from None
 
     now = datetime.now(UTC)
-    configure_logging(settings.log_level, scrape_log_path(settings.data_dir, now))
+    # One console for log lines and the progress bar, so lines print above it.
+    console = Console(stderr=True)
+    configure_logging(
+        settings.log_level, scrape_log_path(settings.data_dir, now), console=console
+    )
     summary = scrape(
-        settings, full=full, limit=limit, now=now, allow_delisting=allow_delisting
+        settings,
+        full=full,
+        limit=limit,
+        now=now,
+        allow_delisting=allow_delisting,
+        progress=RichScrapeProgress(console),
     )
     raise typer.Exit(EXIT_CODES[summary.outcome])
 
