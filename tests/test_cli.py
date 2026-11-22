@@ -156,3 +156,11 @@ def test_scrape_draws_a_progress_bar(spy: ScrapeSpy) -> None:
     runner.invoke(app, ["scrape"])
 
     assert isinstance(spy.calls[0]["progress"], RichScrapeProgress)
+
+
+def test_scrape_help_keeps_speed_options_together() -> None:
+    help_text = runner.invoke(app, ["scrape", "--help"]).output
+    order = ["--full", "--limit", "--rate", "--concurrency", "--allow-delisting"]
+
+    positions = [help_text.index(option) for option in order]
+    assert positions == sorted(positions)

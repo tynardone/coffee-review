@@ -74,6 +74,15 @@ def scrape_command(
             ),
         ),
     ] = None,
+    concurrency: Annotated[
+        int | None,
+        typer.Option(
+            help=(
+                "Requests in flight at once; needs --rate. "
+                "Between ceil(rate) and 2x that."
+            ),
+        ),
+    ] = None,
     allow_delisting: Annotated[
         bool,
         typer.Option(
@@ -84,15 +93,6 @@ def scrape_command(
             ),
         ),
     ] = False,
-    concurrency: Annotated[
-        int | None,
-        typer.Option(
-            help=(
-                "Requests in flight at once; needs --rate. "
-                "Between ceil(rate) and 2x that."
-            ),
-        ),
-    ] = None,
 ) -> None:
     """Download new and changed reviews into data/raw. Stops on any pushback.
 
