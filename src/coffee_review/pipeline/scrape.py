@@ -44,7 +44,7 @@ if TYPE_CHECKING:
 
     from coffee_review.config import Settings
     from coffee_review.models.scrape import SitemapEntry
-    from coffee_review.pipeline.progress import ScrapeProgress
+    from coffee_review.pipeline.progress import RunProgress
     from coffee_review.storage.raw_store import RawStore
 
 logger = logging.getLogger(__name__)
@@ -59,7 +59,7 @@ def scrape(
     limit: int | None,
     now: datetime,
     allow_delisting: bool = False,
-    progress: ScrapeProgress | None = None,
+    progress: RunProgress | None = None,
 ) -> ScrapeSummary:
     """Run a scrape with the real client and store."""
 
@@ -98,7 +98,7 @@ async def run_scrape(
     now: datetime,
     allow_delisting: bool = False,
     clock: Callable[[], float] = time.monotonic,
-    progress: ScrapeProgress | None = None,
+    progress: RunProgress | None = None,
 ) -> ScrapeSummary:
     """Fetch new and changed reviews into ``store``; stop on any pushback.
 
@@ -165,7 +165,7 @@ async def _scrape_steps(
     limit: int | None,
     now: datetime,
     allow_delisting: bool,
-    progress: ScrapeProgress,
+    progress: RunProgress,
 ) -> ScrapeSummary:
     """The scrape itself: sitemaps, delistings, selection, fetching."""
     listing = await _read_sitemaps(client, str(settings.coffee_site.sitemap_url))
@@ -266,7 +266,7 @@ class _FetchRun:
     store: RawStore
     now: datetime
     queue: deque[tuple[SitemapEntry, FetchReason]]
-    progress: ScrapeProgress
+    progress: RunProgress
     fetched: Counter[FetchReason] = field(default_factory=Counter)
     failed: int = 0
     gone_slugs: list[str] = field(default_factory=list)

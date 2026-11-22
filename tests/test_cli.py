@@ -11,7 +11,7 @@ from typer.testing import CliRunner
 from coffee_review import cli
 from coffee_review.cli import app
 from coffee_review.models.scrape import ScrapeSummary
-from coffee_review.progress_display import RichScrapeProgress
+from coffee_review.progress_display import RichRunProgress
 
 if TYPE_CHECKING:
     from coffee_review.config import Settings
@@ -155,7 +155,9 @@ def test_scrape_does_not_allow_delisting_by_default(spy: ScrapeSpy) -> None:
 def test_scrape_draws_a_progress_bar(spy: ScrapeSpy) -> None:
     runner.invoke(app, ["scrape"])
 
-    assert isinstance(spy.calls[0]["progress"], RichScrapeProgress)
+    progress = spy.calls[0]["progress"]
+    assert isinstance(progress, RichRunProgress)
+    assert progress.label == "scraping"
 
 
 def test_scrape_help_keeps_speed_options_together() -> None:

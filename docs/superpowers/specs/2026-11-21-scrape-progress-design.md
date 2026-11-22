@@ -2,6 +2,11 @@
 
 Date: 2026-11-21 · Status: approved by Tyler in conversation (Rich chosen over tqdm)
 
+*Later, in M2 Task 7, the names were generalised so `parse` can share the bar:
+`ScrapeProgress` became `RunProgress`, `RichScrapeProgress` became
+`RichRunProgress(console, label=..., outcomes=...)`, and `scrape_log_path`
+became `run_log_path(data_dir, command, now)`.*
+
 ## Intent
 
 A full scrape takes about 31 minutes, and until now it ran with no sign of

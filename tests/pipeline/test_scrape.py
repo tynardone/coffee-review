@@ -27,7 +27,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
     from coffee_review.models.scrape import ScrapeSummary
-    from coffee_review.pipeline.progress import ScrapeOutcome, ScrapeProgress
+    from coffee_review.pipeline.progress import RunProgress
 
 SITE = "https://www.coffeereview.com"
 T = datetime(2026, 11, 1, 12, tzinfo=UTC)
@@ -98,7 +98,7 @@ async def scrape(
     limit: int | None = None,
     allow_delisting: bool = False,
     clock: Callable[[], float] = time.monotonic,
-    progress: ScrapeProgress | None = None,
+    progress: RunProgress | None = None,
 ) -> ScrapeSummary:
     config = settings()
     async with CoffeeScraper(config.coffee_site, transport=site.transport) as client:
@@ -434,7 +434,7 @@ def test_unreadable_manifest_ends_in_an_error_summary(
 
 
 class RecordingProgress:
-    """A ScrapeProgress that writes down every call, for checking the pipeline."""
+    """A RunProgress that writes down every call, for checking the pipeline."""
 
     def __init__(self) -> None:
         self.calls: list[tuple[str, object]] = []
@@ -442,7 +442,7 @@ class RecordingProgress:
     def start(self, total: int) -> None:
         self.calls.append(("start", total))
 
-    def advance(self, outcome: ScrapeOutcome) -> None:
+    def advance(self, outcome: str) -> None:
         self.calls.append(("advance", outcome))
 
     def finish(self) -> None:
