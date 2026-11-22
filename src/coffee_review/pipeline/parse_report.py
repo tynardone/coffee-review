@@ -19,6 +19,7 @@ from coffee_review.models.common import format_elapsed
 from coffee_review.models.parsed import GreenReview, RoastedReview
 from coffee_review.parsers.field_aliases import LABEL_ALIASES
 from coffee_review.parsers.value_shape import value_shape
+from coffee_review.pipeline.markdown import cell
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -198,7 +199,7 @@ def _unknown_section(report: ParseReport) -> list[str]:
         return [*lines, "None: every label and heading is in the alias table."]
     lines += ["| Label or heading | Pages | Examples |", "|---|---|---|"]
     for key, (count, examples) in report.unknown.items():
-        lines.append(f"| `{_cell(key)}` | {count:,} | {', '.join(examples)} |")
+        lines.append(f"| `{cell(key)}` | {count:,} | {', '.join(examples)} |")
     return lines
 
 
@@ -215,9 +216,7 @@ def _shapes_section(report: ParseReport) -> list[str]:
             "|---|---|---|",
         ]
         for shape, count, slug, value in rows:
-            lines.append(
-                f"| `{_cell(shape)}` | {count:,} | `{_cell(value)}` ({slug}) |"
-            )
+            lines.append(f"| `{cell(shape)}` | {count:,} | `{cell(value)}` ({slug}) |")
     return lines
 
 
@@ -227,10 +226,5 @@ def _issues_section(issues: Sequence[ParseIssue]) -> list[str]:
         return [*lines, "None."]
     lines += ["| Slug | Kind | Detail |", "|---|---|---|"]
     for issue in sorted(issues, key=lambda i: (i.kind, i.slug)):
-        lines.append(f"| {issue.slug} | {issue.kind} | {_cell(issue.detail)} |")
+        lines.append(f"| {issue.slug} | {issue.kind} | {cell(issue.detail)} |")
     return lines
-
-
-def _cell(text: str) -> str:
-    """Text safe inside a Markdown table cell."""
-    return text.replace("|", "\\|").replace("\n", " ")

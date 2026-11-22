@@ -30,6 +30,10 @@ FILE_DATE_FORMAT = "%Y-%m-%dT%H:%M:%S"
 # anyone else's (pytest's, for example).
 _OWNED = "_coffee_review_handler"
 
+# Pass as ``extra=FILE_ONLY`` to log a record to the run log but not the
+# terminal: for a message the command already shows the person another way.
+FILE_ONLY = {"terminal": False}
+
 
 def configure_logging(
     level: str, log_file: Path | None, *, console: Console | None = None
@@ -57,6 +61,7 @@ def configure_logging(
         )
     terminal.setLevel(level.upper())
     terminal.setFormatter(logging.Formatter("%(message)s"))
+    terminal.addFilter(lambda record: getattr(record, "terminal", True))
     _add(logger, terminal)
 
     if log_file is not None:

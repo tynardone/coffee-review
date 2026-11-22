@@ -8,7 +8,11 @@ from typing import TYPE_CHECKING
 import pytest
 
 from coffee_review.models.parsed import GreenReview, ParseIssue, RoastedReview
-from coffee_review.storage.parsed_store import ParquetParsedStore
+from coffee_review.storage.parsed_store import (
+    ParquetParsedStore,
+    ParsedLayerMissingError,
+    reviews_frame,
+)
 from tests.fakes import InMemoryParsedStore
 
 if TYPE_CHECKING:
@@ -91,3 +95,27 @@ def test_empty_dataset_reads_back_empty(store: ParsedStore) -> None:
     store.write([roasted("a")], [], "")
 
     assert store.read_reviews("green") == []
+
+
+def test_read_table_matches_records(store: ParsedStore) -> None:
+    store.write([roasted("c", aroma="9"), roasted("a"), green("b")], [], "")
+
+    table = store.read_table("roasted")
+
+    assert table["slug"].to_list() == ["a", "c"]
+    assert table["aroma"].to_list() == [None, "9"]
+    assert table.schema == reviews_frame([], "roasted").schema
+
+
+def test_read_table_empty_dataset(store: ParsedStore) -> None:
+    store.write([roasted("a")], [], "")
+
+    table = store.read_table("green")
+
+    assert table.height == 0
+    assert table.schema == reviews_frame([], "green").schema
+
+
+def test_read_table_before_any_parse_raises(store: ParsedStore) -> None:
+    with pytest.raises(ParsedLayerMissingError, match="run parse first"):
+        store.read_table("roasted")

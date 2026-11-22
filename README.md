@@ -96,6 +96,40 @@ Every run replaces the previous output. See
 [ADR 0007](docs/decisions/0007-parse-text-type-later.md) for why values stay
 text until the clean stage.
 
+## Cleaning
+
+```bash
+uv run coffee-review clean
+```
+
+Reads the parsed layer and writes the clean (silver) layer in about a second:
+
+- `data/clean/roasted/` and `data/clean/green/`: a typed `reviews.parquet`
+  each: `review_month` (always the 1st), numeric scores, Agtron as whole-bean
+  and ground readings, price as amount, currency, quantity, unit and grams,
+  origin as country and growing region, roaster as city, region and country;
+- `data/clean/cleaning_log.parquet`: one row for every rule applied to a value,
+  with the original text;
+- `data/clean/report.md`: the report.
+
+Every run checks both tables against their contract (`models/clean.py`) and
+stops without writing anything if one breaks it, or if a value became empty
+with no rule saying why.
+
+**Reading the report.** *Rules applied* shows what was changed and how often.
+*To review* lists values the lookup tables don't know (an unplaced origin, an
+unknown unit or currency) and misspellings matched by close spelling
+(`Calfornia → California`), each marked **new** when the last run didn't have
+it; the run also logs a warning when anything is new. To fix one, add its
+spelling to a table in `src/coffee_review/transforms/lookups/` and run `clean`
+again (no rescrape or reparse needed). *Coverage* and *Distributions* are a
+quick check that the results look right.
+
+The complete country and currency lists are generated from ISO standards:
+`uv run python scripts/generate_lookup_tables.py`. See
+[ADR 0008](docs/decisions/0008-clean-in-polars.md) for why the clean stage is
+Polars and how it fits the later dbt layers.
+
 ## Checks
 
 ```bash

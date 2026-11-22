@@ -11,17 +11,16 @@ incremental writing to get wrong.
 
 from __future__ import annotations
 
-import os
-import tempfile
-from pathlib import Path
 from typing import TYPE_CHECKING, Protocol
 
 import polars as pl
 
 from coffee_review.models.parsed import GreenReview, ParseIssue, RoastedReview
+from coffee_review.storage.atomic import write_atomically, write_parquet
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Sequence
+    from collections.abc import Sequence
+    from pathlib import Path
 
     from coffee_review.config import Settings
     from coffee_review.models.parsed import Dataset, ParsedReview
@@ -40,7 +39,22 @@ class ParsedStore(Protocol):
         ...
 
     def read_reviews(self, dataset: Dataset) -> list[ParsedReview]:
-        """One dataset's records, sorted by slug."""
+        """One dataset's records, sorted by slug.
+
+        The record-by-record view, ``extra`` included: the way back to exactly
+        what the parser produced (the contract tests use it to prove a write
+        loses nothing).
+        """
+        ...
+
+    def read_table(self, dataset: Dataset) -> pl.DataFrame:
+        """One dataset's reviews as a table, sorted by slug.
+
+        The column view the clean stage (M3) works on: every field as text,
+        with ``extra_count`` but not the extra values.
+
+        Raises ``ParsedLayerMissingError`` when nothing has been parsed yet.
+        """
         ...
 
     def read_issues(self) -> list[ParseIssue]:
@@ -54,6 +68,10 @@ class ParsedStore(Protocol):
     def close(self) -> None:
         """Release any open resources."""
         ...
+
+
+class ParsedLayerMissingError(Exception):
+    """There's no parsed data to read: parse hasn't been run here yet."""
 
 
 def open_parsed_store(settings: Settings) -> ParsedStore:
@@ -79,6 +97,12 @@ def _review_schema(dataset: Dataset) -> pl.Schema:
     columns |= {column: pl.String() for column in _MODELS[dataset].columns}
     columns["extra_count"] = pl.Int32()
     return pl.Schema(columns)
+
+
+def reviews_frame(records: Sequence[ParsedReview], dataset: Dataset) -> pl.DataFrame:
+    """One dataset's records as its ``reviews.parquet`` table, sorted by slug."""
+    mine = sorted((r for r in records if r.dataset == dataset), key=lambda r: r.slug)
+    return pl.DataFrame([_review_row(r) for r in mine], schema=_review_schema(dataset))
 
 
 _EXTRA_SCHEMA = pl.Schema(
@@ -107,29 +131,24 @@ class ParquetParsedStore:
                 (r for r in records if r.dataset == dataset), key=lambda r: r.slug
             )
             folder = self._root / dataset
-            _write_parquet(
-                pl.DataFrame(
-                    [_review_row(r) for r in mine], schema=_review_schema(dataset)
-                ),
-                folder / "reviews.parquet",
-            )
+            write_parquet(reviews_frame(mine, dataset), folder / "reviews.parquet")
             extras = [
                 {"slug": r.slug, "label": label, "value": value}
                 for r in mine
                 for label, value in sorted(r.extra.items())
             ]
-            _write_parquet(
+            write_parquet(
                 pl.DataFrame(extras, schema=_EXTRA_SCHEMA),
                 folder / "extra_fields.parquet",
             )
-        _write_parquet(
+        write_parquet(
             pl.DataFrame(
                 [issue.model_dump() for issue in _sorted_issues(issues)],
                 schema=_ISSUE_SCHEMA,
             ),
             self._root / "parse_issues.parquet",
         )
-        _write_atomically(
+        write_atomically(
             self._root / "report.md",
             lambda tmp: tmp.write_text(report_markdown, encoding="utf-8"),
         )
@@ -147,6 +166,13 @@ class ParquetParsedStore:
             model.model_validate(row | {"extra": extras.get(row["slug"], {})})
             for row in reviews.iter_rows(named=True)
         ]
+
+    def read_table(self, dataset: Dataset) -> pl.DataFrame:
+        path = self._root / dataset / "reviews.parquet"
+        if not path.exists():
+            msg = f"no parsed data at {path}: run parse first"
+            raise ParsedLayerMissingError(msg)
+        return pl.read_parquet(path)
 
     def read_issues(self) -> list[ParseIssue]:
         frame = pl.read_parquet(self._root / "parse_issues.parquet")
@@ -167,24 +193,3 @@ def _review_row(record: ParsedReview) -> dict[str, object]:
 
 def _sorted_issues(issues: Sequence[ParseIssue]) -> list[ParseIssue]:
     return sorted(issues, key=lambda i: (i.slug, i.kind, i.detail))
-
-
-def _write_parquet(frame: pl.DataFrame, path: Path) -> None:
-    _write_atomically(path, frame.write_parquet)
-
-
-def _write_atomically(path: Path, write: Callable[[Path], object]) -> None:
-    """Write to a temp file in the same folder, then move it into place.
-
-    A failed write leaves the previous file untouched and no temp file behind.
-    """
-    path.parent.mkdir(parents=True, exist_ok=True)
-    handle, name = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
-    os.close(handle)  # reopened by ``write``; mkstemp only reserves a unique name
-    tmp = Path(name)
-    try:
-        write(tmp)
-        tmp.replace(path)
-    except BaseException:
-        tmp.unlink(missing_ok=True)
-        raise

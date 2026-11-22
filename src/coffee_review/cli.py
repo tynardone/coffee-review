@@ -17,7 +17,8 @@ from pydantic import ValidationError
 from rich.console import Console
 
 from coffee_review.config import MAX_RATE_PER_SEC, get_settings
-from coffee_review.logging_setup import configure_logging, run_log_path
+from coffee_review.logging_setup import FILE_ONLY, configure_logging, run_log_path
+from coffee_review.pipeline.clean import clean
 from coffee_review.pipeline.parse import parse
 from coffee_review.pipeline.scrape import scrape
 from coffee_review.progress_display import RichRunProgress
@@ -158,8 +159,33 @@ def parse_command() -> None:
         result = parse(settings, progress=progress)
     except Exception as exc:
         logger.debug("parse failed", exc_info=True)  # full traceback, log file only
-        logger.error("parse failed: %s: %s", type(exc).__name__, exc)
-        typer.echo(f"parse failed: {exc}", err=True)
+        logger.error("parse failed: %s: %s", type(exc).__name__, exc, extra=FILE_ONLY)
+        typer.echo(f"parse failed: {exc}", err=True)  # the terminal's one copy
+        raise typer.Exit(EXIT_ERROR) from None
+    typer.echo(f"report: {result.report_location}")
+
+
+@app.command("clean")
+def clean_command() -> None:
+    """Clean the parsed reviews into typed tables in data/clean, with a report.
+
+    Values that need a look are listed in the report, and a warning says when
+    any are new since the last run. Exit codes: 0 finished, 1 error (including
+    a table breaking its contract, or no parsed data yet).
+    """
+    settings = get_settings()
+    now = datetime.now(UTC)
+    configure_logging(
+        settings.log_level,
+        run_log_path(settings.data_dir, "clean", now),
+        console=Console(stderr=True),
+    )
+    try:
+        result = clean(settings)
+    except Exception as exc:
+        logger.debug("clean failed", exc_info=True)  # full traceback, log file only
+        logger.error("clean failed: %s: %s", type(exc).__name__, exc, extra=FILE_ONLY)
+        typer.echo(f"clean failed: {exc}", err=True)  # the terminal's one copy
         raise typer.Exit(EXIT_ERROR) from None
     typer.echo(f"report: {result.report_location}")
 

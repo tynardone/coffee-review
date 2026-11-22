@@ -11,6 +11,7 @@ import pytest
 from rich.console import Console
 
 from coffee_review.logging_setup import (
+    FILE_ONLY,
     configure_logging,
     remove_handlers,
     run_log_path,
@@ -110,3 +111,16 @@ def test_terminal_lines_go_through_a_rich_console_when_given() -> None:
     logging.getLogger("coffee_review.pipeline").warning("gone /review/x/: HTTP 404")
 
     assert out.getvalue().strip() == "gone /review/x/: HTTP 404"
+
+
+def test_file_only_records_skip_the_terminal(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    log_file = tmp_path / "run.log"
+    configure_logging("INFO", log_file)
+
+    logging.getLogger("coffee_review.cli").error("parse failed: boom", extra=FILE_ONLY)
+
+    assert "parse failed: boom" not in capsys.readouterr().err
+    assert "ERROR" in log_file.read_text(encoding="utf-8")
+    assert "parse failed: boom" in log_file.read_text(encoding="utf-8")
