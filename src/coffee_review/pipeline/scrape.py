@@ -21,7 +21,7 @@ from coffee_review.clients.coffee_site import (
     Gone,
     Pushback,
 )
-from coffee_review.models import FetchReason, RunMeasurement, ScrapeSummary
+from coffee_review.models.scrape import FetchReason, RunMeasurement, ScrapeSummary
 from coffee_review.parsers.sitemap import (
     SitemapParseError,
     dedupe_entries,
@@ -43,7 +43,7 @@ if TYPE_CHECKING:
     from datetime import datetime
 
     from coffee_review.config import Settings
-    from coffee_review.models import SitemapEntry
+    from coffee_review.models.scrape import SitemapEntry
     from coffee_review.pipeline.progress import ScrapeProgress
     from coffee_review.storage.raw_store import RawStore
 

@@ -15,7 +15,7 @@ import pytest
 
 from coffee_review.clients.coffee_site import CoffeeScraper, FetchResult
 from coffee_review.config import Settings
-from coffee_review.models import FetchReason, SitemapEntry
+from coffee_review.models.scrape import FetchReason, SitemapEntry
 from coffee_review.pipeline import scrape as scrape_module
 from coffee_review.pipeline.progress import NoProgress
 from coffee_review.pipeline.scrape import run_scrape
@@ -26,7 +26,7 @@ if TYPE_CHECKING:
     import asyncio
     from collections.abc import Callable
 
-    from coffee_review.models import ScrapeSummary
+    from coffee_review.models.scrape import ScrapeSummary
     from coffee_review.pipeline.progress import ScrapeOutcome, ScrapeProgress
 
 SITE = "https://www.coffeereview.com"

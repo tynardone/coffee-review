@@ -12,14 +12,15 @@ from typing import TYPE_CHECKING, Any
 import httpx
 
 from coffee_review.config import CoffeeSiteSettings
-from coffee_review.models import ManifestRecord, require_slug
+from coffee_review.models.common import require_slug
+from coffee_review.models.scrape import ManifestRecord
 from coffee_review.storage.raw_store import PageNotFoundError
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Collection
     from datetime import datetime
 
-    from coffee_review.models import SitemapEntry
+    from coffee_review.models.scrape import SitemapEntry
 
 
 class InMemoryRawStore:

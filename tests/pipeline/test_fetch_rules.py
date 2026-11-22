@@ -12,7 +12,7 @@ from typing import Any
 
 import pytest
 
-from coffee_review.models import FetchReason, ManifestRecord, SitemapEntry
+from coffee_review.models.scrape import FetchReason, ManifestRecord, SitemapEntry
 from coffee_review.pipeline.fetch_rules import (
     Delistings,
     delisting_exceeds_limit,

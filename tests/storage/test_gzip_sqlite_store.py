@@ -13,7 +13,7 @@ from pathlib import Path
 import pytest
 
 from coffee_review.config import Settings
-from coffee_review.models import SitemapEntry
+from coffee_review.models.scrape import SitemapEntry
 from coffee_review.storage.raw_store import (
     GzipSqliteRawStore,
     ManifestSchemaError,

@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from coffee_review.models import SitemapEntry
+from coffee_review.models.scrape import SitemapEntry
 from coffee_review.storage.raw_store import GzipSqliteRawStore, PageNotFoundError
 from tests.fakes import InMemoryRawStore
 

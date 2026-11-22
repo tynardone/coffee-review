@@ -9,7 +9,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, NamedTuple
 
-from coffee_review.models import FetchReason, ManifestRecord, SitemapEntry
+from coffee_review.models.scrape import FetchReason, ManifestRecord, SitemapEntry
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence

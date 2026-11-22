@@ -10,7 +10,7 @@ from typer.testing import CliRunner
 
 from coffee_review import cli
 from coffee_review.cli import app
-from coffee_review.models import ScrapeSummary
+from coffee_review.models.scrape import ScrapeSummary
 from coffee_review.progress_display import RichScrapeProgress
 
 if TYPE_CHECKING:

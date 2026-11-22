@@ -16,7 +16,7 @@ from coffee_review.clients.coffee_site import (
     Gone,
     Pushback,
 )
-from coffee_review.models import SitemapEntry
+from coffee_review.models.scrape import SitemapEntry
 from tests.fakes import unthrottled_site_settings
 
 SITE = "https://www.coffeereview.com"

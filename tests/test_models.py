@@ -7,16 +7,18 @@ from datetime import UTC, datetime, timedelta, timezone
 import pytest
 from pydantic import ValidationError
 
-from coffee_review.models import (
-    FetchReason,
+from coffee_review.models.common import format_elapsed
+from coffee_review.models.parsed import (
     GreenReview,
     ParsedPage,
     ParseIssue,
     RoastedReview,
+)
+from coffee_review.models.scrape import (
+    FetchReason,
     RunMeasurement,
     ScrapeSummary,
     SitemapEntry,
-    format_elapsed,
 )
 
 URL = "https://www.coffeereview.com/review/x/"
