@@ -12,7 +12,7 @@ import logging
 import time
 from collections import Counter, deque
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING
 
 from coffee_review.clients.coffee_site import (
     CoffeeScraper,
@@ -67,7 +67,7 @@ def scrape(
         try:
             store = open_raw_store(settings)
         except ManifestSchemaError as exc:
-            summary = _ended_early("error", str(exc))
+            summary = ScrapeSummary(outcome="error", reason=str(exc))
             logger.error(summary.describe())
             return summary
         try:
@@ -134,7 +134,7 @@ async def run_scrape(
         # the traceback, and still end with a measured summary and exit 1.
         # Pages saved before the error stay saved.
         logger.exception("scrape failed")
-        summary = _ended_early("error", _describe_error(exc))
+        summary = ScrapeSummary(outcome="error", reason=_describe_error(exc))
     finally:
         progress.finish()  # before the summary, so it prints below the bar
 
@@ -181,9 +181,9 @@ async def _scrape_steps(
             f"reviews (more than {DELISTING_MIN_COUNT} and {DELISTING_LIMIT:.0%})"
         )
         if not allow_delisting:
-            return _ended_early(
-                "error",
-                f"{too_many}; nothing marked. If that's real, rerun with "
+            return ScrapeSummary(
+                outcome="error",
+                reason=f"{too_many}; nothing marked. If that's real, rerun with "
                 "--allow-delisting",
             )
         logger.warning("%s; marking them anyway (--allow-delisting)", too_many)
@@ -199,7 +199,7 @@ async def _scrape_steps(
             workers.create_task(run.work(client))
 
     return ScrapeSummary(
-        outcome="stopped" if run.stopped_reason else "finished",
+        outcome="stopped" if run.reason else "finished",
         fetched=dict(run.fetched),
         unchanged=len(entries) - len(selected),
         failed=run.failed,
@@ -207,7 +207,7 @@ async def _scrape_steps(
         delisted=len(delistings.delisted),
         relisted=len(delistings.relisted),
         remaining=len(run.queue) + len(selected) - len(planned),
-        stopped_reason=run.stopped_reason,
+        reason=run.reason,
     )
 
 
@@ -225,7 +225,9 @@ async def _read_sitemaps(
             return index
         sitemap_urls = parse_sitemap_index(index)
         if not sitemap_urls:
-            return _ended_early("error", f"no review sitemaps listed in {index_url}")
+            return ScrapeSummary(
+                outcome="error", reason=f"no review sitemaps listed in {index_url}"
+            )
         entries: list[SitemapEntry] = []
         for url in sitemap_urls:
             text = await _fetch_sitemap_text(client, url)
@@ -233,7 +235,7 @@ async def _read_sitemaps(
                 return text
             entries.extend(parse_review_sitemap(text))
     except SitemapParseError as exc:
-        return _ended_early("error", str(exc))
+        return ScrapeSummary(outcome="error", reason=str(exc))
     return dedupe_entries(entries)
 
 
@@ -242,9 +244,9 @@ async def _fetch_sitemap_text(client: CoffeeScraper, url: str) -> str | ScrapeSu
         case Fetched(text=text):
             return text
         case Pushback(reason=reason):
-            return _ended_early("stopped", f"{reason} at {url}")
+            return ScrapeSummary(outcome="stopped", reason=f"{reason} at {url}")
         case Failed(error=reason) | Gone(reason=reason):
-            return _ended_early("error", f"sitemap {url}: {reason}")
+            return ScrapeSummary(outcome="error", reason=f"sitemap {url}: {reason}")
 
 
 def _describe_error(exc: BaseException) -> str:
@@ -255,20 +257,6 @@ def _describe_error(exc: BaseException) -> str:
     while isinstance(exc, BaseExceptionGroup) and exc.exceptions:
         exc = exc.exceptions[0]
     return f"{type(exc).__name__}: {exc}"
-
-
-def _ended_early(outcome: Literal["stopped", "error"], reason: str) -> ScrapeSummary:
-    return ScrapeSummary(
-        outcome=outcome,
-        fetched={},
-        unchanged=0,
-        failed=0,
-        gone_slugs=[],
-        delisted=0,
-        relisted=0,
-        remaining=0,
-        stopped_reason=reason,
-    )
 
 
 @dataclass
@@ -283,7 +271,7 @@ class _FetchRun:
     failed: int = 0
     gone_slugs: list[str] = field(default_factory=list)
     consecutive_failures: int = 0
-    stopped_reason: str | None = None
+    reason: str | None = None
     # Set the moment the run stops: workers take no new reviews, and the client
     # sends no more retries for reviews already in progress.
     stop_signal: asyncio.Event = field(default_factory=asyncio.Event)
@@ -294,7 +282,7 @@ class _FetchRun:
         After a stop, no new request is sent: not for a new review, and not as a
         retry. A request already on the wire finishes and its result is saved.
         """
-        while self.queue and self.stopped_reason is None:
+        while self.queue and self.reason is None:
             entry, reason = self.queue.popleft()
             logger.debug("fetching %s (%s)", entry.slug, reason)
             result = await client.fetch_review_page(entry, stop=self.stop_signal)
@@ -331,7 +319,7 @@ class _FetchRun:
                 self._stop(f"{pushback_reason} at {url}")
 
     def _stop(self, reason: str) -> None:
-        if self.stopped_reason is None:
+        if self.reason is None:
             logger.warning("stopping: %s", reason)
-            self.stopped_reason = reason
+            self.reason = reason
             self.stop_signal.set()

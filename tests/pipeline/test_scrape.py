@@ -166,7 +166,7 @@ async def test_pushback_stops_and_next_run_resumes() -> None:
     stopped = await scrape(first, store)
 
     assert stopped.outcome == "stopped"
-    assert stopped.stopped_reason == f"HTTP 429 at {SITE}/review/b/"
+    assert stopped.reason == f"HTTP 429 at {SITE}/review/b/"
     assert stopped.remaining == 1
     assert page_requests(first) == ["/review/a/", "/review/b/"]
     assert set(store.pages) == {"a"}
@@ -189,8 +189,8 @@ async def test_five_failures_in_a_row_stop() -> None:
     assert summary.outcome == "stopped"
     assert summary.failed == 5
     assert summary.remaining == 1
-    assert summary.stopped_reason is not None
-    assert "5 failures in a row" in summary.stopped_reason
+    assert summary.reason is not None
+    assert "5 failures in a row" in summary.reason
 
 
 async def test_success_resets_failure_streak() -> None:
@@ -289,9 +289,9 @@ async def test_delisting_guard_blocks_mass_delisting() -> None:
     summary = await scrape(site, store)
 
     assert summary.outcome == "error"
-    assert summary.stopped_reason is not None
-    assert "40 of 100" in summary.stopped_reason
-    assert "--allow-delisting" in summary.stopped_reason
+    assert summary.reason is not None
+    assert "40 of 100" in summary.reason
+    assert "--allow-delisting" in summary.reason
     assert all(record.delisted_at is None for record in store.records.values())
     assert page_requests(site) == []
 
@@ -413,7 +413,7 @@ async def test_worker_error_ends_in_a_measured_error_summary(
     summary = await scrape(site_with(THREE), FullDiskStore())
 
     assert summary.outcome == "error"
-    assert summary.stopped_reason == "OSError: No space left on device"
+    assert summary.reason == "OSError: No space left on device"
     assert summary.measurement is not None
     assert "Traceback" in caplog.text  # the full error is in the log
 
@@ -429,8 +429,8 @@ def test_unreadable_manifest_ends_in_an_error_summary(
     summary = scrape_module.scrape(settings(), full=False, limit=None, now=FIRST_RUN)
 
     assert summary.outcome == "error"
-    assert summary.stopped_reason is not None
-    assert "schema version 99" in summary.stopped_reason
+    assert summary.reason is not None
+    assert "schema version 99" in summary.reason
 
 
 class RecordingProgress:

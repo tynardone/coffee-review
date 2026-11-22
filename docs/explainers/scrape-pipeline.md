@@ -249,7 +249,7 @@ unnoticed while the other worker keeps running.
 
 ```python
 summary = ScrapeSummary(
-    outcome="stopped" if run.stopped_reason else "finished",
+    outcome="stopped" if run.reason else "finished",
     fetched=dict(run.fetched),
     unchanged=len(entries) - len(selected),
     ...
@@ -281,13 +281,13 @@ try:
     index = await _fetch_sitemap_text(client, index_url)
     if isinstance(index, ScrapeSummary): return index
     sitemap_urls = parse_sitemap_index(index)
-    if not sitemap_urls: return _ended_early("error", ...)
+    if not sitemap_urls: return ScrapeSummary(outcome="error", reason=...)
     for url in sitemap_urls:
         text = await _fetch_sitemap_text(client, url)
         if isinstance(text, ScrapeSummary): return text
         entries.extend(parse_review_sitemap(text))
 except SitemapParseError as exc:
-    return _ended_early("error", str(exc))
+    return ScrapeSummary(outcome="error", reason=str(exc))
 return dedupe_entries(entries)
 ```
 
@@ -314,9 +314,9 @@ match await client.fetch_sitemap(url):
     case Fetched(text=text):
         return text
     case Pushback(reason=reason):
-        return _ended_early("stopped", f"{reason} at {url}")
+        return ScrapeSummary(outcome="stopped", reason=f"{reason} at {url}")
     case Failed(error=reason) | Gone(reason=reason):
-        return _ended_early("error", f"sitemap {url}: {reason}")
+        return ScrapeSummary(outcome="error", reason=f"sitemap {url}: {reason}")
 ```
 
 **What it does:** it turns one of the four fetch results into either text or a
@@ -338,16 +338,23 @@ summary.
 normal: we record it and carry on. For a *sitemap*, any non-success is fatal,
 for the all-or-nothing reason in section 5.
 
-## 7. `_ended_early()`
+## 7. Summaries for runs that end early
 
-**What it does:** it builds a summary for a run that never got as far as
-fetching pages: every count is zero, and the reason is filled in.
+```python
+ScrapeSummary(outcome="error", reason=f"no review sitemaps listed in {index_url}")
+```
 
-**Why it exists:** it's needed in five places. Without it, each of those
-places would repeat nine fields, and it would be easy to get one wrong.
+**What it is:** a run that ends before fetching any pages still returns a
+`ScrapeSummary`, with just an outcome and a reason.
 
-**The `outcome` type:** it's `Literal["stopped", "error"]`. A run that ended
-early can't be `finished`, and the type makes that impossible to get wrong.
+**Why it's that short:** every count on `ScrapeSummary` defaults to zero (and
+the lists to empty), so an early ending only says what's different. An earlier
+version needed a helper, `_ended_early()`, to fill nine fields with zeros in
+five places; giving the model sensible defaults made the helper unnecessary.
+
+**The name `reason`:** it holds why a run *stopped* (`HTTP 429 at …`) or why
+it *failed* (`OSError: No space left on device`), so it isn't called
+`stopped_reason`.
 
 ## 8. `_FetchRun`: the state the workers share
 
@@ -361,7 +368,7 @@ class _FetchRun:
     failed: int = 0
     gone_slugs: list[str] = field(default_factory=list)
     consecutive_failures: int = 0
-    stopped_reason: str | None = None
+    reason: str | None = None
 ```
 
 **What it is:** everything the workers need to share during one run: the
@@ -394,7 +401,7 @@ Nothing else should build one.
 
 ```python
 async def work(self, client):
-    while self.queue and self.stopped_reason is None:
+    while self.queue and self.reason is None:
         entry, reason = self.queue.popleft()
         self._record(entry, reason, await client.fetch_review_page(entry))
 ```
@@ -414,7 +421,7 @@ it only switches between workers at an `await`. In this loop, that's the
 
 **What "stop" means in practice**, with 2 workers:
 
-1. Worker A gets a 429 and sets `stopped_reason`.
+1. Worker A gets a 429 and sets `reason`.
 2. Worker B may still be waiting on its own request. When that returns, its
    result is still recorded: the page is saved.
 3. Worker B's next `while` check sees the stop, and it exits.
@@ -460,9 +467,9 @@ picks it up again with its original reason.
 
 ```python
 def _stop(self, reason):
-    if self.stopped_reason is None:
+    if self.reason is None:
         logger.warning("stopping: %s", reason)
-        self.stopped_reason = reason
+        self.reason = reason
 ```
 
 **What it does:** it records why the run stopped.

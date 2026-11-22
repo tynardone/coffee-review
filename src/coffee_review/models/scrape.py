@@ -6,6 +6,8 @@ from __future__ import annotations
 from enum import StrEnum
 from typing import Literal
 
+from pydantic import Field
+
 from coffee_review.models.common import FrozenModel, Slug, UtcDatetime, format_elapsed
 
 
@@ -84,14 +86,17 @@ class ScrapeSummary(FrozenModel):
     """The result of one scrape run."""
 
     outcome: Literal["finished", "stopped", "error"]
-    fetched: dict[FetchReason, int]
-    unchanged: int
-    failed: int
-    gone_slugs: list[str]
-    delisted: int
-    relisted: int
-    remaining: int
-    stopped_reason: str | None
+    # Why the run stopped or failed; None when it finished.
+    reason: str | None = None
+    # The counts default to zero, so a run that ended before fetching anything
+    # is just ScrapeSummary(outcome=..., reason=...).
+    fetched: dict[FetchReason, int] = Field(default_factory=dict)
+    unchanged: int = 0
+    failed: int = 0
+    gone_slugs: list[str] = Field(default_factory=list)
+    delisted: int = 0
+    relisted: int = 0
+    remaining: int = 0
     measurement: RunMeasurement | None = None
 
     def describe(self) -> str:
@@ -109,9 +114,9 @@ class ScrapeSummary(FrozenModel):
             f"{self.delisted} delisted"
         )
         if self.outcome == "stopped":
-            line += f" (stopped: {self.stopped_reason}; {self.remaining} remaining)"
+            line += f" (stopped: {self.reason}; {self.remaining} remaining)"
         elif self.outcome == "error":
-            line += f" (error: {self.stopped_reason})"
+            line += f" (error: {self.reason})"
         if self.measurement is not None:
             line += "\n" + self.measurement.describe()
         return line

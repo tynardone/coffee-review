@@ -74,7 +74,7 @@ def summary(**overrides: object) -> ScrapeSummary:
         "delisted": 1,
         "relisted": 0,
         "remaining": 0,
-        "stopped_reason": None,
+        "reason": None,
     }
     fields.update(overrides)
     return ScrapeSummary.model_validate(fields)
@@ -90,7 +90,7 @@ def test_describe_finished() -> None:
 def test_describe_stopped() -> None:
     stopped = summary(
         outcome="stopped",
-        stopped_reason="HTTP 429 at https://…/review/x/",
+        reason="HTTP 429 at https://…/review/x/",
         remaining=40,
     )
 
@@ -220,3 +220,12 @@ def test_parsed_page_picks_the_model_from_dataset() -> None:
 def test_parse_issue_kinds_are_checked() -> None:
     with pytest.raises(ValidationError):
         ParseIssue.model_validate({"slug": "x", "kind": "made_up", "detail": ""})
+
+
+def test_summary_of_an_early_ending_needs_only_outcome_and_reason() -> None:
+    summary = ScrapeSummary(outcome="error", reason="no review sitemaps listed")
+
+    assert summary.fetched == {}
+    assert summary.unchanged == summary.failed == summary.remaining == 0
+    assert summary.gone_slugs == []
+    assert summary.describe().endswith("(error: no review sitemaps listed)")

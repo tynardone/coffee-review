@@ -45,7 +45,7 @@ def canned_summary(outcome: str) -> ScrapeSummary:
             "delisted": 0,
             "relisted": 0,
             "remaining": 0,
-            "stopped_reason": None if outcome == "finished" else "because",
+            "reason": None if outcome == "finished" else "because",
         }
     )
 
