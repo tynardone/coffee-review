@@ -43,6 +43,7 @@ type CleanRule = Literal[
     "not_disclosed",  # origin "Not disclosed"
     "unplaced",  # no country found
     "multiple_origins",  # more than one country, or a broad area or blend
+    "close_spelling",  # placed by a close spelling of a known place (Calfornia)
     "not_a_price",  # NA, Not Available, See website…
     "no_quantity",  # an amount with no quantity
     "unparsed",  # no known shape; the value is null, the text is in the log

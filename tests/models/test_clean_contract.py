@@ -154,4 +154,4 @@ def test_failure_lists_every_check() -> None:
 def test_clean_rules_listed() -> None:
     assert "swapped_2002_2003" in CLEAN_RULES
     assert "typo_corrected" in CLEAN_RULES
-    assert len(CLEAN_RULES) == 21
+    assert len(CLEAN_RULES) == 22
