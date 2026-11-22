@@ -161,6 +161,33 @@ class BaseHttpClient:
         cap = min(s.backoff_max_seconds, s.backoff_base_seconds * 2**attempt)
         return random.uniform(0, cap)
 
+    async def _send_once(
+        self, client: httpx.AsyncClient, method: str, path: str, **kwargs: Any
+    ) -> tuple[httpx.Response | None, str]:
+        """One attempt, inside the concurrency and rate limits, counted and timed.
+
+        Returns the response, or None and the error when a retryable network
+        error happened instead.
+        """
+        async with self._semaphore, self._limiter:
+            sent_at = self._clock()
+            try:
+                return await client.request(method, path, **kwargs), ""
+            except RETRYABLE_EXCEPTIONS as exc:
+                return None, f"{type(exc).__name__}: {exc}"
+            finally:
+                self.stats.requests += 1
+                self.stats.response_seconds += self._clock() - sent_at
+
+    def _retry_delay(self, attempt: int, resp: httpx.Response | None) -> float:
+        """Backoff with jitter, lengthened to honour Retry-After (up to the cap)."""
+        delay = self._backoff_delay(attempt)
+        if resp is not None:
+            retry_after = _parse_retry_after(resp.headers.get("Retry-After"))
+            if retry_after is not None:
+                delay = max(delay, min(retry_after, self.settings.backoff_max_seconds))
+        return delay
+
     async def __aenter__(self) -> Self:
         await self.open()
         return self
@@ -187,40 +214,26 @@ class BaseHttpClient:
         attempt starts and a backoff wait ends early, raising
         RequestAbandonedError.
         """
-        if self._client is None:
+        client = self._client
+        if client is None:
             raise RuntimeError("Client not open; use 'async with' or call open()")
         s = self.settings
-        url = str(self._client.base_url.join(path))  # full URL for logs and errors
+        url = str(client.base_url.join(path))  # full URL for logs and errors
         last_error = "unknown"
 
         for attempt in range(s.max_retries + 1):
             if stop is not None and stop.is_set():
                 raise RequestAbandonedError(method, url, attempt, last_error)
-            resp: httpx.Response | None = None
-            async with self._semaphore, self._limiter:
-                sent_at = self._clock()
-                try:
-                    resp = await self._client.request(method, path, **kwargs)
-                except RETRYABLE_EXCEPTIONS as exc:
-                    last_error = f"{type(exc).__name__}: {exc}"
-                finally:
-                    self.stats.requests += 1
-                    self.stats.response_seconds += self._clock() - sent_at
 
-            if resp is not None:
-                if resp.status_code not in self.retryable_status:
-                    resp.raise_for_status()  # 4xx/other errors raise immediately
-                    return resp
-                last_error = f"HTTP {resp.status_code}"
+            resp, error = await self._send_once(client, method, path, **kwargs)
+            if resp is not None and resp.status_code not in self.retryable_status:
+                resp.raise_for_status()  # 4xx/other errors raise immediately
+                return resp
+            last_error = error if resp is None else f"HTTP {resp.status_code}"
 
             if attempt == s.max_retries:
                 break
-
-            delay = self._backoff_delay(attempt)
-            if resp is not None:
-                retry_after = _parse_retry_after(resp.headers.get("Retry-After"))
-                if retry_after is not None:
-                    delay = max(delay, min(retry_after, s.backoff_max_seconds))
+            delay = self._retry_delay(attempt, resp)
             logger.warning(
                 "%s %s -> %s; retry %d in %.1fs",
                 method,
@@ -229,18 +242,18 @@ class BaseHttpClient:
                 attempt + 1,
                 delay,
             )
-            if stop is None:
-                await asyncio.sleep(delay)
-            else:
-                await _sleep_unless_stopped(delay, stop)
+            await _wait_before_retry(delay, stop)
 
         raise RetriesExhaustedError(method, url, s.max_retries + 1, last_error)
 
 
-async def _sleep_unless_stopped(delay: float, stop: asyncio.Event) -> None:
-    """Wait ``delay`` seconds, returning early if ``stop`` is set meanwhile.
+async def _wait_before_retry(delay: float, stop: asyncio.Event | None) -> None:
+    """Wait ``delay`` seconds; with a ``stop`` signal, return early once it's set.
 
-    The loop's next check then sees the stop and abandons the request.
+    The retry loop's next check then sees the stop and abandons the request.
     """
+    if stop is None:
+        await asyncio.sleep(delay)
+        return
     with contextlib.suppress(TimeoutError):  # timing out is the normal case
         await asyncio.wait_for(stop.wait(), timeout=delay)
