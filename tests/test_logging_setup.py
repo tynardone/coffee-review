@@ -13,7 +13,7 @@ from rich.console import Console
 from coffee_review.logging_setup import (
     configure_logging,
     remove_handlers,
-    scrape_log_path,
+    run_log_path,
 )
 
 if TYPE_CHECKING:
@@ -65,16 +65,19 @@ def test_configure_twice_does_not_duplicate(capsys: pytest.CaptureFixture[str]) 
     assert capsys.readouterr().err.count("once") == 1
 
 
-def test_scrape_log_path_format(tmp_path: Path) -> None:
+def test_run_log_path_format(tmp_path: Path) -> None:
     now = datetime(2026, 11, 21, 9, 5, 7, tzinfo=UTC)
 
-    assert scrape_log_path(tmp_path, now) == (
+    assert run_log_path(tmp_path, "scrape", now) == (
         tmp_path / "logs" / "scrape-20261121T090507Z.log"
+    )
+    assert run_log_path(tmp_path, "parse", now) == (
+        tmp_path / "logs" / "parse-20261121T090507Z.log"
     )
 
 
 def test_log_file_timestamps_are_utc(tmp_path: Path) -> None:
-    # Same clock as the file name (scrape_log_path uses UTC), whatever the
+    # Same clock as the file name (run_log_path uses UTC), whatever the
     # machine's local time zone is.
     configure_logging("INFO", tmp_path / "run.log")
     file_handler = next(

@@ -15,14 +15,15 @@ import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol
 
-from coffee_review.models import ManifestRecord
+from coffee_review.models.common import require_slug
+from coffee_review.models.scrape import ManifestRecord
 
 if TYPE_CHECKING:
     from collections.abc import Collection
     from datetime import datetime
 
     from coffee_review.config import Settings
-    from coffee_review.models import SitemapEntry
+    from coffee_review.models.scrape import SitemapEntry
 
 
 class PageNotFoundError(KeyError):
@@ -232,7 +233,7 @@ class GzipSqliteRawStore:
 
     def read_page(self, slug: str) -> str:
         try:
-            data = self._page_path(slug).read_bytes()
+            data = self._page_path(require_slug(slug)).read_bytes()
         except FileNotFoundError:
             raise PageNotFoundError(slug) from None
         return gzip.decompress(data).decode("utf-8")

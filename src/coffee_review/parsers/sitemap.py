@@ -14,7 +14,7 @@ from urllib.parse import urlsplit
 
 from pydantic import ValidationError
 
-from coffee_review.models import SitemapEntry
+from coffee_review.models.scrape import SitemapEntry
 
 if TYPE_CHECKING:
     from collections.abc import Iterable

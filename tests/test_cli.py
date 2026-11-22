@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from importlib.metadata import version
 from typing import TYPE_CHECKING, Any
 
@@ -10,8 +11,11 @@ from typer.testing import CliRunner
 
 from coffee_review import cli
 from coffee_review.cli import app
-from coffee_review.models import ScrapeSummary
-from coffee_review.progress_display import RichScrapeProgress
+from coffee_review.models.scrape import ScrapeSummary
+from coffee_review.pipeline.parse import ParseRunResult
+from coffee_review.pipeline.parse_report import build_parse_report
+from coffee_review.progress_display import RichRunProgress
+from coffee_review.storage.raw_store import ManifestSchemaError
 
 if TYPE_CHECKING:
     from coffee_review.config import Settings
@@ -45,7 +49,7 @@ def canned_summary(outcome: str) -> ScrapeSummary:
             "delisted": 0,
             "relisted": 0,
             "remaining": 0,
-            "stopped_reason": None if outcome == "finished" else "because",
+            "reason": None if outcome == "finished" else "because",
         }
     )
 
@@ -155,4 +159,74 @@ def test_scrape_does_not_allow_delisting_by_default(spy: ScrapeSpy) -> None:
 def test_scrape_draws_a_progress_bar(spy: ScrapeSpy) -> None:
     runner.invoke(app, ["scrape"])
 
-    assert isinstance(spy.calls[0]["progress"], RichScrapeProgress)
+    progress = spy.calls[0]["progress"]
+    assert isinstance(progress, RichRunProgress)
+    assert progress.label == "scraping"
+
+
+def test_scrape_help_keeps_speed_options_together() -> None:
+    help_text = runner.invoke(app, ["scrape", "--help"]).output
+    order = ["--full", "--limit", "--rate", "--concurrency", "--allow-delisting"]
+
+    positions = [help_text.index(option) for option in order]
+    assert positions == sorted(positions)
+
+
+# --- parse ---------------------------------------------------------------------
+
+
+class ParseSpy:
+    """Stands in for pipeline.parse: records the call, returns a canned result."""
+
+    def __init__(self, error: Exception | None = None) -> None:
+        self.error = error
+        self.calls: list[dict[str, Any]] = []
+
+    def __call__(self, settings: Settings, **kwargs: Any) -> ParseRunResult:
+        self.calls.append({"settings": settings, **kwargs})
+        if self.error is not None:
+            raise self.error
+        report = build_parse_report([], [], pages=0, skipped=0)
+        return ParseRunResult(
+            report=report, elapsed_seconds=1.0, report_location="data/parsed/report.md"
+        )
+
+
+@pytest.fixture
+def parse_spy(monkeypatch: pytest.MonkeyPatch) -> ParseSpy:
+    fake = ParseSpy()
+    monkeypatch.setattr(cli, "parse", fake)
+    monkeypatch.setattr(cli, "configure_logging", lambda *args, **kwargs: None)
+    return fake
+
+
+def test_parse_command_exit_code_and_progress(parse_spy: ParseSpy) -> None:
+    result = runner.invoke(app, ["parse"])
+
+    assert result.exit_code == 0
+    progress = parse_spy.calls[0]["progress"]
+    assert isinstance(progress, RichRunProgress)
+    assert progress.label == "parsing"
+
+
+def test_parse_command_prints_report_location(parse_spy: ParseSpy) -> None:
+    result = runner.invoke(app, ["parse"])
+
+    assert "report: data/parsed/report.md" in result.output
+
+
+def test_parse_command_error_exits_1(parse_spy: ParseSpy) -> None:
+    parse_spy.error = ManifestSchemaError("manifest schema version 99")
+
+    result = runner.invoke(app, ["parse"])
+
+    assert result.exit_code == 1
+    assert "manifest schema version 99" in result.output
+
+
+def test_help_lists_both_commands() -> None:
+    output = runner.invoke(app, ["--help"]).output
+
+    # Command rows, not the words in the app's description.
+    assert re.search(r"^\W*scrape\s", output, re.MULTILINE)
+    assert re.search(r"^\W*parse\s", output, re.MULTILINE)

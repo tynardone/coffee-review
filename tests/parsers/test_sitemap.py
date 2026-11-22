@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from coffee_review.models import SitemapEntry
+from coffee_review.models.scrape import SitemapEntry
 from coffee_review.parsers.sitemap import (
     SitemapParseError,
     dedupe_entries,

@@ -29,7 +29,7 @@ if TYPE_CHECKING:
     import asyncio
 
     from coffee_review.config import CoffeeSiteSettings
-    from coffee_review.models import SitemapEntry
+    from coffee_review.models.scrape import SitemapEntry
 
 # Markers of a Cloudflare challenge ("checking your browser") page.
 CHALLENGE_MARKERS = ("challenge-platform", "cf-chl-", "<title>Just a moment...</title>")

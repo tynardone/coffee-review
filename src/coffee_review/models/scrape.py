@@ -1,38 +1,17 @@
-"""The contracts between pipeline stages.
-
-Every model is frozen (immutable once built) and every datetime is
-timezone-aware UTC, so values can be passed between stages without surprises.
-"""
+"""The scrape stage's contracts: sitemap entries, manifest rows, fetch
+reasons, and the run summary with its measurement."""
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
 from enum import StrEnum
-from typing import Annotated, Literal
+from typing import Literal
 
-from pydantic import AfterValidator, BaseModel, ConfigDict, Field
+from pydantic import Field
 
-# WordPress slugs: lowercase letters, digits, hyphens, underscores, and
-# percent-encoded characters. This also rules out anything that could act as a
-# path when a slug becomes a filename ("..", "a/b", "").
-SLUG_PATTERN = r"^[a-z0-9%][a-z0-9%_-]*$"
+from coffee_review.models.common import FrozenModel, Slug, UtcDatetime, format_elapsed
 
 
-def _to_utc(value: datetime) -> datetime:
-    if value.tzinfo is None:
-        raise ValueError("datetime must be timezone-aware")
-    return value.astimezone(UTC)
-
-
-UtcDatetime = Annotated[datetime, AfterValidator(_to_utc)]
-Slug = Annotated[str, Field(pattern=SLUG_PATTERN)]
-
-
-class _Frozen(BaseModel):
-    model_config = ConfigDict(frozen=True)
-
-
-class SitemapEntry(_Frozen):
+class SitemapEntry(FrozenModel):
     """One review as listed in the site's sitemap."""
 
     slug: Slug
@@ -40,7 +19,7 @@ class SitemapEntry(_Frozen):
     lastmod: UtcDatetime | None
 
 
-class ManifestRecord(_Frozen):
+class ManifestRecord(FrozenModel):
     """What the raw store knows about one review.
 
     ``fetched_at`` is the last *successful* fetch; ``last_attempt_at`` is the
@@ -70,19 +49,7 @@ class FetchReason(StrEnum):
     FULL = "full"
 
 
-def format_elapsed(seconds: float) -> str:
-    """``45s``, ``32m 05s`` or ``1h 02m 03s``."""
-    total = round(seconds)
-    hours, rest = divmod(total, 3600)
-    minutes, secs = divmod(rest, 60)
-    if hours:
-        return f"{hours}h {minutes:02d}m {secs:02d}s"
-    if minutes:
-        return f"{minutes}m {secs:02d}s"
-    return f"{secs}s"
-
-
-class RunMeasurement(_Frozen):
+class RunMeasurement(FrozenModel):
     """What a run actually did to the site, so speeds can be compared (ADR 0005).
 
     ``requests`` counts every HTTP attempt: sitemaps, pages and retries.
@@ -115,18 +82,21 @@ class RunMeasurement(_Frozen):
         )
 
 
-class ScrapeSummary(_Frozen):
+class ScrapeSummary(FrozenModel):
     """The result of one scrape run."""
 
     outcome: Literal["finished", "stopped", "error"]
-    fetched: dict[FetchReason, int]
-    unchanged: int
-    failed: int
-    gone_slugs: list[str]
-    delisted: int
-    relisted: int
-    remaining: int
-    stopped_reason: str | None
+    # Why the run stopped or failed; None when it finished.
+    reason: str | None = None
+    # The counts default to zero, so a run that ended before fetching anything
+    # is just ScrapeSummary(outcome=..., reason=...).
+    fetched: dict[FetchReason, int] = Field(default_factory=dict)
+    unchanged: int = 0
+    failed: int = 0
+    gone_slugs: list[str] = Field(default_factory=list)
+    delisted: int = 0
+    relisted: int = 0
+    remaining: int = 0
     measurement: RunMeasurement | None = None
 
     def describe(self) -> str:
@@ -144,9 +114,9 @@ class ScrapeSummary(_Frozen):
             f"{self.delisted} delisted"
         )
         if self.outcome == "stopped":
-            line += f" (stopped: {self.stopped_reason}; {self.remaining} remaining)"
+            line += f" (stopped: {self.reason}; {self.remaining} remaining)"
         elif self.outcome == "error":
-            line += f" (error: {self.stopped_reason})"
+            line += f" (error: {self.reason})"
         if self.measurement is not None:
             line += "\n" + self.measurement.describe()
         return line

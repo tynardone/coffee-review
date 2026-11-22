@@ -1,8 +1,9 @@
-"""The scrape progress bar, drawn with Rich.
+"""The progress bar for CLI runs, drawn with Rich.
 
-Implements the pipeline's ``ScrapeProgress`` Protocol. It's only drawn when the
-console is a real terminal; piped or scheduled runs get the logs and summary
-alone. Log lines printed through the same console appear above the bar.
+Implements the pipeline's ``RunProgress`` Protocol, so any stage can use it
+with its own label and outcomes. It's only drawn when the console is a real
+terminal; piped or scheduled runs get the logs and summary alone. Log lines
+printed through the same console appear above the bar.
 """
 
 from __future__ import annotations
@@ -23,14 +24,14 @@ from rich.progress import (
 from rich.text import Text
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from rich.console import Console
     from rich.progress import Task
 
-    from coffee_review.pipeline.progress import ScrapeOutcome
-
 
 class PagesPerSecondColumn(ProgressColumn):
-    """Pages finished per second, averaged by Rich over recent progress."""
+    """Items finished per second, averaged by Rich over recent progress."""
 
     def render(self, task: Task) -> Text:
         if task.speed is None:
@@ -38,12 +39,16 @@ class PagesPerSecondColumn(ProgressColumn):
         return Text(f"{task.speed:.1f}/s", style="progress.data.speed")
 
 
-class RichScrapeProgress:
-    """A one-line bar: count, percent, pages/s, elapsed, time left, outcomes."""
+class RichRunProgress:
+    """A one-line bar: label, count, percent, items/s, elapsed, time left, and a
+    running count for each of the stage's outcomes."""
 
-    def __init__(self, console: Console) -> None:
+    def __init__(
+        self, console: Console, *, label: str, outcomes: Sequence[str]
+    ) -> None:
+        self.label = label
         self._progress = Progress(
-            TextColumn("scraping"),
+            TextColumn(label),
             BarColumn(),
             MofNCompleteColumn(),
             TaskProgressColumn(),
@@ -56,15 +61,18 @@ class RichScrapeProgress:
             disable=not console.is_terminal,
         )
         self._task: TaskID | None = None
-        self._counts: dict[ScrapeOutcome, int] = {"saved": 0, "failed": 0, "gone": 0}
+        self._counts: dict[str, int] = dict.fromkeys(outcomes, 0)
 
     def start(self, total: int) -> None:
         self._task = self._progress.add_task(
-            "scrape", total=total, outcomes=self._outcomes()
+            self.label, total=total, outcomes=self._outcomes()
         )
         self._progress.start()
 
-    def advance(self, outcome: ScrapeOutcome) -> None:
+    def advance(self, outcome: str) -> None:
+        if outcome not in self._counts:
+            expected = ", ".join(self._counts)
+            raise ValueError(f"unknown outcome {outcome!r}; expected one of {expected}")
         if self._task is None:
             return
         self._counts[outcome] += 1
@@ -75,8 +83,4 @@ class RichScrapeProgress:
             self._progress.stop()
 
     def _outcomes(self) -> str:
-        c = self._counts
-        return (
-            f"[green]{c['saved']:,} saved[/] · [yellow]{c['failed']:,} failed[/]"
-            f" · {c['gone']:,} gone"
-        )
+        return " · ".join(f"{count:,} {name}" for name, count in self._counts.items())

@@ -79,9 +79,9 @@ def remove_handlers() -> None:
         handler.close()
 
 
-def scrape_log_path(data_dir: Path, now: datetime) -> Path:
-    """Where a scrape started at ``now`` writes its log."""
-    return data_dir / "logs" / f"scrape-{now:%Y%m%dT%H%M%SZ}.log"
+def run_log_path(data_dir: Path, command: str, now: datetime) -> Path:
+    """Where a ``command`` run (``scrape``, ``parse``) started at ``now`` logs."""
+    return data_dir / "logs" / f"{command}-{now:%Y%m%dT%H%M%SZ}.log"
 
 
 def _utc_formatter() -> logging.Formatter:
