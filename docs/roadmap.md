@@ -40,15 +40,29 @@ by tests.
 
 ## M2. Parser
 
-- [ ] Survey HTML variants across the site's history; save a trimmed fixture per variant
-- [ ] Write the parsed-record contract
-- [ ] Pure parse functions with fallbacks for variants; missing fields are `None`; failures recorded with the slug
-- [ ] `coffee-review parse [--full]`
+- [x] Survey HTML variants across the site's history; 10 trimmed fixtures (prose replaced with placeholders)
+- [x] Parsed-record contract: `RoastedReview` and `GreenReview`, one Parquet dataset each
+- [x] One alias table for every name a field has had; unknown labels kept in `extra`
+- [x] Pure page parser; missing fields are `None`; problems recorded as issues
+- [x] Parse report: coverage, unknowns, issues, value shapes
+- [x] `coffee-review parse` (always a full re-parse; about 6 seconds)
+- [x] First real parse (2026-11-22): 9,440 pages → 9,330 roasted (42 sold green), 110 green; 0 unknown labels; 1 issue, explained below
+
+Explained, not bugs (from the first report):
+
+- `peaberry-green` has no rating: the site's score element is empty.
+- `aged-sumatra-2` (no blind assessment or notes) and `kenya-karagoto` (no notes): the site has empty paragraphs under those headings.
+- `chocolate-espresso-blend` and `golden-geisha-blend` have no Roaster Location row.
 
 **Done when:** every fixture variant parses correctly, a full parse over the raw
 layer completes, and the parse-failure rate is reported and understood.
 
 ## M3. Clean
+
+Starting input: the value shapes in `data/parsed/report.md`. For example, every
+review date is `a 9999` ("Month Year"); prices come in `$…/12 ounces`,
+`NT $…/200 grams`, `NA` and more; Agtron uses `0/0`, `/` and `NA/NA` for
+unknown, and some second values exceed 100; 1997–1999 scores use decimals.
 
 - [ ] Write the clean-table contract
 - [ ] Normalize dates, scores, origins, roast levels; split price into amount, currency, quantity, unit

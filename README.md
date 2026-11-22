@@ -71,6 +71,31 @@ going:
 sqlite3 data/raw/manifest.sqlite "select status, count(*) from reviews group by 1"
 ```
 
+## Parsing
+
+```bash
+uv run coffee-review parse
+```
+
+Reads every saved page and writes the parsed layer in about 6 seconds:
+
+- `data/parsed/roasted/` and `data/parsed/green/`: a `reviews.parquet` each
+  (one row per review, values as text as they appear on the page) and an
+  `extra_fields.parquet` (labels and headings the parser didn't recognise);
+- `data/parsed/parse_issues.parquet`: pages worth a look;
+- `data/parsed/report.md`: the report.
+
+**Reading the report.** *Coverage* shows how often each field was found.
+*Unknown labels and headings* should be empty; anything listed there is a new
+name for a field (add it to `parsers/field_aliases.py`) or a new field.
+*Value shapes* show the formats each field comes in, with digits as `9` and
+words as `a`: the starting point for the clean stage. *Issues* lists pages with
+no review template, a missing title/date/rating, or a parser error.
+
+Every run replaces the previous output. See
+[ADR 0007](docs/decisions/0007-parse-text-type-later.md) for why values stay
+text until the clean stage.
+
 ## Checks
 
 ```bash
