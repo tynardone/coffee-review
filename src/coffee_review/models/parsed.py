@@ -99,8 +99,16 @@ type ParsedReview = Annotated[
 ]
 
 
+# no_review_template: the page isn't a review page; duplicate_label: a label
+# appeared twice (the first value is kept); missing_required: no title, date or
+# rating; page_missing: the manifest says a copy was saved but it can't be
+# read; parse_error: the parser itself failed on the page (a bug to fix).
 type IssueKind = Literal[
-    "no_review_template", "duplicate_label", "missing_required", "page_missing"
+    "no_review_template",
+    "duplicate_label",
+    "missing_required",
+    "page_missing",
+    "parse_error",
 ]
 
 
