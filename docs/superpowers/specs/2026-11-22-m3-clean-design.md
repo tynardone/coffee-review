@@ -64,8 +64,9 @@ as a recognisable pattern:
 
 - **A value silently disappearing.** Any non-null parsed value that becomes
   null in M3 has a cleaning-log row naming the rule.
-- **A guess presented as fact.** Corrections are flagged (`agtron_swapped`),
-  and doubtful values are flagged, not hidden (`agtron_suspect`).
+- **A guess presented as fact.** Corrections are flagged (`agtron_swapped`,
+  `agtron_corrected`), and doubtful values are flagged, not hidden
+  (`agtron_suspect`).
 - **Clean reading HTML or the raw layer.** M3 reads only the parsed store.
 - **One odd value stopping the run.** An unparseable value becomes null with
   a log row; the run carries on.
@@ -76,8 +77,9 @@ as a recognisable pattern:
    places, Agtron), which is awkward in SQL. dbt is revisited for the later
    modelling layers, where the work is relational (joins to FX and CPI, the
    final table, dimensions).
-2. **Agtron typos: keep and flag.** Values like `6489/89` and `547/74` are
-   kept as written, with `agtron_suspect = true`.
+2. **Agtron typos: correct and flag when a known pattern explains them**
+   (changed 2026-11-22, see Decision 9; it was "keep and flag"). Any other
+   doubtful reading is kept as written, with `agtron_suspect = true`.
 3. **Agtron June 2002 – March 2003: correct and flag, per row.** In that
    window the site printed the readings the other way round (ground/whole
    bean). A row in the window whose ground reading is darker than its whole
@@ -97,6 +99,15 @@ as a recognisable pattern:
 8. **`review_month`, not `review_date`.** The site gives only month and year,
    so the clean column is a `Date` that's always the first of the month, named
    so nobody reads it as an exact day. The contract checks the day is 1.
+9. **Agtron typo patterns (added during Task 5).** A reading above 150 is
+   corrected to its first two digits only when one of four typing slips
+   explains the extra digits: the other reading typed onto its end
+   (`6489/89` → 64), the other reading's first digit slipped on (`547/74` → 54),
+   the number typed twice (`5252/70` → 52), or its last digit doubled
+   (`555/73` → 55). The corrected pair must then read normally in the order it
+   was printed. Corrected readings get `agtron_corrected = true` and rule
+   `typo_corrected`, with the original in the log. `48/689` (no pattern) and
+   `43.5/47` (a half reading) stay as written and suspect.
 
 ## What the data shows (profiled 2026-11-22)
 
@@ -122,7 +133,8 @@ From the parse report's value shapes and direct counts over `data/parsed/`.
     2002 and May–Dec 2003 are all normal (about 120 rows), and every other
     year combined has 9 of about 9,000. Four Jan–Feb 2003 pages have the
     literal text `g/wb`, the template's label for that period;
-  - typos: `6489/89`, `547/74`, `43.5/…`;
+  - typo-like readings (8, found in Task 5): `6489/89`, `4254/54`, `547/74`,
+    `578/80`, `5252/70`, `555/73`, `48/689`, and the half reading `43.5/47`;
   - ground above 100 is real (Light roasts, `82/104`).
 - **`price`** (7,459 of 9,440 have one):
   - most are `<currency> <amount>/<quantity> <unit>`: `$13.50/12 ounces`,
@@ -233,7 +245,10 @@ contract can check them.
 3. review month between June 2002 and March 2003 (inclusive), both present:
    ground < whole → swap (`agtron_swapped = true`, rule `swapped_2002_2003`);
    otherwise → `agtron_suspect = true` (rule `unswapped_in_window`);
-4. a decimal, or a value above 150 → kept, `agtron_suspect = true`
+4. a reading above 150 that a known typo pattern explains → its first two
+   digits, `agtron_corrected = true` (rule `typo_corrected`; Decision 9; this
+   runs before step 3);
+5. any other decimal, or a value above 150 → kept, `agtron_suspect = true`
    (rule `suspect_value`).
 
 The swap window is two named constants in `transforms/roast.py`. A swapped row
@@ -255,7 +270,7 @@ are carried through as they are. `extra` isn't carried; `extra_count` is.
 | aroma, acidity, body, flavor, aftertaste | same names, `Float32` | 1–10, decimals kept (1997–99); `NA`/`na`/`n/a`/`NR` → null (`unknown_marker`); words (`Low`…) → null (`word_score`), original in the log |
 | `with_milk` | `with_milk: Float32` | as the scores; `Flavor in milk: 5` → 5 (`labelled_score`) |
 | `roast_level` | `roast_level: Enum` | the six names, in order light → very dark; `NA` → null |
-| `agtron` | `agtron_whole`, `agtron_ground: Int16`; `agtron_swapped`, `agtron_suspect: Boolean` | as above |
+| `agtron` | `agtron_whole`, `agtron_ground: Int16`; `agtron_swapped`, `agtron_corrected`, `agtron_suspect: Boolean` | as above |
 | `price` | `price_amount: Float64`, `price_currency: String` (ISO 4217), `price_currency_inferred: Boolean`, `price_quantity: Float64`, `price_unit: String`, `price_grams: Float64`, `price_note: String` | see Price |
 | `coffee_origin` | `origin_country: String`, `origin_region: String` | see Places |
 | `roaster_location` | `roaster_city`, `roaster_region`, `roaster_country: String` | see Places |

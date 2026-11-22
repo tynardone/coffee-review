@@ -37,6 +37,7 @@ type CleanRule = Literal[
     "not_measured",  # Agtron 0
     "template_label",  # Agtron "g/wb": the template's label, not a reading
     "swapped_2002_2003",  # Agtron printed ground/whole, swapped back
+    "typo_corrected",  # Agtron typo with a known pattern, corrected (6489/89 → 64)
     "unswapped_in_window",  # in the swap window but not reversed: suspect
     "suspect_value",  # kept as written, but doubtful
     "not_disclosed",  # origin "Not disclosed"
@@ -111,6 +112,7 @@ class CleanRoastedFrame(pa.DataFrameModel):
     agtron_whole: pl.Int16 = _agtron()
     agtron_ground: pl.Int16 = _agtron()
     agtron_swapped: bool
+    agtron_corrected: bool
     agtron_suspect: bool
     price_amount: float = _positive()
     price_currency: str = pa.Field(nullable=True, str_matches=r"^[A-Z]{3}$")

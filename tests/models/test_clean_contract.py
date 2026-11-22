@@ -39,6 +39,7 @@ ROASTED_ROW: dict[str, object] = {
     "agtron_whole": 58,
     "agtron_ground": 77,
     "agtron_swapped": False,
+    "agtron_corrected": False,
     "agtron_suspect": False,
     "price_amount": 13.5,
     "price_currency": "USD",
@@ -152,4 +153,5 @@ def test_failure_lists_every_check() -> None:
 
 def test_clean_rules_listed() -> None:
     assert "swapped_2002_2003" in CLEAN_RULES
-    assert len(CLEAN_RULES) == 20
+    assert "typo_corrected" in CLEAN_RULES
+    assert len(CLEAN_RULES) == 21
