@@ -6,18 +6,30 @@ import re
 from importlib.metadata import version
 from typing import TYPE_CHECKING, Any
 
+import polars as pl
 import pytest
 from typer.testing import CliRunner
 
 from coffee_review import cli
 from coffee_review.cli import app
+from coffee_review.models.clean import (
+    GREEN_SCHEMA,
+    LOG_SCHEMA,
+    ROASTED_SCHEMA,
+    CleanContractError,
+)
 from coffee_review.models.scrape import ScrapeSummary
+from coffee_review.pipeline.clean import CleanRunResult
+from coffee_review.pipeline.clean_report import build_clean_report
 from coffee_review.pipeline.parse import ParseRunResult
 from coffee_review.pipeline.parse_report import build_parse_report
 from coffee_review.progress_display import RichRunProgress
+from coffee_review.storage.parsed_store import ParsedLayerMissingError
 from coffee_review.storage.raw_store import ManifestSchemaError
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from coffee_review.config import Settings
 
 runner = CliRunner()
@@ -230,3 +242,87 @@ def test_help_lists_both_commands() -> None:
     # Command rows, not the words in the app's description.
     assert re.search(r"^\W*scrape\s", output, re.MULTILINE)
     assert re.search(r"^\W*parse\s", output, re.MULTILINE)
+
+
+class CleanSpy:
+    """Stands in for pipeline.clean: records the call, returns a canned result."""
+
+    def __init__(self, error: Exception | None = None) -> None:
+        self.error = error
+        self.calls: list[Settings] = []
+
+    def __call__(self, settings: Settings) -> CleanRunResult:
+        self.calls.append(settings)
+        if self.error is not None:
+            raise self.error
+        empty = pl.DataFrame(schema=LOG_SCHEMA)
+        report = build_clean_report(
+            pl.DataFrame(schema=ROASTED_SCHEMA),
+            pl.DataFrame(schema=GREEN_SCHEMA),
+            empty,
+            empty,
+        )
+        return CleanRunResult(
+            report=report, elapsed_seconds=1.0, report_location="data/clean/report.md"
+        )
+
+
+@pytest.fixture
+def clean_spy(monkeypatch: pytest.MonkeyPatch) -> CleanSpy:
+    fake = CleanSpy()
+    monkeypatch.setattr(cli, "clean", fake)
+    monkeypatch.setattr(cli, "configure_logging", lambda *args, **kwargs: None)
+    return fake
+
+
+def test_clean_success_prints_report(clean_spy: CleanSpy) -> None:
+    result = runner.invoke(app, ["clean"])
+
+    assert result.exit_code == 0
+    assert "report: data/clean/report.md" in result.output
+    assert len(clean_spy.calls) == 1
+
+
+def test_clean_missing_parsed_layer(clean_spy: CleanSpy) -> None:
+    clean_spy.error = ParsedLayerMissingError(
+        "no parsed data at data/parsed/roasted/reviews.parquet: run parse first"
+    )
+
+    result = runner.invoke(app, ["clean"])
+
+    assert result.exit_code == 1
+    assert "clean failed:" in result.output
+    assert "run parse first" in result.output
+
+
+def test_clean_contract_failure(clean_spy: CleanSpy) -> None:
+    clean_spy.error = CleanContractError(
+        "clean roasted table broke its contract:\n  rating: less_than_or_equal_to(100)"
+    )
+
+    result = runner.invoke(app, ["clean"])
+
+    assert result.exit_code == 1
+    assert "rating: less_than_or_equal_to(100)" in result.output
+
+
+def test_clean_in_help() -> None:
+    output = runner.invoke(app, ["--help"]).output
+
+    assert re.search(r"^\W*clean\s", output, re.MULTILINE)
+
+
+@pytest.mark.parametrize("command", ["parse", "clean"])
+def test_error_shown_once(
+    command: str, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    def fails(*args: object, **kwargs: object) -> None:
+        raise ManifestSchemaError("manifest schema version 99")
+
+    monkeypatch.setattr(cli, command, fails)
+    monkeypatch.setattr(cli, "run_log_path", lambda *args: tmp_path / "run.log")
+
+    result = runner.invoke(app, [command])
+
+    assert result.output.count("manifest schema version 99") == 1
+    assert "manifest schema version 99" in (tmp_path / "run.log").read_text()
