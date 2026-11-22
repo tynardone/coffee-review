@@ -157,7 +157,9 @@ def test_summary_logged(caplog: pytest.LogCaptureFixture) -> None:
 def test_new_values_logged_as_warning(caplog: pytest.LogCaptureFixture) -> None:
     caplog.set_level("INFO", logger="coffee_review")
     parsed = parsed_with(
-        roasted("a", coffee_origin="Atlantis", roaster_location="Sacramento, Calfornia")
+        roasted(
+            "a", coffee_origin="Atlantis", roaster_location="Sacramento, Califonria"
+        )
     )
     clean = InMemoryCleanStore()
 

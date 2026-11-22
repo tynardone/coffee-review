@@ -63,3 +63,8 @@ flasks,bottle,count,
 disc,disc,count,
 discs,disc,count,
 t discs,disc,count,
+onces,ounce,weight,28.349523125
+ouces,ounce,weight,28.349523125
+ouncues,ounce,weight,28.349523125
+ounce-carton,ounce,weight,28.349523125
+capsultes,capsule,count,

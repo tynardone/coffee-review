@@ -197,7 +197,7 @@ def test_unknown_unit() -> None:
 
 
 def test_close_spelt_unit_is_flagged() -> None:
-    row = price_row("$18.00/12 onces")
+    row = price_row("$18.00/12 ouncess")
 
     assert row["price_unit"] == "ounce"
     assert row["_rule_price"] == ["close_spelling"]
@@ -246,3 +246,15 @@ def test_price_round_trip(
     assert parts.amount == pytest.approx(float(str(amount)))
     assert parts.quantity == quantity
     assert parts.unit_text == unit
+
+
+def test_double_slash() -> None:
+    assert split_price("$24.00//12 ounces") == PriceParts(
+        24.0, "$", 12.0, "ounces", None
+    )
+
+
+def test_unit_with_a_trailing_asterisk() -> None:
+    row = price_row("$39.95/8 ounces*")
+
+    assert (row["price_unit"], row["_rule_price"]) == ("ounce", [])

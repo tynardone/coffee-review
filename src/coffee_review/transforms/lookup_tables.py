@@ -36,7 +36,7 @@ from typing import TYPE_CHECKING, Literal, cast
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
-type PlaceKind = Literal["country", "state", "province", "island", "area"]
+type PlaceKind = Literal["country", "state", "province", "island", "region", "area"]
 type UnitKind = Literal["weight", "volume", "count"]
 MULTIPLE = "Multiple"  # the "country" of a broad area or blend
 
@@ -84,8 +84,8 @@ def normalise_symbol(text: str) -> str:
 
 
 def normalise_unit(text: str) -> str:
-    """A unit as written, ignoring case and full stops: ``oz.`` → ``oz``."""
-    return " ".join(text.replace(".", " ").split()).lower()
+    """A unit as written, ignoring case, full stops and asterisks: ``oz.`` → ``oz``."""
+    return " ".join(text.replace(".", " ").replace("*", " ").split()).lower()
 
 
 @cache

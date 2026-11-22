@@ -54,7 +54,7 @@ def test_origin_islands() -> None:
     # An island names its country, and is kept as region detail.
     assert origin("Sumatra") == OriginResult("Indonesia", "Sumatra", ())
     assert origin("Lintong growing region, northern Sumatra, Indonesia") == (
-        OriginResult("Indonesia", "Lintong, Sumatra", ())
+        OriginResult("Indonesia", "Lintong, northern Sumatra", ())
     )
 
 
@@ -156,7 +156,7 @@ def test_clean_roaster_location_columns() -> None:
 
 @pytest.mark.parametrize(
     ("text", "country"),
-    [("Columbia", "Colombia"), ("Nyeri growing region, Kenia", "Kenya")],
+    [("Columbia", "Colombia"), ("Thika growing region, Kenia", "Kenya")],
 )
 def test_origin_close_spelling(text: str, country: str) -> None:
     result = origin(text)
@@ -167,9 +167,9 @@ def test_origin_close_spelling(text: str, country: str) -> None:
 @pytest.mark.parametrize(
     ("text", "region"),
     [
-        ("Sacramento, Calfornia", "California"),
-        ("Seattle, Washingto", "Washington"),
-        ("Vancouver, British Colombia", "British Columbia"),
+        ("Sacramento, Califonria", "California"),
+        ("Seattle, Washingtn", "Washington"),
+        ("Vancouver, British Colunbia", "British Columbia"),
     ],
 )
 def test_roaster_close_spelling(text: str, region: str) -> None:
@@ -278,3 +278,95 @@ def test_short_codes_not_matched_inside_a_part() -> None:
 
 def test_origin_na_is_unknown() -> None:
     assert origin("NA") == OriginResult(None, None, ("unknown_marker",))
+
+
+@pytest.mark.parametrize(
+    ("text", "country", "region"),
+    [
+        ("Oromia Region; Guji Zone", "Ethiopia", "Oromia, Guji"),
+        (
+            "Worka-Sakaro, Gedeb District, Gedeo Zone",
+            "Ethiopia",
+            "Worka-Sakaro, Gedeb, Gedeo",
+        ),
+        ("Muranga County, Kenya", "Kenya", "Muranga"),
+        ("Sandy Bay Valley, St. Helena", "Saint Helena", "Sandy Bay Valley"),
+    ],
+)
+def test_coffee_regions_name_their_country(
+    text: str, country: str, region: str
+) -> None:
+    assert origin(text) == OriginResult(country, region, ())
+
+
+def test_regions_from_two_countries_are_multiple() -> None:
+    assert origin("Yirgacheffe, Sidamo, Huehuetenango").country == "Multiple"
+
+
+def test_slash_separates_origin_parts() -> None:
+    assert origin("Africa/Arabia, Indo-Pacific").country == "Multiple"
+
+
+def test_misspelt_not_disclosed() -> None:
+    assert origin("Not discolosed") == OriginResult(None, None, ("not_disclosed",))
+
+
+def test_reviewed_spellings_are_exact() -> None:
+    # Confirmed from the first real clean's report: no longer close spellings.
+    assert roaster("Sacramento, Calfornia") == RoasterResult(
+        "Sacramento", "California", "United States", ()
+    )
+
+
+@pytest.mark.parametrize(
+    ("text", "country", "region"),
+    [
+        ("Huehuetenango growing region, Guatemala.e", "Guatemala", "Huehuetenango"),
+        ("Nariño Department, southwestern ColombiaNar", "Colombia", "Nariño"),
+        ("Muranga County, south-central KenyaMur", "Kenya", "Muranga"),
+    ],
+)
+def test_garbled_copy_of_the_country_is_not_region(
+    text: str, country: str, region: str
+) -> None:
+    assert origin(text) == OriginResult(country, region, ("close_spelling",))
+
+
+@pytest.mark.parametrize(
+    ("text", "region"),
+    [
+        (
+            "Carmo de Minas growing region, northeastern Minas Gerais State, Brazil",
+            "Carmo de Minas, northeastern Minas Gerais",
+        ),
+        (
+            "Southern Minas Gerais State and northern Sao Paulo State, Brazil",
+            "Southern Minas Gerais, northern Sao Paulo",
+        ),
+    ],
+)
+def test_regions_with_direction_and_filler(text: str, region: str) -> None:
+    # Real texts. A region part must never be mistaken for a garbled "Brazil".
+    assert origin(text) == OriginResult("Brazil", region, ())
+
+
+def test_near_spelling_of_a_region_is_not_a_garbled_country() -> None:
+    # "Mogianna" is close to the region "Mogiana", in Brazil: it stays region
+    # text, and isn't taken for a garbled "Brazil" and dropped.
+    assert origin("Mogianna, Brazil") == OriginResult("Brazil", "Mogianna", ())
+
+
+@pytest.mark.parametrize(
+    ("text", "region"),
+    [
+        ("Lintong, North Sumatra, Indonesia", "Lintong, North Sumatra"),
+        ("West Guji Zone, Oromia, Ethiopia", "West Guji, Oromia"),
+        (
+            "Holualoa, North Kona, Big Island of Hawai'i",
+            "Holualoa, North Kona, Big Island",
+        ),
+    ],
+)
+def test_region_keeps_its_direction_words(text: str, region: str) -> None:
+    # Tyler, Task 12: "North Sumatra" is a province and "West Guji" a zone.
+    assert origin(text).region == region

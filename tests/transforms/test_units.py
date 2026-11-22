@@ -39,8 +39,9 @@ def test_counts_and_volumes_have_no_grams() -> None:
         ("single-serve capsules", "capsule", None, False),
         ("realcup capsules", "capsule", "realcup", False),
         ("fluid ounces", "fluid ounce", None, False),
-        ("onces", "ounce", None, True),
-        ("capsultes", "capsule", None, True),
+        ("ouncess", "ounce", None, True),
+        ("capsulles", "capsule", None, True),
+        ("onces", "ounce", None, False),  # reviewed and added, now exact
     ],
 )
 def test_find_unit(text: str, name: str, leftover: str | None, close: bool) -> None:

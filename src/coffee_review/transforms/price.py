@@ -40,7 +40,7 @@ _NUMBER = r"\d[\d,]*(?:\.\d+)?"
 _PRICE = re.compile(
     rf"""^(?:price:\s*)?
     (?P<pre>[^\d]*?)\s*(?P<amount>{_NUMBER})\s*(?P<post>[^\d\s/()]*)
-    \s*(?:/|\s+for\s+|\s+per\s+)\s*
+    \s*(?:/+|\s+for\s+|\s+per\s+)\s*
     (?P<quantity>{_NUMBER})?\s*-?\s*
     (?P<unit>[^()]*?)
     \s*(?:\((?P<note>[^)]*)\)?)?\s*$""",

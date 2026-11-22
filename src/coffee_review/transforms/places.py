@@ -39,7 +39,7 @@ if TYPE_CHECKING:
     from coffee_review.models.clean import CleanRule
     from coffee_review.transforms.lookup_tables import Place
 
-_SPLIT_ORIGIN = re.compile(r"\s*[,;&]\s*|\s+and\s+", re.IGNORECASE)
+_SPLIT_ORIGIN = re.compile(r"\s*[,;&/]\s*|\s+and\s+", re.IGNORECASE)
 _DIRECTIONS = re.compile(
     r"^(?:(?:far|extreme|upper|lower)\s+)?"
     r"(?:north|south|east|west|central|northern|southern|eastern|western"
@@ -49,7 +49,7 @@ _DIRECTIONS = re.compile(
 )
 _FILLER = re.compile(
     r"\s+(?:growing region|growing area|coffee region|region|zone|department"
-    r"|state|province)$",
+    r"|district|county|state|province)$",
     re.IGNORECASE,
 )
 _QUOTES = re.compile(r"[\"“”]")
@@ -101,17 +101,23 @@ def place_origin(text: str, places: Mapping[str, Place]) -> OriginResult:
             if place := _close(parts[i], places):
                 matches[i], rules = _Match(place, None), ("close_spelling",)
                 break
+    found = {m.place.country for m in matches if m is not None}
     countries: set[str] = set()
     region_parts: list[str] = []
     for part, match in zip(parts, matches, strict=True):
         if match is None:
-            region_parts.append(_tidy_region(part))
+            if len(found) == 1 and _garbled_copy(part, next(iter(found)), places):
+                rules = ("close_spelling",)  # "Guatemala.e": the country, garbled
+            else:
+                region_parts.append(_tidy_region(part))
             continue
         countries.add(match.place.country)
         if match.leftover:
             region_parts.append(match.leftover)
-        if match.place.kind != "country":  # an island, state or province is detail
-            region_parts.append(match.place.name)
+        if match.place.kind != "country":  # an island, region or state is detail
+            # Its standard name, keeping any direction words as written:
+            # "North Sumatra" is a province, "West Guji" a zone (Tyler, Task 12).
+            region_parts.append(_with_directions(part, match.place.name))
     if not countries:
         return OriginResult(None, None, ("unplaced",))
     if MULTIPLE in countries or len(countries) > 1:
@@ -185,7 +191,9 @@ def _find(part: str, places: Mapping[str, Place], *, very_close: bool) -> _Match
 
     Tried in turn:
 
-    - the part as it is, with or without direction words ("southern Ethiopia");
+    - the part as it is, without direction words ("southern Ethiopia"),
+      without a filler word after it ("Gedeo Zone"), or without both
+      ("southern Minas Gerais State");
     - if ``very_close``, a very close spelling of the whole part ("British
       Colombia" is British Columbia, not Colombia), before the rules below
       split it up;
@@ -196,7 +204,8 @@ def _find(part: str, places: Mapping[str, Place], *, very_close: bool) -> _Match
     - its first one to three words ("Kenya Gatugi AB"), keeping the rest.
     """
     key = normalise_place(part)
-    for candidate in (key, _strip_directions(key)):
+    bare = _strip_directions(key)
+    for candidate in (key, bare, _FILLER.sub("", key), _FILLER.sub("", bare)):
         if candidate in places:
             return _Match(places[candidate], None)
     if very_close and (close := _close(part, places, cutoff=VERY_CLOSE_CUTOFF)):
@@ -235,14 +244,39 @@ def _close(
     return places[matches[0]] if matches else None
 
 
+def _garbled_copy(part: str, country: str, places: Mapping[str, Place]) -> bool:
+    """Whether a leftover part is a garbled copy of the country already found.
+
+    "Guatemala.e", "southwestern ColombiaNar", "KenyaMur": a close spelling of
+    the country, or its name with junk stuck on the end. It can only confirm
+    that country, never bring in another ("Chinas" next to Colombia is a town).
+    """
+    key = _strip_directions(normalise_place(part))
+    if key.startswith(normalise_place(country)):
+        return True
+    close = _close(part, places)
+    # Close to the country's own name, not to one of its regions: "Carmo de
+    # Minas" is near the region "Sul de Minas", but it's a region, not "Brazil".
+    return close is not None and close.kind == "country" and close.name == country
+
+
 def _marker(text: str) -> CleanRule | None:
     """The site's own way of saying "unknown", if this text is one."""
     key = normalise_place(text)
-    if key.startswith("not disclosed"):
+    if key.startswith("not disclosed") or get_close_matches(
+        key, ["not disclosed"], cutoff=CLOSE_CUTOFF
+    ):
         return "not_disclosed"
     if key in UNKNOWN_MARKERS:
         return "unknown_marker"
     return None
+
+
+def _with_directions(part: str, name: str) -> str:
+    """``name`` after the direction words ``part`` starts with, as written."""
+    words = _tidy(part)
+    directions = words[: len(words) - len(_strip_directions(words))].strip()
+    return f"{directions} {name}" if directions else name
 
 
 def _strip_directions(text: str) -> str:

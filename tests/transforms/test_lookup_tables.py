@@ -17,7 +17,7 @@ from coffee_review.transforms.lookup_tables import (
     normalise_unit,
 )
 
-KINDS = {"country", "state", "province", "island", "area"}
+KINDS = {"country", "state", "province", "island", "region", "area"}
 
 
 def rows(name: str) -> list[dict[str, str]]:

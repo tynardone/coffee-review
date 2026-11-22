@@ -124,6 +124,11 @@ as a recognisable pattern:
       a rescrape only new unplaced values and close spellings need a look.
       When anything is new, the run logs a **warning** with the count (it still
       succeeds: unknown values are expected and handled).
+11. **Region detail keeps direction words (Task 12).** A known region, island
+    or state in an origin is written with its standard name, but any direction
+    words before it stay as written: `North Sumatra` (a province), `West Guji`
+    (a zone), `southern Minas Gerais`. Only filler (`Zone`, `State`, `growing
+    region`) is dropped. Capitals follow the page.
 
 ## What the data shows (profiled 2026-11-22)
 
