@@ -37,13 +37,18 @@ def clean_lot_size(frame: pl.LazyFrame, units: Mapping[str, Unit]) -> pl.LazyFra
         .str.replace_all(".", "", literal=True)
     )
     grams = unit.replace_strict(grams_per_unit, default=None, return_dtype=pl.Float64)
-    kg = number * grams / 1000
-    not_disclosed = text.str.to_lowercase().str.starts_with("not disclosed")
+    weight = number * grams / 1000
+    zero = (weight <= 0).fill_null(False)  # "0 kg": kept out, not a crash
+    kg = pl.when(~zero).then(weight)
+    not_disclosed = (
+        text.str.strip_chars().str.to_lowercase().str.starts_with("not disclosed")
+    )
     return frame.with_columns(
         kg.alias("lot_size_kg"),
         text.alias("lot_size_text"),
         rules_when(
             (not_disclosed, "not_disclosed"),
-            (text.is_not_null() & kg.is_null() & ~not_disclosed, "unparsed"),
+            (zero, "suspect_value"),
+            (text.is_not_null() & kg.is_null() & ~not_disclosed & ~zero, "unparsed"),
         ).alias(rule_column("lot_size")),
     )

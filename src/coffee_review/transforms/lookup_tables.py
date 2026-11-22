@@ -11,6 +11,8 @@ that only ``storage/`` knows data formats.
 - ``places.csv``: hand-kept: other spellings, Hawaiʻi, islands, broad areas,
   US states and Canadian provinces, with each place's standard name, the
   country it's in, and what kind of place it is;
+- ``areas.csv``: hand-kept: the countries in each broad area ("Central
+  America"), so an area next to its own country is context, not a blend;
 - ``currency_codes.csv``: every ISO 4217 code, generated the same way;
 - ``currencies.csv``: hand-kept: other ways prices write a currency (``NT``,
   ``£``, ``Kč``), and the code each means;
@@ -127,6 +129,20 @@ def load_units() -> Mapping[str, Unit]:
             for row in _read_csv("units.csv")
         }
     )
+
+
+@cache
+def load_area_countries() -> Mapping[str, frozenset[str]]:
+    """Broad area → the countries in it (``areas.csv``).
+
+    An area next to one of its own countries is only context ("Guatemala,
+    Central America"); next to any other it means a blend. A country missing
+    from an area's list makes it a blend: the safe way to be wrong.
+    """
+    members: dict[str, set[str]] = {}
+    for row in _read_csv("areas.csv"):
+        members.setdefault(row["area"], set()).add(row["country"])
+    return MappingProxyType({area: frozenset(c) for area, c in members.items()})
 
 
 @cache

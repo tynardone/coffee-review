@@ -103,8 +103,8 @@ def test_amount_separators() -> None:
     [
         ("$", "United States", ("USD", False, ())),
         ("$", "Canada", ("CAD", True, ("currency_from_roaster",))),
-        ("$", "Taiwan", ("USD", False, ())),
-        ("$", None, ("USD", False, ())),
+        ("$", "Taiwan", ("USD", True, ("currency_from_roaster",))),
+        ("$", None, ("USD", True, ("currency_from_roaster",))),
         ("¥", "Japan", ("JPY", True, ("currency_from_roaster",))),
         ("¥", "China", ("CNY", True, ("currency_from_roaster",))),
         ("¥", "Taiwan", (None, False, ("ambiguous_currency",))),
@@ -258,3 +258,52 @@ def test_unit_with_a_trailing_asterisk() -> None:
     row = price_row("$39.95/8 ounces*")
 
     assert (row["price_unit"], row["_rule_price"]) == ("ounce", [])
+
+
+COUNTRIES = sorted(
+    {"United States", "Taiwan", "Canada", "Japan", "China", "Hong Kong", "Guatemala"}
+)
+
+
+@given(
+    st.sampled_from(["$", "¥", "NT $", "CAD $", "£", "€", "KRW"]),
+    st.sampled_from([*COUNTRIES, None]),
+)
+def test_inferred_only_for_symbols_read_from_the_roaster(
+    symbol: str, country: str | None
+) -> None:
+    # Spec: inferred exactly when the symbol was $ from a non-US roaster, or ¥.
+    _, inferred, _ = resolve_currency(symbol, country, CURRENCIES, BY_ROASTER)
+
+    expected = (symbol == "$" and country != "United States") or (
+        symbol == "¥" and country in {"Japan", "China"}
+    )
+    assert inferred is expected
+
+
+@pytest.mark.parametrize("text", ["$0.00/12 ounces", "$12.00/0 ounces"])
+def test_zero_amount_or_quantity_is_suspect_not_a_crash(text: str) -> None:
+    row = price_row(text)
+
+    rules = row["_rule_price"]
+    assert isinstance(rules, list)
+    assert "suspect_value" in rules
+    assert row["price_amount"] != 0
+    assert row["price_quantity"] != 0
+    assert row["price_grams"] != 0
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "$3.99/12-ounce can",
+        "$13.33/32 ounce-carton",
+        "$18.00/16 oz. liquid concentrate",
+        "$7.00/12-ounce bottle",
+    ],
+)
+def test_drinks_are_fluid_ounces(text: str) -> None:
+    row = price_row(text)
+
+    assert row["price_unit"] == "fluid ounce"
+    assert row["price_grams"] is None

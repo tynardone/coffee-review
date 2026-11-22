@@ -225,3 +225,15 @@ def test_end_to_end_snapshot() -> None:
             "extra_count": 0,
         }
     )
+
+
+def test_odd_values_do_not_stop_the_run() -> None:
+    # From the final review: each of these used to break the contract.
+    record = roasted("a", price="$0.00/12 ounces", agtron="55/0.4")
+    clean = InMemoryCleanStore()
+
+    run_clean(parsed=parsed_with(record), clean=clean)
+
+    rules = clean.read_table("log").select("field", "rule").rows()
+    assert ("price", "suspect_value") in rules
+    assert ("agtron", "suspect_value") in rules

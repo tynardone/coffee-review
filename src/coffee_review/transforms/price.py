@@ -54,6 +54,12 @@ _BARE = re.compile(
 )
 _ANY_DIGIT = re.compile(r"\d")
 ANYWHERE = "*"  # roaster_currencies.csv: the symbol's meaning in any other country
+# Where a symbol's usual meaning is the local currency, so it isn't inferred.
+HOME_COUNTRIES: Mapping[str, tuple[str, ...]] = {"$": ("United States",)}
+# A unit followed by one of these is a drink: "12-ounce can" is fluid ounces.
+DRINK_CONTAINERS = frozenset(
+    {"can", "cans", "bottle", "bottles", "carton", "flask", "concentrate"}
+)
 
 
 @dataclass(frozen=True)
@@ -106,7 +112,12 @@ def resolve_currency(
         if roaster_country is not None and roaster_country in countries:
             return countries[roaster_country], True, ("currency_from_roaster",)
         if ANYWHERE in countries:
-            return countries[ANYWHERE], False, ()
+            # The symbol's usual meaning ($ → USD) is only certain for a roaster
+            # where it is the local currency; anywhere else (or an unknown
+            # roaster) it's an assumption, and flagged as one (Decision 7).
+            home = roaster_country in HOME_COUNTRIES.get(key, ())
+            rules: tuple[CleanRule, ...] = () if home else ("currency_from_roaster",)
+            return countries[ANYWHERE], not home, rules
         return None, False, ("ambiguous_currency",)
     for candidate in (key, key.replace("$", "")):  # "NT$" or "NT", "CAD$" or "CAD"
         if candidate in currencies:
@@ -188,6 +199,8 @@ def _price_row(
     currency, inferred, rules = resolve_currency(
         parts.symbol, roaster_country, currencies, by_roaster
     )
+    if parts.amount <= 0:  # "$0.00/12 ounces": kept out, not a crash
+        return empty | {rule_column("price"): [*rules, "suspect_value"]}
     row = empty | {
         "price_amount": parts.amount,
         "price_currency": currency,
@@ -199,18 +212,30 @@ def _price_row(
         rules_list.append("no_quantity")
     elif found := find_unit(parts.unit_text, units):
         quantity = parts.quantity if parts.quantity is not None else 1.0
+        unit = _drink_unit(found.unit, found.leftover, units)
         notes = [n for n in (found.leftover, parts.note) if n]
-        row |= {
-            "price_quantity": quantity,
-            "price_unit": found.unit.name,
-            "price_grams": to_grams(quantity, found.unit),
-            "price_note": "; ".join(notes) or None,
-        }
+        if quantity <= 0:  # "$12/0 ounces"
+            rules_list.append("suspect_value")
+        else:
+            row |= {
+                "price_quantity": quantity,
+                "price_unit": unit.name,
+                "price_grams": to_grams(quantity, unit),
+            }
+        row["price_note"] = "; ".join(notes) or None
         if found.close:
             rules_list.append("close_spelling")
     else:
         rules_list.append("unknown_unit")
     return row | {rule_column("price"): rules_list}
+
+
+def _drink_unit(unit: Unit, leftover: str | None, units: Mapping[str, Unit]) -> Unit:
+    """Fluid ounces when an ounce is a drink's ("12-ounce can"), else ``unit``."""
+    words = set((leftover or "").lower().replace("-", " ").split())
+    if unit.name == "ounce" and words & DRINK_CONTAINERS:
+        return units["fluid ounce"]
+    return unit
 
 
 def _number(text: str) -> float:

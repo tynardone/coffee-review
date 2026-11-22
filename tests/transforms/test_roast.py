@@ -230,3 +230,8 @@ def test_swap_properties(rows: list[tuple[int, int, date]]) -> None:
             assert out_ground >= out_whole
         if swapped:
             assert (out_whole, out_ground) == (ground, whole)
+
+
+def test_reading_that_rounds_to_zero_is_suspect_not_a_crash() -> None:
+    # 0.4 rounds to 0, which the contract refuses (gt=0).
+    assert agtron("55/0.4") == (55, None, False, True, ["suspect_value"])

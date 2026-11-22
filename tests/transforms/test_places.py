@@ -370,3 +370,167 @@ def test_near_spelling_of_a_region_is_not_a_garbled_country() -> None:
 def test_region_keeps_its_direction_words(text: str, region: str) -> None:
     # Tyler, Task 12: "North Sumatra" is a province and "West Guji" a zone.
     assert origin(text).region == region
+
+
+# --- final review fixes ----------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("Hong Kong, China", (None, None, "Hong Kong")),
+        ("Kowloon, Hong Kong, China", ("Kowloon", None, "Hong Kong")),
+        ("Macao, China", (None, None, "Macao")),
+        ("Vancouver, BC", ("Vancouver", "British Columbia", "Canada")),
+        (
+            "Burnaby, British Colombia, Canada",
+            ("Burnaby", "British Columbia", "Canada"),
+        ),
+    ],
+)
+def test_roaster_middle_part(
+    text: str, expected: tuple[str | None, str | None, str | None]
+) -> None:
+    city, region, country = expected
+
+    assert roaster(text) == RoasterResult(city, region, country, ())
+
+
+@pytest.mark.parametrize(
+    ("text", "country", "region"),
+    [
+        (
+            "San Marcos growing region, southwestern Guatemala, Central America",
+            "Guatemala",
+            "San Marcos",
+        ),
+        ("Rwanda, Central Africa", "Rwanda", None),
+        (
+            "Las Flores, Marcala, La Paz, Honduras",
+            "Honduras",
+            "Las Flores, Marcala, La Paz",
+        ),
+        ("Ethiopia, East Africa", "Ethiopia", None),
+    ],
+)
+def test_one_country_with_an_area_is_that_country(
+    text: str, country: str, region: str | None
+) -> None:
+    assert origin(text) == OriginResult(country, region, ())
+
+
+@pytest.mark.parametrize(
+    ("text", "country"),
+    [
+        ("Yei, South Sudan", "South Sudan"),
+        ("southern South Sudan", "South Sudan"),
+        ("Belfast, Northern Ireland", "United Kingdom"),
+        (
+            "Kivu region of the Democratic Republic of the Congo",
+            "Democratic Republic of the Congo",
+        ),
+        ("New South Wales, Australia", "Australia"),
+    ],
+)
+def test_directions_and_of_never_switch_country(text: str, country: str) -> None:
+    assert origin(text).country == country
+
+
+def test_roaster_west_virginia() -> None:
+    assert roaster("Morgantown West Virginia").region == "West Virginia"
+
+
+@pytest.mark.parametrize(
+    ("text", "region"),
+    [
+        (
+            "Holualoa, North Kona growing district, Big Island of Hawai'i",
+            "Holualoa, North Kona, Big Island",
+        ),
+        ("Boquete growing area, Chiriquí Province, Panama", "Boquete, Chiriquí"),
+        ("Sidamo (also Sidama) growing region, southern Ethiopia", "Sidama"),
+        ("Ethiopia Guji", "Guji"),
+    ],
+)
+def test_region_has_no_leftover_words(text: str, region: str) -> None:
+    assert origin(text).region == region
+
+
+def test_no_alias_is_found_as_another_country() -> None:
+    # Every spelling, looked up as an origin part on its own, must land on its
+    # own country: stripping directions or taking its last words never switches
+    # it ("north korea" isn't "korea", "south sudan" isn't "sudan").
+    wrong = {}
+    for alias, place in PLACES.items():
+        if place.kind == "area":
+            continue
+        found = origin(alias).country
+        if found not in (place.country, None):
+            wrong[alias] = found
+    assert wrong == {}
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "East, Central, and southern Africa",
+        "Various Latin American origins.",
+        "Espresso Blend",
+        "Various Africa growing regions.",
+    ],
+)
+def test_blends_named_by_an_area_inside_a_part_are_multiple(text: str) -> None:
+    assert origin(text).country == "Multiple"
+
+
+@pytest.mark.parametrize(
+    ("text", "country"),
+    [
+        ("Apaneca Ilamatepec mountain range", "El Salvador"),
+        ("San Cristobal, Galapagos Islands", "Ecuador"),
+    ],
+)
+def test_named_region_inside_a_part(text: str, country: str) -> None:
+    assert origin(text).country == country
+
+
+def test_city_named_like_a_country_is_not_the_country() -> None:
+    # Armenia is a city in Colombia's coffee region.
+    assert roaster("Armenia, Colombia") == RoasterResult(
+        "Armenia", None, "Colombia", ()
+    )
+
+
+def test_directions_before_of_stay_with_the_text_before() -> None:
+    assert (
+        origin(
+            "Ka'u growing region, southwestern corner of the Big Island of Hawai'i"
+        ).region
+        == "Ka'u, southwestern corner, Big Island"
+    )
+
+
+def test_one_word_region_with_filler_is_not_split_out() -> None:
+    # "Cauca growing region" is one word of name plus filler: not a named region
+    # inside "Valle del Cauca", which must stay whole.
+    assert (
+        origin("Valle del Cauca growing region, Colombia").region == "Valle del Cauca"
+    )
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Indonesia; Central and South America",
+        "Africa; Indonesia; South America",
+        "Ethiopia; Central America",
+        "Brazil; Southeast Asia",
+        "East Africa and Java, Indonesia.",
+        "Brazil, other South America origins, Central Africa.",
+        "Honduras, other Central and South America",
+    ],
+)
+def test_country_outside_the_area_is_a_blend(text: str) -> None:
+    # An area is only context for a country inside it; otherwise, or with a
+    # blend word ("other"), the coffee comes from more than one place.
+    assert origin(text).country == "Multiple"

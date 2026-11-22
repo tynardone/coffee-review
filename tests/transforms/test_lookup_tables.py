@@ -126,3 +126,13 @@ def test_roaster_currencies_name_known_countries() -> None:
 
     for row in rows("roaster_currencies.csv"):
         assert row["roaster_country"] in countries | {"*"}, row
+
+
+def test_areas_name_known_areas_and_countries() -> None:
+    places = load_places()
+    areas = {p.name for p in places.values() if p.kind == "area"}
+    countries = {p.country for p in places.values() if p.kind == "country"}
+
+    for row in rows("areas.csv"):
+        assert row["area"] in areas, row
+        assert row["country"] in countries, row

@@ -80,7 +80,8 @@ def _side(text: pl.Expr) -> _Side:
     lower = text.str.to_lowercase()
     is_number = text.str.contains(r"^\d+(?:\.\d+)?$")
     number = pl.when(is_number).then(text).cast(pl.Float64)
-    usable = number.is_between(0, CONTRACT_MAX, closed="right")
+    # Tested after rounding: 0.4 rounds to 0, which can't be stored either.
+    usable = number.round(0).is_between(0, CONTRACT_MAX, closed="right")
     unknown = (text == "") | lower.is_in(_UNKNOWN_MARKERS)
     label = lower.is_in(("g", "wb"))
     return _Side(

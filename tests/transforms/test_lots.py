@@ -53,3 +53,16 @@ def test_lot_size_not_disclosed() -> None:
 
     assert result["lot_size_kg"].item() is None
     assert result["_rule_lot_size"].item().to_list() == ["not_disclosed"]
+
+
+def test_zero_lot_size_is_suspect_not_a_crash() -> None:
+    result = run(lambda f: clean_lot_size(f, UNITS), "lot_size", ["0 kg"])
+
+    assert result["lot_size_kg"].item() is None
+    assert result["_rule_lot_size"].item().to_list() == ["suspect_value"]
+
+
+def test_lot_size_not_disclosed_with_spaces() -> None:
+    result = run(lambda f: clean_lot_size(f, UNITS), "lot_size", [" Not disclosed"])
+
+    assert result["_rule_lot_size"].item().to_list() == ["not_disclosed"]
