@@ -105,8 +105,9 @@ class _Found:
                 )
                 return
             self.fields[field] = value
-        elif value is not None and extra_key not in self.extra:
-            self.extra[extra_key] = value
+        elif extra_key not in self.extra:
+            # Kept even when blank, so a new label always shows in the report.
+            self.extra[extra_key] = value or ""
 
     def page(self, *, url: str, delisted: bool) -> ParsedPage:
         for field in REQUIRED_FIELDS:
@@ -160,5 +161,30 @@ def _text(node: LexborNode | None) -> str | None:
     (non-breaking spaces included) collapsed. Blank text is None."""
     if node is None:
         return None
-    text = " ".join(node.text(separator=" ").split())
+    text = " ".join(_joined_text(node).split())
     return text or None
+
+
+# Tags that separate words: a line break, or the edge of a block. Any other tag
+# (a link, bold text) sits inside a word as often as between words, so it adds
+# nothing: caf<a>é</a> is "café", not "caf é".
+_BREAK_TAGS = frozenset({"br", "hr"})
+_BLOCK_TAGS = frozenset(
+    {"p", "div", "li", "ul", "ol", "tr", "td", "th", "table", "blockquote"}
+    | {"h1", "h2", "h3", "h4", "h5", "h6"}
+)
+
+
+def _joined_text(node: LexborNode) -> str:
+    """The text under a node exactly as written, with a space only where a
+    line break or block edge separates words."""
+    parts: list[str] = []
+    for child in node.iter(include_text=True):
+        if child.tag == "-text":
+            parts.append(child.text_content or "")
+        elif child.tag in _BREAK_TAGS:
+            parts.append(" ")
+        elif child.tag and not child.tag.startswith("-"):  # not a comment
+            edge = " " if child.tag in _BLOCK_TAGS else ""
+            parts += [edge, _joined_text(child), edge]
+    return "".join(parts)

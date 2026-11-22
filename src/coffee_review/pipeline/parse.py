@@ -108,10 +108,10 @@ def _parse_one(raw: RawStore, row: ManifestRecord) -> ParsedPage:
     try:
         html = raw.read_page(row.slug)
     except PageNotFoundError:
-        issue = ParseIssue(
-            slug=row.slug, kind="page_missing", detail="saved copy can't be read"
-        )
-        return ParsedPage(record=None, issues=[issue])
+        return _page_missing(row.slug, "no saved copy")
+    except Exception as exc:  # truncated gzip, bad bytes, bad slug in the manifest
+        logger.exception("could not read the saved copy of %s", row.slug)
+        return _page_missing(row.slug, f"{type(exc).__name__}: {exc}")
     try:
         return parse_review_page(
             row.slug, row.url, html, delisted=row.delisted_at is not None
@@ -122,3 +122,8 @@ def _parse_one(raw: RawStore, row: ManifestRecord) -> ParsedPage:
             slug=row.slug, kind="parse_error", detail=f"{type(exc).__name__}: {exc}"
         )
         return ParsedPage(record=None, issues=[issue])
+
+
+def _page_missing(slug: str, detail: str) -> ParsedPage:
+    issue = ParseIssue(slug=slug, kind="page_missing", detail=detail)
+    return ParsedPage(record=None, issues=[issue])

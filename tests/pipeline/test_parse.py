@@ -9,14 +9,14 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import pytest
+
 from coffee_review.models.scrape import SitemapEntry
 from coffee_review.pipeline import parse as parse_module
 from coffee_review.pipeline.parse import run_parse
 from tests.fakes import InMemoryParsedStore, InMemoryRawStore
 
 if TYPE_CHECKING:
-    import pytest
-
     from coffee_review.models.parsed import ParsedReview
 
 FIXTURES = Path(__file__).parent.parent / "fixtures" / "pages" / "review"
@@ -109,6 +109,36 @@ def test_missing_page_file_is_an_issue() -> None:
     run_parse(raw=raw, parsed=parsed)
 
     assert [(i.slug, i.kind) for i in parsed.read_issues()] == [("b", "page_missing")]
+    assert slugs(parsed.read_reviews("roasted")) == ["a"]
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        EOFError("Compressed file ended before the end-of-stream marker"),
+        UnicodeDecodeError("utf-8", b"\xff", 0, 1, "invalid start byte"),
+        ValueError("not a valid slug: 'B'"),
+    ],
+)
+def test_unreadable_page_is_an_issue(
+    error: Exception, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    raw = raw_with(a="modern_roasted", b="green_new")
+    read_page = raw.read_page
+
+    def corrupt_b(slug: str) -> str:
+        if slug == "b":
+            raise error
+        return read_page(slug)
+
+    monkeypatch.setattr(raw, "read_page", corrupt_b)
+    parsed = InMemoryParsedStore()
+
+    run_parse(raw=raw, parsed=parsed)
+
+    issues = parsed.read_issues()
+    assert [(i.slug, i.kind) for i in issues] == [("b", "page_missing")]
+    assert issues[0].detail.startswith(f"{type(error).__name__}: ")
     assert slugs(parsed.read_reviews("roasted")) == ["a"]
 
 

@@ -428,3 +428,46 @@ def test_roaster_url_from_logo_link() -> None:
 
 def test_link_text_inside_a_value() -> None:
     assert green("unknown_fields").seller == "Placeholder Seller"
+
+
+def test_inline_tags_do_not_split_words() -> None:
+    # Real pages: caf<a>é</a>, Coffee Review<a>’s</a>, P<strong>roduced</strong>.
+    page = parse_html(
+        minimal_page(
+            sections="<h2>Notes</h2><p>caf<a href='#'>é</a> by Coffee Review"
+            "<a href='#'>’s</a> panel. P<strong>roduced</strong> at "
+            "<a href='#'>example.com</a>.</p>"
+        )
+    )
+
+    assert page.record is not None
+    assert page.record.notes == (
+        "café by Coffee Review’s panel. Produced at example.com."
+    )
+
+
+def test_line_breaks_and_blocks_separate_words() -> None:
+    page = parse_html(
+        minimal_page(
+            rows="<tr><td>Coffee Origin:</td><td>Kona<br>Hawaii</td></tr>",
+            sections="<h2>Notes</h2><div><p>First.</p><p>Second.</p></div>",
+        )
+    )
+
+    assert page.record is not None
+    assert page.record.coffee_origin == "Kona Hawaii"
+    assert page.record.notes == "First. Second."
+
+
+def test_blank_unknown_label_is_kept() -> None:
+    page = parse_html(minimal_page(rows="<tr><td>Mystery:</td><td> </td></tr>"))
+
+    assert page.record is not None
+    assert page.record.extra == {"Mystery": ""}
+
+
+def test_empty_unknown_heading_is_kept() -> None:
+    page = parse_html(minimal_page(sections="<h2>Panel Comments</h2>"))
+
+    assert page.record is not None
+    assert page.record.extra == {"section: Panel Comments": ""}
