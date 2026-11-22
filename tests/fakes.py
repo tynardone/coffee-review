@@ -14,11 +14,14 @@ import httpx
 from coffee_review.config import CoffeeSiteSettings
 from coffee_review.models.common import require_slug
 from coffee_review.models.scrape import ManifestRecord
+from coffee_review.storage.parsed_store import reviews_frame
 from coffee_review.storage.raw_store import PageNotFoundError
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Collection, Sequence
     from datetime import datetime
+
+    import polars as pl
 
     from coffee_review.models.parsed import Dataset, ParsedReview, ParseIssue
     from coffee_review.models.scrape import SitemapEntry
@@ -179,6 +182,9 @@ class InMemoryParsedStore:
     def read_reviews(self, dataset: Dataset) -> list[ParsedReview]:
         mine = [r for r in self.records if r.dataset == dataset]
         return sorted(mine, key=lambda r: r.slug)
+
+    def read_table(self, dataset: Dataset) -> pl.DataFrame:
+        return reviews_frame(self.records, dataset)
 
     def read_issues(self) -> list[ParseIssue]:
         return sorted(self.issues, key=lambda i: (i.slug, i.kind, i.detail))
