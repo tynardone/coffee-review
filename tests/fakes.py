@@ -17,7 +17,7 @@ from coffee_review.models.clean import LOG_SCHEMA
 from coffee_review.models.common import require_slug
 from coffee_review.models.scrape import ManifestRecord
 from coffee_review.storage.clean_store import CleanLayerMissingError
-from coffee_review.storage.parsed_store import reviews_frame
+from coffee_review.storage.parsed_store import ParsedLayerMissingError, reviews_frame
 from coffee_review.storage.raw_store import PageNotFoundError
 
 if TYPE_CHECKING:
@@ -170,6 +170,7 @@ class InMemoryParsedStore:
         self.records: list[ParsedReview] = []
         self.issues: list[ParseIssue] = []
         self.report_markdown = ""
+        self.written = False
 
     def write(
         self,
@@ -180,12 +181,16 @@ class InMemoryParsedStore:
         self.records = list(records)
         self.issues = list(issues)
         self.report_markdown = report_markdown
+        self.written = True
 
     def read_reviews(self, dataset: Dataset) -> list[ParsedReview]:
         mine = [r for r in self.records if r.dataset == dataset]
         return sorted(mine, key=lambda r: r.slug)
 
     def read_table(self, dataset: Dataset) -> pl.DataFrame:
+        if not self.written:
+            msg = "no parsed data in memory: run parse first"
+            raise ParsedLayerMissingError(msg)
         return reviews_frame(self.records, dataset)
 
     def read_issues(self) -> list[ParseIssue]:

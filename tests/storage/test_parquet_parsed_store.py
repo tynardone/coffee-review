@@ -11,7 +11,6 @@ from coffee_review.config import Settings
 from coffee_review.models.parsed import GreenReview, RoastedReview
 from coffee_review.storage.parsed_store import (
     ParquetParsedStore,
-    ParsedLayerMissingError,
     ParsedStore,
     open_parsed_store,
 )
@@ -112,10 +111,3 @@ def test_open_parsed_store_uses_data_dir(tmp_path: Path) -> None:
     store.write([], [], "")
 
     assert (tmp_path / "parsed" / "report.md").exists()
-
-
-def test_read_table_before_any_parse_raises(tmp_path: Path) -> None:
-    store = ParquetParsedStore(tmp_path / "parsed")
-
-    with pytest.raises(ParsedLayerMissingError, match="run parse first"):
-        store.read_table("roasted")

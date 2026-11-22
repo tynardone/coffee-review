@@ -8,7 +8,11 @@ from typing import TYPE_CHECKING
 import pytest
 
 from coffee_review.models.parsed import GreenReview, ParseIssue, RoastedReview
-from coffee_review.storage.parsed_store import ParquetParsedStore, reviews_frame
+from coffee_review.storage.parsed_store import (
+    ParquetParsedStore,
+    ParsedLayerMissingError,
+    reviews_frame,
+)
 from tests.fakes import InMemoryParsedStore
 
 if TYPE_CHECKING:
@@ -110,3 +114,8 @@ def test_read_table_empty_dataset(store: ParsedStore) -> None:
 
     assert table.height == 0
     assert table.schema == reviews_frame([], "green").schema
+
+
+def test_read_table_before_any_parse_raises(store: ParsedStore) -> None:
+    with pytest.raises(ParsedLayerMissingError, match="run parse first"):
+        store.read_table("roasted")
