@@ -280,9 +280,12 @@ printed briefly at the end of a run and written in full to `report.md`.
 - **Value shapes:** for each short field (every table field, plus `rating`
   and `roaster_url`), the 10 most common shapes, each with a count and an
   example slug and value.
-  - `value_shape` turns each digit into `9` and each letter into `a`, and
-    keeps punctuation and spaces. For example, `$34.00/12 ounces` becomes
-    `$99.99/99 aaaaaa`.
+  - `value_shape` turns each digit into `9` and each **run** of letters
+    into a single `a`, and keeps punctuation and spaces. For example,
+    `$34.00/12 ounces` becomes `$99.99/99 a`, and `November 2011` and
+    `June 2003` both become `a 9999`. (Changed during Task 6 at Tyler's
+    request: one `a` per letter split word formats like dates into a shape per
+    word length.)
   - Long text sections are left out.
 - **Issues:** every issue, grouped by kind.
 
