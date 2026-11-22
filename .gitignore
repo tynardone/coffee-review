@@ -226,3 +226,6 @@ __marimo__/
 data/
 # Agent workspace
 .superpowers/
+
+# Scratch notess
+NOTES.mds
