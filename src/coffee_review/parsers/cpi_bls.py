@@ -4,7 +4,9 @@ The shape is ``{status, message, Results: {series: [{seriesID, data: [...]}]}}``
 with each data row ``{year, period, periodName, value, footnotes}`` and
 ``value`` as text. Periods ``M01``–``M12`` are months; ``M13`` (the annual
 average) and anything else are not, and are dropped. A footnote coded ``P``
-marks a value preliminary.
+marks a value preliminary; a value of ``-`` with footnote ``X`` is the BLS
+saying the month is unavailable (October 2025: no data was collected during
+the 2025 lapse in appropriations), which becomes a gap in its own words.
 
 BLS can answer ``REQUEST_SUCCEEDED`` with no data and the reason in
 ``message``: that's an answer with no months, not an error.
@@ -21,12 +23,14 @@ from typing import Any
 from coffee_review.models.reference import (
     CpiMonth,
     CpiParsed,
+    CpiUnavailable,
     ParseProblem,
     ReferenceParseError,
 )
 
 MONTH_PERIOD = re.compile(r"^M(0[1-9]|1[0-2])$")
 PRELIMINARY = "P"
+UNAVAILABLE = "X"
 
 
 def parse_cpi_bls(text: str, series: str) -> CpiParsed:
@@ -43,6 +47,7 @@ def parse_cpi_bls(text: str, series: str) -> CpiParsed:
 
     months: list[CpiMonth] = []
     problems: list[ParseProblem] = []
+    unavailable: list[CpiUnavailable] = []
     for entry in entries:
         if not isinstance(entry, dict) or entry.get("seriesID") != series:
             continue
@@ -52,6 +57,12 @@ def parse_cpi_bls(text: str, series: str) -> CpiParsed:
                 continue  # M13 and other non-month periods
             value = str(row.get("value", ""))
             index = _index(value)
+            said = _unavailable(row)
+            if index is None and said is not None:
+                unavailable.append(
+                    CpiUnavailable(month=month, series=series, said=said)
+                )
+                continue
             if index is None:
                 where = f"cpi {series} {month:%Y-%m}"
                 reason = "not a positive number"
@@ -62,7 +73,12 @@ def parse_cpi_bls(text: str, series: str) -> CpiParsed:
                     month=month, series=series, index_value=index, final=_final(row)
                 )
             )
-    return CpiParsed(series=series, months=tuple(months), problems=tuple(problems))
+    return CpiParsed(
+        series=series,
+        months=tuple(months),
+        problems=tuple(problems),
+        unavailable=tuple(unavailable),
+    )
 
 
 def _load(text: str) -> dict[str, Any]:
@@ -98,3 +114,11 @@ def _final(row: dict[str, Any]) -> bool:
     return not any(
         isinstance(note, dict) and note.get("code") == PRELIMINARY for note in notes
     )
+
+
+def _unavailable(row: dict[str, Any]) -> str | None:
+    """The footnote's text when the BLS marks the month unavailable, else None."""
+    for note in row.get("footnotes") or []:
+        if isinstance(note, dict) and note.get("code") == UNAVAILABLE:
+            return str(note.get("text") or "") or "unavailable (BLS footnote X)"
+    return None

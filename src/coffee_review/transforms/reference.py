@@ -103,11 +103,11 @@ def cpi_wanted_months(start: date, today: date) -> list[date]:
 def cpi_gap_months(saved: Sequence[SavedCpi]) -> set[date]:
     """Months a source will never have, from one source's responses.
 
-    A month is a gap when a response covered its year, has a later month,
-    and doesn't have that one (BLS published no October 2025). A month after
-    a response's latest is just not out yet.
+    A month is a gap when the source says it's unavailable, or when a
+    response covered its year, has a later month, and doesn't have that one.
+    A month after a response's latest is just not out yet.
     """
-    gaps: set[date] = set()
+    gaps: set[date] = {u.month for _, parsed in saved for u in parsed.unavailable}
     for response, parsed in saved:
         present = {m.month for m in parsed.months}
         if not present:
@@ -185,8 +185,9 @@ def build_cpi(
     for source, series in sorted({(r.source, r.series) for r, _ in saved}):
         own = [s for s in saved if (s[0].source, s[0].series) == (source, series)]
         valued = {m.month for _, parsed in own for m in parsed.months}
+        said = {u.month: u.said for _, parsed in own for u in parsed.unavailable}
         gaps += [
-            (month, series, source, GAP_SAID)
+            (month, series, source, said.get(month, GAP_SAID))
             for month in sorted(cpi_gap_months(own) - valued)
         ]
     return cpi, pl.DataFrame(gaps, schema=CPI_GAPS_SCHEMA, orient="row")

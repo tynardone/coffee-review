@@ -115,3 +115,51 @@ def test_empty_data_with_message_is_no_months() -> None:
 def test_rejects_what_isnt_an_answer(text: str) -> None:
     with pytest.raises(ReferenceParseError):
         parse_cpi_bls(text, SERIES)
+
+
+def unavailable_row(text: str = "Data unavailable due to the 2025 lapse") -> str:
+    return json.dumps(
+        {
+            "status": "REQUEST_SUCCEEDED",
+            "message": [],
+            "Results": {
+                "series": [
+                    {
+                        "seriesID": SERIES,
+                        "data": [
+                            {
+                                "year": "2025",
+                                "period": "M10",
+                                "periodName": "October",
+                                "value": "-",
+                                "footnotes": [{"code": "X", "text": text}],
+                            },
+                            {
+                                "year": "2025",
+                                "period": "M09",
+                                "periodName": "September",
+                                "value": "324.800",
+                                "footnotes": [{}],
+                            },
+                        ],
+                    }
+                ]
+            },
+        }
+    )
+
+
+def test_unavailable_month_is_the_sources_own_gap_not_a_problem() -> None:
+    parsed = parse_cpi_bls(unavailable_row(), SERIES)
+
+    assert [m.month for m in parsed.months] == [date(2025, 9, 1)]
+    assert parsed.problems == ()
+    assert [(u.month, u.said) for u in parsed.unavailable] == [
+        (date(2025, 10, 1), "Data unavailable due to the 2025 lapse")
+    ]
+
+
+def test_unavailable_without_text_says_so() -> None:
+    parsed = parse_cpi_bls(unavailable_row(text=""), SERIES)
+
+    assert parsed.unavailable[0].said == "unavailable (BLS footnote X)"

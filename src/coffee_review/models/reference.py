@@ -67,12 +67,23 @@ class FxParsed(FrozenModel):
     problems: tuple[ParseProblem, ...] = ()
 
 
+class CpiUnavailable(FrozenModel):
+    """A month the source says it doesn't have, in its own words (BLS marks
+    October 2025 with ``-`` and footnote X: no data was collected)."""
+
+    month: dt.date
+    series: str
+    said: str
+
+
 class CpiParsed(FrozenModel):
-    """One response's months for one series."""
+    """One response's months for one series, and the months it says are
+    unavailable."""
 
     series: str
     months: tuple[CpiMonth, ...]
     problems: tuple[ParseProblem, ...] = ()
+    unavailable: tuple[CpiUnavailable, ...] = ()
 
 
 class ReferenceParseError(Exception):

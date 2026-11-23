@@ -11,6 +11,7 @@ from coffee_review.models.reference import (
     CpiMonth,
     CpiParsed,
     CpiResponse,
+    CpiUnavailable,
     validate_reference,
 )
 from coffee_review.transforms.reference import (
@@ -246,3 +247,39 @@ def test_build_nothing_gives_empty_tables_with_schemas() -> None:
 
     validate_reference(cpi, "cpi")
     validate_reference(gaps, "cpi_gaps")
+
+
+def with_unavailable(saved: Saved, month: date, said: str) -> Saved:
+    response, parsed = saved
+    unavailable = (CpiUnavailable(month=month, series=SERIES, said=said),)
+    return response, parsed.model_copy(update={"unavailable": unavailable})
+
+
+def test_gap_says_what_the_source_said() -> None:
+    saved = [
+        with_unavailable(
+            resp(
+                2025,
+                2025,
+                months=[m for m in months_of(2025) if m != date(2025, 10, 1)],
+            ),
+            date(2025, 10, 1),
+            "Data unavailable due to the 2025 lapse in appropriations",
+        )
+    ]
+
+    _, gaps = build_cpi(saved, "bls")
+
+    assert gaps["said"].to_list() == [
+        "Data unavailable due to the 2025 lapse in appropriations"
+    ]
+
+
+def test_unavailable_latest_month_is_a_gap_too() -> None:
+    saved = [
+        with_unavailable(
+            resp(2026, 2026, months=months_of(2026)[:9]), date(2026, 10, 1), "X"
+        )
+    ]
+
+    assert cpi_gap_months(saved) == {date(2026, 10, 1)}
