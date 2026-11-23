@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 from datetime import UTC, datetime
 from importlib.metadata import version
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated, Literal
 
 import typer
 from pydantic import ValidationError
@@ -20,8 +20,15 @@ from coffee_review.config import MAX_RATE_PER_SEC, get_settings
 from coffee_review.logging_setup import FILE_ONLY, configure_logging, run_log_path
 from coffee_review.pipeline.clean import clean
 from coffee_review.pipeline.parse import parse
+from coffee_review.pipeline.reference import cpi, fx
 from coffee_review.pipeline.scrape import scrape
 from coffee_review.progress_display import RichRunProgress
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from coffee_review.config import Settings
+    from coffee_review.pipeline.reference import ReferenceRunResult
 
 # Exit codes. 2 is Click's own code for a usage error (a bad option), so a
 # stopped run gets 3: a script can tell "you typed it wrong" from "the site
@@ -188,6 +195,50 @@ def clean_command() -> None:
         typer.echo(f"clean failed: {exc}", err=True)  # the terminal's one copy
         raise typer.Exit(EXIT_ERROR) from None
     typer.echo(f"report: {result.report_location}")
+
+
+@app.command("fx")
+def fx_command() -> None:
+    """Bring exchange rates in data/reference up to date (responses in data/raw).
+
+    Asks only for days not saved yet. Needs COFFEE_REVIEW_FOREX_API__API_KEY.
+    Exit codes: 0 finished, 1 error, 3 stopped by the source (refused, bad key,
+    or not answering); a rerun carries on.
+    """
+    _reference_command("fx", fx)
+
+
+@app.command("cpi")
+def cpi_command() -> None:
+    """Bring US CPI-U in data/reference up to date (responses in data/raw).
+
+    Asks only for months not saved yet; no key needed. Exit codes: 0 finished,
+    1 error, 3 stopped by the source (refused or not answering); a rerun carries
+    on.
+    """
+    _reference_command("cpi", cpi)
+
+
+def _reference_command(
+    kind: Literal["fx", "cpi"], run: Callable[[Settings], ReferenceRunResult]
+) -> None:
+    """Run one reference stage; the summary line is logged by the stage."""
+    settings = get_settings()
+    configure_logging(
+        settings.log_level,
+        run_log_path(settings.data_dir, kind, datetime.now(UTC)),
+        console=Console(stderr=True),
+    )
+    try:
+        result = run(settings)
+    except Exception as exc:
+        logger.debug("%s failed", kind, exc_info=True)  # traceback, log file only
+        logger.error(
+            "%s failed: %s: %s", kind, type(exc).__name__, exc, extra=FILE_ONLY
+        )
+        typer.echo(f"{kind} failed: {exc}", err=True)  # the terminal's one copy
+        raise typer.Exit(EXIT_ERROR) from None
+    raise typer.Exit(EXIT_CODES[result.outcome])
 
 
 def _first_message(exc: ValidationError) -> str:

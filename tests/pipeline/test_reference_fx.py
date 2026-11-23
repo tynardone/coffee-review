@@ -299,3 +299,12 @@ async def test_unknown_configured_source_fails_before_any_request() -> None:
         )
 
     assert client.calls == []
+
+
+def test_describe_names_gap_periods() -> None:
+    one = result(kind="cpi", gaps=1, gap_periods=("2025-10",)).describe()
+    many = result(gaps=7, gap_periods=tuple(f"2020-0{n}" for n in range(1, 8)))
+
+    assert "1 gap (2025-10)," not in one
+    assert "1 gap (2025-10)" in one
+    assert "7 gaps (2020-01, 2020-02, 2020-03, 2020-04, 2020-05, …)" in many.describe()

@@ -8,7 +8,7 @@ real store), so tests using them check behavior, not which calls were made.
 from __future__ import annotations
 
 import json
-from datetime import UTC
+from datetime import UTC, date
 from typing import TYPE_CHECKING, Any, Self
 
 import httpx
@@ -24,8 +24,8 @@ from coffee_review.storage.raw_store import PageNotFoundError
 from coffee_review.storage.reference_store import ReferenceLayerMissingError
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Collection, Sequence
-    from datetime import date, datetime
+    from collections.abc import Callable, Collection, Iterable, Sequence
+    from datetime import datetime
 
     from coffee_review.models.clean import CleanTable
     from coffee_review.models.parsed import Dataset, ParsedReview, ParseIssue
@@ -347,6 +347,70 @@ class FakeFxClient:
     async def fetch_day(self, day: date) -> str:
         self.calls.append(day)
         answer = self._answer(day)
+        if isinstance(answer, Exception):
+            raise answer
+        return answer
+
+    async def __aenter__(self) -> Self:
+        return self
+
+    async def __aexit__(self, *exc: object) -> None:
+        pass
+
+
+def bls_body(series: str, months: Iterable[date], value: float = 100.0) -> str:
+    """A BLS timeseries response, hand-written in its shape."""
+    data = [
+        {
+            "year": str(m.year),
+            "period": f"M{m.month:02d}",
+            "periodName": "x",
+            "value": str(value),
+            "footnotes": [{}],
+        }
+        for m in months
+    ]
+    return json.dumps(
+        {
+            "status": "REQUEST_SUCCEEDED",
+            "responseTime": 1,
+            "message": [],
+            "Results": {"series": [{"seriesID": series, "data": data}]},
+        }
+    )
+
+
+type CpiAnswer = str | Exception
+
+
+class FakeCpiClient:
+    """A CpiClient that answers each request from ``answer(series, start, end)``;
+    ``calls`` lists every request, in order. An Exception answer is raised."""
+
+    def __init__(self, answer: Callable[[str, int, int], CpiAnswer]) -> None:
+        self._answer = answer
+        self.calls: list[tuple[str, int, int]] = []
+
+    @classmethod
+    def published_through(
+        cls, latest: date, missing: Collection[date] = ()
+    ) -> FakeCpiClient:
+        """Every month up to ``latest``, except ``missing`` (never published)."""
+
+        def answer(series: str, start: int, end: int) -> CpiAnswer:
+            months = [
+                date(year, n, 1)
+                for year in range(start, end + 1)
+                for n in range(1, 13)
+                if date(year, n, 1) <= latest and date(year, n, 1) not in missing
+            ]
+            return bls_body(series, months)
+
+        return cls(answer)
+
+    async def fetch_years(self, series: str, start: int, end: int) -> str:
+        self.calls.append((series, start, end))
+        answer = self._answer(series, start, end)
         if isinstance(answer, Exception):
             raise answer
         return answer
