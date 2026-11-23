@@ -154,7 +154,7 @@ measured = summary.model_copy(update={"measurement": RunMeasurement(...)})
 ```python
 listing = await _read_sitemaps(client, str(settings.coffee_site.sitemap_url))
 if isinstance(listing, ScrapeSummary):
-    return listing   # run_scrape measures and logs it
+    return listing  # run_scrape measures and logs it
 entries = listing
 ```
 
@@ -279,12 +279,15 @@ problem runs stand out in the log.
 ```python
 try:
     index = await _fetch_sitemap_text(client, index_url)
-    if isinstance(index, ScrapeSummary): return index
+    if isinstance(index, ScrapeSummary):
+        return index
     sitemap_urls = parse_sitemap_index(index)
-    if not sitemap_urls: return ScrapeSummary(outcome="error", reason=...)
+    if not sitemap_urls:
+        return ScrapeSummary(outcome="error", reason=...)
     for url in sitemap_urls:
         text = await _fetch_sitemap_text(client, url)
-        if isinstance(text, ScrapeSummary): return text
+        if isinstance(text, ScrapeSummary):
+            return text
         entries.extend(parse_review_sitemap(text))
 except SitemapParseError as exc:
     return ScrapeSummary(outcome="error", reason=str(exc))
