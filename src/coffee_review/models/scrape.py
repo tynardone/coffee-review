@@ -26,16 +26,40 @@ class ManifestRecord(FrozenModel):
     last attempt of any outcome.
     """
 
-    slug: Slug
-    url: str
-    lastmod: UtcDatetime | None
-    fetched_at: UtcDatetime | None
-    last_attempt_at: UtcDatetime
-    status: Literal["ok", "failed", "gone"]
-    last_error: str | None
-    lookback_done: bool
-    first_seen_at: UtcDatetime
-    delisted_at: UtcDatetime | None
+    slug: Slug = Field(description="The review's id: the last part of its URL.")
+    url: str = Field(description="The review page's address.")
+    lastmod: UtcDatetime | None = Field(
+        description="When the sitemap last said the page changed (UTC), if it said."
+    )
+    fetched_at: UtcDatetime | None = Field(
+        description="The last successful fetch of the page (UTC); empty if never."
+    )
+    last_attempt_at: UtcDatetime = Field(
+        description="The last fetch attempt of any outcome (UTC)."
+    )
+    status: Literal["ok", "failed", "gone"] = Field(
+        description=(
+            "How the last attempt went: ok, failed, or gone (the site says the page no"
+            " longer exists)."
+        )
+    )
+    last_error: str | None = Field(
+        description="What went wrong on the last failed attempt."
+    )
+    lookback_done: bool = Field(
+        description=(
+            "Whether the page has had its one re-fetch a day after it appeared "
+            "(reviews are often edited soon after publishing)."
+        )
+    )
+    first_seen_at: UtcDatetime = Field(
+        description="When this review first appeared in a sitemap (UTC)."
+    )
+    delisted_at: UtcDatetime | None = Field(
+        description=(
+            "When the review dropped out of the sitemaps (UTC); its saved copy is kept."
+        )
+    )
 
 
 class FetchReason(StrEnum):

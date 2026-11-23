@@ -27,20 +27,45 @@ class _ReviewBase(BaseModel):
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    slug: Slug
-    url: str
-    delisted: bool
+    slug: Slug = Field(description="The review's id: the last part of its URL.")
+    url: str = Field(description="The review page's address.")
+    delisted: bool = Field(
+        description="True when the review is no longer in the site's sitemaps."
+    )
 
-    title: str | None = None
-    roaster: str | None = None
-    roaster_url: str | None = None
-    rating: str | None = None
-    review_date: str | None = None
-    coffee_origin: str | None = None
-    price: str | None = None
-    blind_assessment: str | None = None
-    notes: str | None = None
-    bottom_line: str | None = None
+    title: str | None = Field(None, description="The coffee's name as reviewed.")
+    roaster: str | None = Field(
+        None,
+        description=(
+            "The roaster (for green reviews, the importer or seller) as written."
+        ),
+    )
+    roaster_url: str | None = Field(None, description="The link on the roaster's logo.")
+    rating: str | None = Field(
+        None, description="The overall score as written: 50–100, or NR (not rated)."
+    )
+    review_date: str | None = Field(
+        None, description='The review month as written: "Month YYYY".'
+    )
+    coffee_origin: str | None = Field(
+        None,
+        description=(
+            'Where the coffee was grown, as written ("Guji Zone, Oromia Region, '
+            'southern Ethiopia").'
+        ),
+    )
+    price: str | None = Field(
+        None, description='The price as written ("NT $700/200 grams", "NA").'
+    )
+    blind_assessment: str | None = Field(
+        None, description="The reviewers' tasting notes, written blind."
+    )
+    notes: str | None = Field(
+        None, description="Background on the coffee, the farm and the roaster."
+    )
+    bottom_line: str | None = Field(
+        None, description='The summary judgement ("Who Should Drink It" before 2016).'
+    )
 
     # Labels and headings the alias table doesn't know, or that don't belong to
     # this kind of review, kept as found.
@@ -52,17 +77,40 @@ class RoastedReview(_ReviewBase):
 
     dataset: Literal["roasted"] = "roasted"
     # True when the title says the coffee was sold green (1997-1999 reviews).
-    sold_green: bool
+    sold_green: bool = Field(
+        description=(
+            "True when the title says the coffee was sold green (1997–1999 reviews)."
+        )
+    )
 
-    roaster_location: str | None = None
-    roast_level: str | None = None
-    agtron: str | None = None
-    aroma: str | None = None
-    acidity: str | None = None
-    body: str | None = None
-    flavor: str | None = None
-    aftertaste: str | None = None
-    with_milk: str | None = None
+    roaster_location: str | None = Field(
+        None,
+        description='Where the roaster is, as written ("Toronto, Ontario, Canada").',
+    )
+    roast_level: str | None = Field(
+        None, description="Roast level as written (Light … Very Dark, or NA)."
+    )
+    agtron: str | None = Field(
+        None,
+        description=(
+            'Agtron roast-colour readings as written: whole bean / ground ("55/68").'
+        ),
+    )
+    aroma: str | None = Field(None, description="Aroma score as written (1–10).")
+    acidity: str | None = Field(
+        None,
+        description=(
+            'Acidity score as written (1–10; "Acidity/Structure" on newer pages).'
+        ),
+    )
+    body: str | None = Field(None, description="Body score as written (1–10).")
+    flavor: str | None = Field(None, description="Flavor score as written (1–10).")
+    aftertaste: str | None = Field(
+        None, description="Aftertaste score as written (1–10)."
+    )
+    with_milk: str | None = Field(
+        None, description="Espresso only: the score in milk, as written (1–10)."
+    )
 
     # The dataset's text columns, in table order. A test checks this matches
     # the fields above, so the order is written down exactly once.
@@ -79,12 +127,20 @@ class GreenReview(_ReviewBase):
 
     dataset: Literal["green"] = "green"
 
-    harvested: str | None = None
-    seller: str | None = None
-    variety: str | None = None
-    lot_size: str | None = None
-    processing_method: str | None = None
-    lot_id: str | None = None
+    harvested: str | None = Field(
+        None, description="When the green coffee was harvested, as written."
+    )
+    seller: str | None = Field(None, description="Who sells the green coffee.")
+    variety: str | None = Field(
+        None, description='The coffee variety (cultivar): "Gesha", "SL34".'
+    )
+    lot_size: str | None = Field(
+        None, description="How much of the lot is for sale, as written."
+    )
+    processing_method: str | None = Field(
+        None, description='How the coffee fruit was processed: "Natural", "Washed".'
+    )
+    lot_id: str | None = Field(None, description="The seller's lot number.")
 
     columns: ClassVar[tuple[str, ...]] = (
         "title", "roaster", "roaster_url", "rating", "review_date",
@@ -115,9 +171,16 @@ type IssueKind = Literal[
 class ParseIssue(FrozenModel):
     """Something about one page worth a human look. Never stops a run."""
 
-    slug: str
-    kind: IssueKind
-    detail: str
+    slug: str = Field(
+        description="The page's slug (as found, even if it isn't a valid one)."
+    )
+    kind: IssueKind = Field(
+        description=(
+            "What kind of problem: no_review_template, duplicate_label, "
+            "missing_required, page_missing or parse_error."
+        )
+    )
+    detail: str = Field(description="A short note saying what was found.")
 
 
 class ParsedPage(FrozenModel):
