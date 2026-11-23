@@ -32,7 +32,11 @@ if TYPE_CHECKING:
 
     from coffee_review.config import Settings
 
-runner = CliRunner()
+# Plain output wherever the tests run: on CI, Rich sees GITHUB_ACTIONS (or
+# FORCE_COLOR) and adds colour codes that break the text assertions below.
+runner = CliRunner(
+    env={"NO_COLOR": "1", "TERM": "dumb", "GITHUB_ACTIONS": None, "FORCE_COLOR": None}
+)
 
 
 def test_version_option() -> None:
