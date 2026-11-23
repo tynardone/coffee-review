@@ -36,6 +36,9 @@ package that re-exports it.
 
 ### The dependency rule
 
+Drawn, with the data flow, in [architecture.md](architecture.md); checked on
+every commit and in CI by import-linter (`uv run lint-imports`).
+
 ```
 cli → pipeline → {clients, storage, parsers, transforms} → {models, config}
 cli → {logging_setup, progress_display}
