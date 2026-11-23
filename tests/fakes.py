@@ -7,6 +7,7 @@ real store), so tests using them check behavior, not which calls were made.
 
 from __future__ import annotations
 
+from datetime import UTC
 from typing import TYPE_CHECKING, Any
 
 import httpx
@@ -19,6 +20,7 @@ from coffee_review.models.scrape import ManifestRecord
 from coffee_review.storage.clean_store import CleanLayerMissingError
 from coffee_review.storage.parsed_store import ParsedLayerMissingError, reviews_frame
 from coffee_review.storage.raw_store import PageNotFoundError
+from coffee_review.storage.reference_store import ReferenceLayerMissingError
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Collection, Sequence
@@ -26,6 +28,11 @@ if TYPE_CHECKING:
 
     from coffee_review.models.clean import CleanTable
     from coffee_review.models.parsed import Dataset, ParsedReview, ParseIssue
+    from coffee_review.models.reference import (
+        CpiResponse,
+        FxResponse,
+        ReferenceTable,
+    )
     from coffee_review.models.scrape import SitemapEntry
 
 
@@ -233,6 +240,65 @@ class InMemoryCleanStore:
 
     def report_location(self) -> str:
         return "in memory"
+
+    def close(self) -> None:
+        pass
+
+
+class InMemoryReferenceRawStore:
+    """A ReferenceRawStore that keeps responses in dicts."""
+
+    def __init__(self) -> None:
+        self.fx: dict[FxResponse, str] = {}
+        self.cpi: dict[CpiResponse, str] = {}
+
+    def save_fx(self, response: FxResponse, text: str) -> None:
+        self.fx[response] = text
+
+    def list_fx(self) -> list[FxResponse]:
+        return sorted(self.fx, key=lambda r: (r.source, r.day))
+
+    def read_fx(self, response: FxResponse) -> str:
+        return self.fx[response]
+
+    def save_cpi(self, response: CpiResponse, text: str) -> None:
+        self.cpi[_utc(response)] = text
+
+    def list_cpi(self) -> list[CpiResponse]:
+        return sorted(self.cpi, key=lambda r: (r.source, r.series, r.fetched_at))
+
+    def read_cpi(self, response: CpiResponse) -> str:
+        return self.cpi[_utc(response)]
+
+    def close(self) -> None:
+        pass
+
+
+def _utc(response: CpiResponse) -> CpiResponse:
+    """Seconds precision in UTC, as the file store names them."""
+    at = response.fetched_at.astimezone(UTC).replace(microsecond=0)
+    return response.model_copy(update={"fetched_at": at})
+
+
+class InMemoryReferenceStore:
+    """A ReferenceStore that keeps the last write of each table."""
+
+    def __init__(self) -> None:
+        self.tables: dict[str, pl.DataFrame] = {}
+        self.writes = 0
+
+    def write(self, table: ReferenceTable, frame: pl.DataFrame) -> None:
+        self.tables[table] = frame
+        self.writes += 1
+
+    def read_table(self, table: ReferenceTable) -> pl.DataFrame:
+        if table not in self.tables:
+            msg = "no reference data in memory: run fx or cpi first"
+            raise ReferenceLayerMissingError(msg)
+        return self.tables[table]
+
+    def location(self, table: ReferenceTable) -> str:
+        return f"in memory ({table})"
 
     def close(self) -> None:
         pass
