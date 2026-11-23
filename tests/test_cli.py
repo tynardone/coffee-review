@@ -23,6 +23,7 @@ from coffee_review.pipeline.clean import CleanRunResult
 from coffee_review.pipeline.clean_report import build_clean_report
 from coffee_review.pipeline.parse import ParseRunResult
 from coffee_review.pipeline.parse_report import build_parse_report
+from coffee_review.pipeline.reference import ReferenceRunResult
 from coffee_review.progress_display import RichRunProgress
 from coffee_review.storage.parsed_store import ParsedLayerMissingError
 from coffee_review.storage.raw_store import ManifestSchemaError
@@ -330,3 +331,72 @@ def test_error_shown_once(
 
     assert result.output.count("manifest schema version 99") == 1
     assert "manifest schema version 99" in (tmp_path / "run.log").read_text()
+
+
+# --- fx and cpi
+
+
+def reference_result(kind: str, outcome: str) -> ReferenceRunResult:
+    return ReferenceRunResult(
+        kind=kind,  # type: ignore[arg-type]
+        outcome=outcome,  # type: ignore[arg-type]
+        reason="openexchangerates: HTTP 429" if outcome == "stopped" else None,
+        requests=1,
+        fetched=1,
+        already=0,
+        failed=0,
+        gaps=0,
+        dropped=0,
+        rows=1,
+        first=None,
+        last=None,
+        location="data/reference/fx.parquet",
+    )
+
+
+@pytest.mark.parametrize("kind", ["fx", "cpi"])
+@pytest.mark.parametrize(("outcome", "code"), [("finished", 0), ("stopped", 3)])
+def test_reference_command_exit_codes(
+    monkeypatch: pytest.MonkeyPatch, kind: str, outcome: str, code: int
+) -> None:
+    calls: list[Settings] = []
+
+    def fake(settings: Settings) -> ReferenceRunResult:
+        calls.append(settings)
+        return reference_result(kind, outcome)
+
+    monkeypatch.setattr(cli, kind, fake)
+    monkeypatch.setattr(cli, "configure_logging", lambda *args, **kwargs: None)
+
+    result = runner.invoke(app, [kind])
+
+    assert result.exit_code == code
+    assert len(calls) == 1
+
+
+def test_fx_command_without_key_exits_1_with_the_message() -> None:
+    result = runner.invoke(app, ["fx"])
+
+    assert result.exit_code == 1
+    assert "fx failed:" in result.output
+    assert "COFFEE_REVIEW_FOREX_API__API_KEY" in result.output
+
+
+@pytest.mark.parametrize("command", ["fx", "cpi"])
+def test_reference_commands_in_help(command: str) -> None:
+    output = runner.invoke(app, ["--help"]).output
+
+    assert re.search(rf"^\W*{command}\s", output, re.MULTILINE)
+
+
+@pytest.mark.parametrize("command", ["fx", "cpi"])
+def test_bad_start_setting_is_one_clear_line(
+    command: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("COFFEE_REVIEW_REFERENCE__FX_START", "2010-01-15")
+
+    result = runner.invoke(app, [command])
+
+    assert result.exit_code == 1
+    assert f"{command} failed: fx_start must be the 1st of a month" in result.output
+    assert "Traceback" not in result.output

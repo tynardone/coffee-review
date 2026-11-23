@@ -9,6 +9,7 @@ Every table the pipeline writes, layer by layer, and the lookup tables that driv
 | Raw | `data/raw/` | `coffee-review scrape` |
 | Parsed | `data/parsed/` | `coffee-review parse` |
 | Clean | `data/clean/` | `coffee-review clean` |
+| Reference | `data/reference/` (responses in `data/raw/`) | `coffee-review fx`, `coffee-review cpi` |
 
 ## Raw layer: `data/raw/`
 
@@ -30,6 +31,15 @@ One row per review the sitemaps have listed. Written by `scrape`.
 | `lookback_done` | true/false | no | Whether the page has had its one re-fetch a day after it appeared (reviews are often edited soon after publishing). |
 | `first_seen_at` | datetime (UTC) | no | When this review first appeared in a sitemap (UTC). |
 | `delisted_at` | datetime (UTC) | yes | When the review dropped out of the sitemaps (UTC); its saved copy is kept. |
+
+### Reference responses: `data/raw/fx/`, `data/raw/cpi/`
+
+Written by `fx` and `cpi`. The tidy reference tables are rebuilt from these on every run (ADR 0009).
+
+| File | What it holds |
+|---|---|
+| `fx/<source>/<YYYY-MM-DD>.json` | One exchange-rate response per source and day (UTC), exactly as received; a 'no data' answer is kept too, as a gap. |
+| `cpi/<source>/<series>/<YYYYMMDDTHHMMSSZ>_<start>-<end>.json` | One CPI response per request: when it was made (UTC) and the years it asked for. A month can appear in several; the newest wins. |
 
 ## Parsed layer: `data/parsed/`
 
@@ -237,6 +247,61 @@ The values of `cleaning_log.rule`: every change the clean stage makes.
 | `currency_from_roaster` | A currency read from the roaster's country ($ outside the US, ¥, E, pesos). |
 | `unknown_unit` | A unit not in the lookup tables (multipacks: "six 8-ounce cans"). Quantity and unit are empty. |
 | `zero_width_removed` | Invisible zero-width characters removed from the text. |
+
+## Reference layer: `data/reference/`
+
+Exchange rates and US CPI for M5 to convert and adjust prices with. Rebuilt in full from the saved responses and checked against the contracts in `models/reference.py` on every run. Written by `fx` and `cpi`.
+
+### `fx.parquet`
+
+One row per day (the 1st of each month) and currency.
+
+Key: each (`day`, `currency`) appears once.
+
+| Column | Type | Can be empty | Checks | Meaning |
+|---|---|---|---|---|
+| `day` | Date | no | always the 1st | The day the rate is for, in UTC: always the 1st of a month. |
+| `currency` | String | no | matches `^[A-Z]{3}$` | ISO 4217 currency code. |
+| `units_per_usd` | Float64 | no | > 0 | Units of the currency one US dollar bought that day. |
+| `source` | String | no | – | Which source the row came from (its raw folder's name). |
+
+### `fx_gaps.parquet`
+
+Days with no rates in `fx.parquet`: a source answered but had none. Never asked again.
+
+Key: each (`day`, `source`) appears once.
+
+| Column | Type | Can be empty | Checks | Meaning |
+|---|---|---|---|---|
+| `day` | Date | no | always the 1st | The day, in UTC: the 1st of a month. |
+| `source` | String | no | – | Which source the row came from (its raw folder's name). |
+| `said` | String | no | – | What the source said (e.g. not_available). |
+
+### `cpi.parquet`
+
+One row per series and month.
+
+Key: each (`month`, `series`) appears once.
+
+| Column | Type | Can be empty | Checks | Meaning |
+|---|---|---|---|---|
+| `month` | Date | no | always the 1st | The month, stored as its 1st. |
+| `series` | String | no | – | The series id (CUUR0000SA0: CPI-U, all items, US city average, not seasonally adjusted). |
+| `index_value` | Float64 | no | > 0 | The index for the month (1982–84 = 100 for CUUR0000SA0). |
+| `source` | String | no | – | Which source the row came from (its raw folder's name). |
+
+### `cpi_gaps.parquet`
+
+Months with no value in `cpi.parquet`: the source will never have them, in its words.
+
+Key: each (`month`, `series`, `source`) appears once.
+
+| Column | Type | Can be empty | Checks | Meaning |
+|---|---|---|---|---|
+| `month` | Date | no | always the 1st | The month, stored as its 1st. |
+| `series` | String | no | – | The series id. |
+| `source` | String | no | – | Which source the row came from (its raw folder's name). |
+| `said` | String | no | – | What the source said (BLS: its footnote), or 'absent from a response that has later months'. |
 
 ## Lookup tables: `src/coffee_review/transforms/lookups/`
 

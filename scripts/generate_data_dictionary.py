@@ -26,6 +26,7 @@ from coffee_review.models.clean import (
     CleanRoastedFrame,
 )
 from coffee_review.models.parsed import GreenReview, ParseIssue, RoastedReview
+from coffee_review.models.reference import CpiFrame, CpiGapFrame, FxFrame, FxGapFrame
 from coffee_review.models.scrape import ManifestRecord
 from coffee_review.storage.parsed_store import reviews_frame
 
@@ -41,6 +42,17 @@ EXTRA_FIELDS = {
     "slug": "The review the label was found on.",
     "label": "The label or heading as written (headings are prefixed 'section: ').",
     "value": "Its value as written.",
+}
+# The reference stages' saved responses: the files themselves, as received.
+RAW_REFERENCE = {
+    "fx/<source>/<YYYY-MM-DD>.json": (
+        "One exchange-rate response per source and day (UTC), exactly as received;"
+        " a 'no data' answer is kept too, as a gap."
+    ),
+    "cpi/<source>/<series>/<YYYYMMDDTHHMMSSZ>_<start>-<end>.json": (
+        "One CPI response per request: when it was made (UTC) and the years it"
+        " asked for. A month can appear in several; the newest wins."
+    ),
 }
 # The lookup tables: what each one is for, and what its columns mean.
 LOOKUPS: dict[str, tuple[str, dict[str, str]]] = {
@@ -121,6 +133,14 @@ def render() -> str:
             "One row per review the sitemaps have listed. Written by `scrape`.",
             ManifestRecord,
         ),
+        _files_table(
+            "Reference responses: `data/raw/fx/`, `data/raw/cpi/`",
+            (
+                "Written by `fx` and `cpi`. The tidy reference tables are rebuilt from"
+                " these on every run (ADR 0009)."
+            ),
+            RAW_REFERENCE,
+        ),
         "## Parsed layer: `data/parsed/`",
         (
             "Every value is text, exactly as the page had it (ADR 0007). Written by"
@@ -157,6 +177,35 @@ def render() -> str:
             CleanLogFrame,
         ),
         _rules_table(),
+        "## Reference layer: `data/reference/`",
+        (
+            "Exchange rates and US CPI for M5 to convert and adjust prices with."
+            " Rebuilt in full from the saved responses and checked against the"
+            " contracts in `models/reference.py` on every run. Written by `fx` and"
+            " `cpi`."
+        ),
+        _pandera_table(
+            "`fx.parquet`",
+            "One row per day (the 1st of each month) and currency.",
+            FxFrame,
+        ),
+        _pandera_table(
+            "`fx_gaps.parquet`",
+            (
+                "Days with no rates in `fx.parquet`: a source answered but had none."
+                " Never asked again."
+            ),
+            FxGapFrame,
+        ),
+        _pandera_table("`cpi.parquet`", "One row per series and month.", CpiFrame),
+        _pandera_table(
+            "`cpi_gaps.parquet`",
+            (
+                "Months with no value in `cpi.parquet`: the source will never have"
+                " them, in its words."
+            ),
+            CpiGapFrame,
+        ),
         "## Lookup tables: `src/coffee_review/transforms/lookups/`",
         (
             "Versioned with the code. A table gains a row when the clean report"
@@ -178,7 +227,9 @@ def _intro() -> str:
         "| Layer | Where | Written by |\n|---|---|---|\n"
         "| Raw | `data/raw/` | `coffee-review scrape` |\n"
         "| Parsed | `data/parsed/` | `coffee-review parse` |\n"
-        "| Clean | `data/clean/` | `coffee-review clean` |"
+        "| Clean | `data/clean/` | `coffee-review clean` |\n"
+        "| Reference | `data/reference/` (responses in `data/raw/`) |"
+        " `coffee-review fx`, `coffee-review cpi` |"
     )
 
 
@@ -192,6 +243,12 @@ def _plain_table(title: str, about: str, rows: list[tuple[str, str, str, str]]) 
     ]
     lines.append("|---|---|---|---|")
     lines += [f"| `{c}` | {t} | {e} | {_cell(m)} |" for c, t, e, m in rows]
+    return "\n".join(lines)
+
+
+def _files_table(title: str, about: str, files: dict[str, str]) -> str:
+    lines = [f"### {title}", "", about, "", "| File | What it holds |", "|---|---|"]
+    lines += [f"| `{name}` | {_cell(text)} |" for name, text in files.items()]
     return "\n".join(lines)
 
 
@@ -228,6 +285,10 @@ def _parsed_table(dataset: str, model: type[BaseModel]) -> str:
 
 def _pandera_table(title: str, about: str, model: type[pa.DataFrameModel]) -> str:
     lines = [f"### {title}", "", about, ""]
+    key = model.to_schema().unique
+    if key:
+        names = ", ".join(f"`{name}`" for name in key)
+        lines += [f"Key: each ({names}) appears once.", ""]
     lines += [
         "| Column | Type | Can be empty | Checks | Meaning |",
         "|---|---|---|---|---|",

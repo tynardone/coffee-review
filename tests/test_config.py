@@ -6,6 +6,7 @@ The autouse ``clean_env`` fixture (tests/conftest.py) keeps real env vars and
 
 from __future__ import annotations
 
+from datetime import date
 from pathlib import Path
 
 import pytest
@@ -121,3 +122,28 @@ def test_user_agent_links_the_public_repo() -> None:
     assert (
         "+https://github.com/tynardone/coffee-review" in CoffeeSiteSettings().user_agent
     )
+
+
+def test_reference_defaults() -> None:
+    reference = load_settings().reference
+
+    assert (reference.fx_source, reference.cpi_source) == ("openexchangerates", "bls")
+    assert (reference.fx_start, reference.cpi_start) == (
+        date(2010, 1, 1),
+        date(1997, 1, 1),
+    )
+    assert reference.cpi_series == "CUUR0000SA0"
+
+
+def test_bls_is_keyless_v1() -> None:
+    assert str(load_settings().bls_api.base_url) == "https://api.bls.gov/publicAPI/v1/"
+
+
+@pytest.mark.parametrize("field", ["FX_START", "CPI_START"])
+def test_reference_start_must_be_a_first(
+    monkeypatch: pytest.MonkeyPatch, field: str
+) -> None:
+    monkeypatch.setenv(f"COFFEE_REVIEW_REFERENCE__{field}", "2010-01-15")
+
+    with pytest.raises(ValidationError, match="must be the 1st of a month"):
+        load_settings()

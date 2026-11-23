@@ -21,6 +21,8 @@ import pandera.polars as pa
 import polars as pl
 from pandera.errors import SchemaErrors
 
+from coffee_review.models.frames import first_of_month
+
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
@@ -275,7 +277,7 @@ class CleanRoastedFrame(pa.DataFrameModel):
     @pa.check("review_month")
     @classmethod
     def first_of_month(cls, data: PolarsData) -> pl.LazyFrame:
-        return _first_of_month(data)
+        return first_of_month(data)
 
 
 class CleanGreenFrame(pa.DataFrameModel):
@@ -363,7 +365,7 @@ class CleanGreenFrame(pa.DataFrameModel):
     @pa.check("review_month")
     @classmethod
     def first_of_month(cls, data: PolarsData) -> pl.LazyFrame:
-        return _first_of_month(data)
+        return first_of_month(data)
 
 
 class CleanLogFrame(pa.DataFrameModel):
@@ -382,11 +384,6 @@ class CleanLogFrame(pa.DataFrameModel):
     class Config:
         strict = True  # no other columns
         ordered = True  # in this order
-
-
-def _first_of_month(data: PolarsData) -> pl.LazyFrame:
-    """``review_month`` is a month, stored as its first day."""
-    return data.lazyframe.select(pl.col(data.key).dt.day() == 1)
 
 
 _MODELS: dict[CleanTable, type[pa.DataFrameModel]] = {

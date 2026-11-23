@@ -7,7 +7,9 @@ real store), so tests using them check behavior, not which calls were made.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+import json
+from datetime import UTC, date
+from typing import TYPE_CHECKING, Any, Self
 
 import httpx
 import polars as pl
@@ -19,13 +21,19 @@ from coffee_review.models.scrape import ManifestRecord
 from coffee_review.storage.clean_store import CleanLayerMissingError
 from coffee_review.storage.parsed_store import ParsedLayerMissingError, reviews_frame
 from coffee_review.storage.raw_store import PageNotFoundError
+from coffee_review.storage.reference_store import ReferenceLayerMissingError
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Collection, Sequence
+    from collections.abc import Callable, Collection, Iterable, Sequence
     from datetime import datetime
 
     from coffee_review.models.clean import CleanTable
     from coffee_review.models.parsed import Dataset, ParsedReview, ParseIssue
+    from coffee_review.models.reference import (
+        CpiResponse,
+        FxResponse,
+        ReferenceTable,
+    )
     from coffee_review.models.scrape import SitemapEntry
 
 
@@ -235,4 +243,180 @@ class InMemoryCleanStore:
         return "in memory"
 
     def close(self) -> None:
+        pass
+
+
+class InMemoryReferenceRawStore:
+    """A ReferenceRawStore that keeps responses in dicts."""
+
+    def __init__(self) -> None:
+        self.fx: dict[FxResponse, str] = {}
+        self.cpi: dict[CpiResponse, str] = {}
+
+    def save_fx(self, response: FxResponse, text: str) -> None:
+        self.fx[response] = text
+
+    def list_fx(self) -> list[FxResponse]:
+        return sorted(self.fx, key=lambda r: (r.source, r.day))
+
+    def read_fx(self, response: FxResponse) -> str:
+        return self.fx[response]
+
+    def save_cpi(self, response: CpiResponse, text: str) -> None:
+        self.cpi[_utc(response)] = text
+
+    def list_cpi(self) -> list[CpiResponse]:
+        return sorted(self.cpi, key=lambda r: (r.source, r.series, r.fetched_at))
+
+    def read_cpi(self, response: CpiResponse) -> str:
+        return self.cpi[_utc(response)]
+
+    def close(self) -> None:
+        pass
+
+
+def _utc(response: CpiResponse) -> CpiResponse:
+    """Seconds precision in UTC, as the file store names them."""
+    at = response.fetched_at.astimezone(UTC).replace(microsecond=0)
+    return response.model_copy(update={"fetched_at": at})
+
+
+class InMemoryReferenceStore:
+    """A ReferenceStore that keeps the last write of each table."""
+
+    def __init__(self) -> None:
+        self.tables: dict[str, pl.DataFrame] = {}
+        self.writes = 0
+
+    def write(self, table: ReferenceTable, frame: pl.DataFrame) -> None:
+        self.tables[table] = frame
+        self.writes += 1
+
+    def read_table(self, table: ReferenceTable) -> pl.DataFrame:
+        if table not in self.tables:
+            msg = "no reference data in memory: run fx or cpi first"
+            raise ReferenceLayerMissingError(msg)
+        return self.tables[table]
+
+    def location(self, table: ReferenceTable) -> str:
+        return f"in memory ({table})"
+
+    def close(self) -> None:
+        pass
+
+
+def oxr_body(rates: dict[str, float] | None = None) -> str:
+    """An OpenExchangeRates historical response, hand-written in its shape."""
+    return json.dumps(
+        {
+            "disclaimer": "Usage subject to terms",
+            "license": "https://openexchangerates.org/license",
+            "timestamp": 0,
+            "base": "USD",
+            "rates": rates or {"USD": 1, "TWD": 30.0},
+        }
+    )
+
+
+type FxAnswer = str | Exception
+
+
+class FakeFxClient:
+    """An FxClient that answers each day from ``answer(day)``; ``calls`` lists
+    every day asked for, in order. An Exception answer is raised."""
+
+    def __init__(self, answer: Callable[[date], FxAnswer]) -> None:
+        self._answer = answer
+        self.calls: list[date] = []
+
+    @classmethod
+    def answering_every_day(cls) -> FakeFxClient:
+        return cls(lambda _day: oxr_body())
+
+    @classmethod
+    def answering(
+        cls, answers: dict[date, FxAnswer], default: FxAnswer | None = None
+    ) -> FakeFxClient:
+        def answer(day: date) -> FxAnswer:
+            if day in answers:
+                return answers[day]
+            return oxr_body() if default is None else default
+
+        return cls(answer)
+
+    async def fetch_day(self, day: date) -> str:
+        self.calls.append(day)
+        answer = self._answer(day)
+        if isinstance(answer, Exception):
+            raise answer
+        return answer
+
+    async def __aenter__(self) -> Self:
+        return self
+
+    async def __aexit__(self, *exc: object) -> None:
+        pass
+
+
+def bls_body(series: str, months: Iterable[date], value: float = 100.0) -> str:
+    """A BLS timeseries response, hand-written in its shape."""
+    data = [
+        {
+            "year": str(m.year),
+            "period": f"M{m.month:02d}",
+            "periodName": "x",
+            "value": str(value),
+            "footnotes": [{}],
+        }
+        for m in months
+    ]
+    return json.dumps(
+        {
+            "status": "REQUEST_SUCCEEDED",
+            "responseTime": 1,
+            "message": [],
+            "Results": {"series": [{"seriesID": series, "data": data}]},
+        }
+    )
+
+
+type CpiAnswer = str | Exception
+
+
+class FakeCpiClient:
+    """A CpiClient that answers each request from ``answer(series, start, end)``;
+    ``calls`` lists every request, in order. An Exception answer is raised."""
+
+    def __init__(self, answer: Callable[[str, int, int], CpiAnswer]) -> None:
+        self._answer = answer
+        self.calls: list[tuple[str, int, int]] = []
+
+    @classmethod
+    def published_through(
+        cls, latest: date, missing: Collection[date] = ()
+    ) -> FakeCpiClient:
+        """Every month up to ``latest``, except ``missing`` (never published)."""
+
+        def answer(series: str, start: int, end: int) -> CpiAnswer:
+            months = [
+                date(year, n, 1)
+                for year in range(start, end + 1)
+                for n in range(1, 13)
+                if date(year, n, 1) <= latest and date(year, n, 1) not in missing
+            ]
+            return bls_body(series, months)
+
+        return cls(answer)
+
+    async def fetch_years(self, series: str, start: int, end: int) -> str:
+        self.calls.append((series, start, end))
+        answer = self._answer(series, start, end)
+        if isinstance(answer, Exception):
+            raise answer
+        return answer
+
+    async def __aenter__(self) -> Self:
+        return self
+
+    async def __aexit__(self, *exc: object) -> None:
         pass

@@ -5,8 +5,11 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from coffee_review.clients.http import BaseHttpClient
+from coffee_review.clients.reference import REFERENCE_RETRYABLE_STATUS, fetch_answer
 
 if TYPE_CHECKING:
+    from datetime import date
+
     import httpx
 
     from coffee_review.config import ForexApiSettings
@@ -23,6 +26,10 @@ class MissingApiKeyError(Exception):
 
 
 class ForexApiClient(BaseHttpClient):
+    """OpenExchangeRates: one day's rates per request (an ``FxClient``)."""
+
+    retryable_status = REFERENCE_RETRYABLE_STATUS
+
     def __init__(
         self,
         settings: ForexApiSettings,
@@ -41,3 +48,8 @@ class ForexApiClient(BaseHttpClient):
             },
             transport=transport,
         )
+
+    async def fetch_day(self, day: date) -> str:
+        """That UTC day's rates, as the response text (see ``fetch_answer``)."""
+        path = f"historical/{day:%Y-%m-%d}.json"
+        return await fetch_answer(self, "openexchangerates", "GET", path)

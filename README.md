@@ -11,8 +11,9 @@ as much the point as the dataset.
    or changed.
 2. **Parse**: pull review fields out of the saved HTML.
 3. **Clean**: normalize dates, scores, origins and prices into a typed table.
-4. **Enrich**: convert prices to USD (OpenExchangeRates) and adjust for
-   inflation (BLS CPI-U).
+4. **Reference data**: monthly exchange rates (OpenExchangeRates) and US
+   CPI-U (BLS), fetched once and kept.
+5. **Enrich**: convert prices to USD and adjust for inflation.
 
 Each stage reads one data layer under `data/` and writes the next, so any stage
 can be rerun on its own. Status: see the [roadmap](docs/roadmap.md).
@@ -129,6 +130,31 @@ The complete country and currency lists are generated from ISO standards:
 `uv run python scripts/generate_lookup_tables.py`. See
 [ADR 0008](docs/decisions/0008-clean-in-polars.md) for why the clean stage is
 Polars and how it fits the later dbt layers.
+
+## Reference data
+
+```bash
+uv run coffee-review cpi   # US CPI-U from the BLS; no key needed
+uv run coffee-review fx    # exchange rates; needs COFFEE_REVIEW_FOREX_API__API_KEY
+```
+
+The two tables the enrich stage (M5) needs to convert prices to US dollars
+and adjust them for inflation:
+
+- `data/reference/fx.parquet`: units of each currency per US dollar on the
+  1st of every month since 2010 (UTC);
+- `data/reference/cpi.parquet`: US CPI-U (all items, not seasonally adjusted),
+  monthly since 1997;
+- `fx_gaps.parquet`, `cpi_gaps.parquet`: periods the source has no data for,
+  in its own words (October 2025's CPI was never collected).
+
+Each run asks only for what isn't saved yet: the first `fx` run is about 200
+requests (of the free plan's 1,000 a month), the first `cpi` run 3, and a
+rerun none. Every response is kept as received under `data/raw/fx/` and
+`data/raw/cpi/`, and the tables are rebuilt from those files, so a parser fix
+needs no new requests. Exit codes: 0 finished · 1 error · 3 stopped because the
+source refused or didn't answer (rerun later; it carries on). See
+[ADR 0009](docs/decisions/0009-raw-reference-responses-and-swappable-sources.md).
 
 ## Checks
 

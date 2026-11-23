@@ -15,11 +15,20 @@ Usage::
 from __future__ import annotations
 
 import math
+from datetime import date
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Self
 
-from pydantic import BaseModel, Field, HttpUrl, SecretStr, model_validator
+from pydantic import (
+    BaseModel,
+    Field,
+    HttpUrl,
+    SecretStr,
+    ValidationInfo,
+    field_validator,
+    model_validator,
+)
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # How the scraper introduces itself: a name, and where site owners can read
@@ -112,11 +121,38 @@ class ForexApiSettings(HttpClientSettings):
 
 
 class BLSApiSettings(HttpClientSettings):
-    """Bureau of Labor Statistics public API. No key needed."""
+    """Bureau of Labor Statistics public API. No key: keyless requests use v1
+    (25 a day, 10 years each)."""
 
-    base_url: HttpUrl = HttpUrl("https://api.bls.gov/publicAPI/v2/")
+    base_url: HttpUrl = HttpUrl("https://api.bls.gov/publicAPI/v1/")
     rate_per_sec: float = Field(default=0.5, gt=0)
     max_concurrency: int = Field(default=1, ge=1)
+
+
+class ReferenceSettings(BaseModel):
+    """Which sources the reference stages use, and how far back they go.
+
+    A source is named here and looked up in the pipeline's registry
+    (``pipeline/reference.py``); this module can't import the pipeline, so an
+    unknown name is reported when a command starts.
+    """
+
+    fx_source: str = "openexchangerates"
+    cpi_source: str = "bls"
+    # Exchange rates for the 1st of every month from here (first non-USD
+    # price: 2010-03).
+    fx_start: date = date(2010, 1, 1)
+    # CPI from here, so prices in old review text are covered if ever extracted.
+    cpi_start: date = date(1997, 1, 1)
+    # CPI-U, all items, US city average, not seasonally adjusted.
+    cpi_series: str = "CUUR0000SA0"
+
+    @field_validator("fx_start", "cpi_start")
+    @classmethod
+    def _first_of_month(cls, value: date, info: ValidationInfo) -> date:
+        if value.day != 1:
+            raise ValueError(f"{info.field_name} must be the 1st of a month")
+        return value
 
 
 class Settings(BaseSettings):
@@ -131,6 +167,7 @@ class Settings(BaseSettings):
     coffee_site: CoffeeSiteSettings = Field(default_factory=CoffeeSiteSettings)
     forex_api: ForexApiSettings = Field(default_factory=ForexApiSettings)
     bls_api: BLSApiSettings = Field(default_factory=BLSApiSettings)
+    reference: ReferenceSettings = Field(default_factory=ReferenceSettings)
 
     # Root of every data layer (raw, parsed, ...) and of run logs.
     data_dir: Path = Path("data")
