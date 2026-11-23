@@ -7,8 +7,9 @@ real store), so tests using them check behavior, not which calls were made.
 
 from __future__ import annotations
 
+import json
 from datetime import UTC
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Self
 
 import httpx
 import polars as pl
@@ -24,7 +25,7 @@ from coffee_review.storage.reference_store import ReferenceLayerMissingError
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Collection, Sequence
-    from datetime import datetime
+    from datetime import date, datetime
 
     from coffee_review.models.clean import CleanTable
     from coffee_review.models.parsed import Dataset, ParsedReview, ParseIssue
@@ -301,4 +302,57 @@ class InMemoryReferenceStore:
         return f"in memory ({table})"
 
     def close(self) -> None:
+        pass
+
+
+def oxr_body(rates: dict[str, float] | None = None) -> str:
+    """An OpenExchangeRates historical response, hand-written in its shape."""
+    return json.dumps(
+        {
+            "disclaimer": "Usage subject to terms",
+            "license": "https://openexchangerates.org/license",
+            "timestamp": 0,
+            "base": "USD",
+            "rates": rates or {"USD": 1, "TWD": 30.0},
+        }
+    )
+
+
+type FxAnswer = str | Exception
+
+
+class FakeFxClient:
+    """An FxClient that answers each day from ``answer(day)``; ``calls`` lists
+    every day asked for, in order. An Exception answer is raised."""
+
+    def __init__(self, answer: Callable[[date], FxAnswer]) -> None:
+        self._answer = answer
+        self.calls: list[date] = []
+
+    @classmethod
+    def answering_every_day(cls) -> FakeFxClient:
+        return cls(lambda _day: oxr_body())
+
+    @classmethod
+    def answering(
+        cls, answers: dict[date, FxAnswer], default: FxAnswer | None = None
+    ) -> FakeFxClient:
+        def answer(day: date) -> FxAnswer:
+            if day in answers:
+                return answers[day]
+            return oxr_body() if default is None else default
+
+        return cls(answer)
+
+    async def fetch_day(self, day: date) -> str:
+        self.calls.append(day)
+        answer = self._answer(day)
+        if isinstance(answer, Exception):
+            raise answer
+        return answer
+
+    async def __aenter__(self) -> Self:
+        return self
+
+    async def __aexit__(self, *exc: object) -> None:
         pass
