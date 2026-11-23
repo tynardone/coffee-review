@@ -114,3 +114,10 @@ def test_get_settings_ignores_local_env_file() -> None:
 
 def test_data_dir_default() -> None:
     assert load_settings().data_dir == Path("data")
+
+
+def test_user_agent_links_the_public_repo() -> None:
+    # Polite scraping: site owners can see what this is and where to read about it.
+    assert (
+        "+https://github.com/tynardone/coffee-review" in CoffeeSiteSettings().user_agent
+    )

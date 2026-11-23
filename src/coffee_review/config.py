@@ -22,8 +22,9 @@ from typing import Any, Self
 from pydantic import BaseModel, Field, HttpUrl, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# Placeholder until the public repository exists; then point it at the repo URL.
-USER_AGENT = "coffee-review/0.1 (personal research project; repository link to follow)"
+# How the scraper introduces itself: a name, and where site owners can read
+# about it (the "+URL" form is the convention crawlers use).
+USER_AGENT = "coffee-review/0.1 (+https://github.com/tynardone/coffee-review)"
 
 
 class HttpClientSettings(BaseModel):
