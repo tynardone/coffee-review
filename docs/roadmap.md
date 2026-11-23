@@ -85,11 +85,20 @@ have property tests.
 
 ## M4. Reference data
 
-- [ ] FX client and store: one request per review month, never refetching a past month
-- [ ] BLS client and store: CPI-U monthly, M13 dropped; confirm keyless year-range limit first
-- [ ] `coffee-review fx`, `coffee-review cpi`
+Design: [specs/2026-11-22-m4-reference-design.md](superpowers/specs/2026-11-22-m4-reference-design.md);
+why: [ADR 0009](decisions/0009-raw-reference-responses-and-swappable-sources.md).
+
+- [x] Every response saved as received under `data/raw/`; tidy tables rebuilt from them on every run
+- [x] Sources behind Protocols and a registry (swap = client + parser + entry + setting)
+- [x] FX: the 1st of every month from 2010 (first non-USD price 2010-03), USD base, once each UTC day is over
+- [x] CPI-U `CUUR0000SA0` from 1997, keyless BLS v1 (10 years a request), M13 dropped; gaps kept in the source's words
+- [x] `coffee-review fx`, `coffee-review cpi` (exit 3 when the source refuses or is down)
+- [x] First real runs (2026-11-23 UTC): CPI 3 requests, 357 months 1997-01 to 2026-10, October 2025 a gap (BLS: no data collected in the 2025 lapse in appropriations); FX 203 requests, 33,925 rows; both reruns 0 requests
 
 **Done when:** both are up to date and a rerun costs zero requests.
+
+For M5: one priced review (2009-02, USD) predates the FX table, which is fine for
+USD; reviews dated October 2025 have no CPI month (a gap).
 
 ## M5. Enrich and final table
 
@@ -116,3 +125,4 @@ Designed when reached.
 
 - ~~M1: is capping a 429 `Retry-After` at `backoff_max_seconds` polite enough?~~ Resolved: the scraper never retries a 429; it stops the run.
 - Measure the right `--rate` from real runs and record it (ADR 0005 allows up to 10/s).
+- Prices in review text: before 2009 the price field is `NA`, but 78 of 1,738 older pages give a dollar price in the review itself (`Twelve-ounce can $3.29, or $4.39 per pound`). Extracting them is parse/clean work, often with two prices per page. CPI already covers 1997 onwards.

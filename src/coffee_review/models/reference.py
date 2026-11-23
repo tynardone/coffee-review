@@ -196,7 +196,10 @@ class CpiGapFrame(pa.DataFrameModel):
     month: dt.date = pa.Field(description="The month, stored as its 1st.")
     series: str = _text("The series id.")
     source: str = _text(SOURCE)
-    said: str = _text("Why it's a gap.")
+    said: str = _text(
+        "What the source said (BLS: its footnote), or 'absent from a response that"
+        " has later months'."
+    )
 
     class Config:
         strict = True
