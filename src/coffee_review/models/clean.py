@@ -14,6 +14,7 @@ the models, so there's one source for both.
 from __future__ import annotations
 
 import datetime as dt
+from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, Literal, get_args
 
 import pandera.polars as pa
@@ -21,6 +22,8 @@ import polars as pl
 from pandera.errors import SchemaErrors
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+
     from pandera.api.polars.types import PolarsData
 
 # --- Rules -------------------------------------------------------------------
@@ -30,30 +33,92 @@ if TYPE_CHECKING:
 # them and the contract can check them.
 
 type CleanRule = Literal[
-    "unknown_marker",  # NA, na, n/a, NR or blank: the site says "unknown"
-    "not_rated",  # rating NR
-    "word_score",  # a score written as a word (acidity "Low")
-    "labelled_score",  # "Flavor in milk: 5" → 5
-    "not_measured",  # Agtron 0
-    "template_label",  # Agtron "g/wb": the template's label, not a reading
-    "swapped_2002_2003",  # Agtron printed ground/whole, swapped back
-    "typo_corrected",  # Agtron typo with a known pattern, corrected (6489/89 → 64)
-    "unswapped_in_window",  # in the swap window but not reversed: suspect
-    "suspect_value",  # kept as written, but doubtful
-    "not_disclosed",  # origin "Not disclosed"
-    "unplaced",  # no country found
-    "multiple_origins",  # more than one country, or a broad area or blend
-    "close_spelling",  # placed by a close spelling of a known place (Calfornia)
-    "not_a_price",  # NA, Not Available, See website…
-    "no_quantity",  # an amount with no quantity
-    "unparsed",  # no known shape; the value is null, the text is in the log
-    "unknown_currency",  # a currency spelling not in the lookup
-    "ambiguous_currency",  # ¥ from a roaster outside Japan and China
-    "currency_from_roaster",  # $ or ¥ read using the roaster's country
-    "unknown_unit",  # a unit spelling not in the lookup
-    "zero_width_removed",  # invisible zero-width characters removed
+    "unknown_marker",
+    "not_rated",
+    "word_score",
+    "labelled_score",
+    "not_measured",
+    "template_label",
+    "swapped_2002_2003",
+    "typo_corrected",
+    "unswapped_in_window",
+    "suspect_value",
+    "not_disclosed",
+    "unplaced",
+    "multiple_origins",
+    "close_spelling",
+    "not_a_price",
+    "no_quantity",
+    "unparsed",
+    "unknown_currency",
+    "ambiguous_currency",
+    "currency_from_roaster",
+    "unknown_unit",
+    "zero_width_removed",
 ]
 CLEAN_RULES: tuple[str, ...] = get_args(CleanRule.__value__)
+
+# What each rule means, for the data dictionary and the report's readers.
+RULE_DESCRIPTIONS: Mapping[str, str] = MappingProxyType(
+    {
+        "unknown_marker": (
+            'The site\'s own "unknown": NA, na, n/a, NR or blank. The value is empty.'
+        ),
+        "not_rated": "Rating NR: the coffee wasn't rated.",
+        "word_score": 'A score written as a word (acidity "Low"). The value is empty.',
+        "labelled_score": 'A score written with a label ("Flavor in milk: 5" → 5).',
+        "not_measured": "Agtron 0: not measured. The reading is empty.",
+        "template_label": (
+            'Agtron "g/wb": the template\'s label, printed where the numbers should be.'
+        ),
+        "swapped_2002_2003": (
+            "Agtron printed ground-first (June 2002 – March 2003), swapped back."
+        ),
+        "typo_corrected": (
+            "Agtron typo with a known pattern, corrected (6489/89 → 64/89)."
+        ),
+        "unswapped_in_window": (
+            "In the Agtron swap window but not reversed: kept, flagged suspect."
+        ),
+        "suspect_value": (
+            "Kept as written but doubtful, or out of range and left empty."
+        ),
+        "not_disclosed": '"Not disclosed": the site doesn\'t say. The value is empty.',
+        "unplaced": (
+            "No known place found. The value is empty; listed in the report to review."
+        ),
+        "multiple_origins": (
+            'More than one country, or a blend: origin_country is "Multiple".'
+        ),
+        "close_spelling": (
+            "Matched by a close spelling of a known place or unit (Calfornia → "
+            "California); listed in the report to review."
+        ),
+        "not_a_price": (
+            "Not a price (NA, Not Available, See website…). The price is empty."
+        ),
+        "no_quantity": 'An amount with no quantity ("$15.00").',
+        "unparsed": (
+            "No known shape. The value is empty; the text is in the log and the report."
+        ),
+        "unknown_currency": (
+            "A currency spelling not in the lookup tables. The currency is empty."
+        ),
+        "ambiguous_currency": (
+            "A symbol whose currency the roaster's country can't settle (¥ outside "
+            "Japan and China)."
+        ),
+        "currency_from_roaster": (
+            "A currency read from the roaster's country ($ outside the US, ¥, E, "
+            "pesos)."
+        ),
+        "unknown_unit": (
+            'A unit not in the lookup tables (multipacks: "six 8-ounce cans"). '
+            "Quantity and unit are empty."
+        ),
+        "zero_width_removed": "Invisible zero-width characters removed from the text.",
+    }
+)
 
 # --- Shared value lists ------------------------------------------------------
 
@@ -67,20 +132,20 @@ type CleanTable = Literal["roasted", "green", "log"]
 # do the same.
 
 
-def _optional() -> Any:
-    return pa.Field(nullable=True)
+def _optional(description: str) -> Any:
+    return pa.Field(description=description, nullable=True)
 
 
-def _score() -> Any:
-    return pa.Field(nullable=True, ge=1, le=10)
+def _score(description: str) -> Any:
+    return pa.Field(description=description, nullable=True, ge=1, le=10)
 
 
-def _agtron() -> Any:
-    return pa.Field(nullable=True, gt=0, le=7000)
+def _agtron(description: str) -> Any:
+    return pa.Field(description=description, nullable=True, gt=0, le=7000)
 
 
-def _positive() -> Any:
-    return pa.Field(nullable=True, gt=0)
+def _positive(description: str) -> Any:
+    return pa.Field(description=description, nullable=True, gt=0)
 
 
 # --- The tables --------------------------------------------------------------
@@ -93,45 +158,115 @@ def _positive() -> Any:
 class CleanRoastedFrame(pa.DataFrameModel):
     """The clean roasted table (espresso included)."""
 
-    slug: str = pa.Field(unique=True)
-    url: str
-    delisted: bool
-    sold_green: bool
-    title: str = _optional()
-    roaster: str = _optional()
-    roaster_url: str = _optional()
-    review_month: dt.date = pa.Field(nullable=True)
-    rating: pl.Int16 = pa.Field(nullable=True, ge=50, le=100)
-    roaster_city: str = _optional()
-    roaster_region: str = _optional()
-    roaster_country: str = _optional()
-    origin_country: str = _optional()
-    origin_region: str = _optional()
-    roast_level: pl.Enum = pa.Field(
-        nullable=True, dtype_kwargs={"categories": list(ROAST_LEVELS)}
+    slug: str = pa.Field(
+        description="The review's id: the last part of its URL. Unique.", unique=True
     )
-    agtron_whole: pl.Int16 = _agtron()
-    agtron_ground: pl.Int16 = _agtron()
-    agtron_swapped: bool
-    agtron_corrected: bool
-    agtron_suspect: bool
-    price_amount: float = _positive()
-    price_currency: str = pa.Field(nullable=True, str_matches=r"^[A-Z]{3}$")
-    price_currency_inferred: bool
-    price_quantity: float = _positive()
-    price_unit: str = _optional()
-    price_grams: float = _positive()
-    price_note: str = _optional()
-    aroma: pl.Float32 = _score()
-    acidity: pl.Float32 = _score()
-    body: pl.Float32 = _score()
-    flavor: pl.Float32 = _score()
-    aftertaste: pl.Float32 = _score()
-    with_milk: pl.Float32 = _score()
-    blind_assessment: str = _optional()
-    notes: str = _optional()
-    bottom_line: str = _optional()
-    extra_count: pl.Int32
+    url: str = pa.Field(description="The review page's address.")
+    delisted: bool = pa.Field(
+        description="True when the review is no longer in the site's sitemaps."
+    )
+    sold_green: bool = pa.Field(
+        description="True when the title says the coffee was sold green (1997–1999)."
+    )
+    title: str = _optional("The coffee's name as reviewed.")
+    roaster: str = _optional("The roaster (green reviews: the importer or seller).")
+    roaster_url: str = _optional("The link on the roaster's logo.")
+    review_month: dt.date = pa.Field(
+        description=(
+            "The month of the review, always stored as its 1st day (Decision 8)."
+        ),
+        nullable=True,
+    )
+    rating: pl.Int16 = pa.Field(
+        description="Overall score, 50–100. Empty when not rated (NR).",
+        nullable=True,
+        ge=50,
+        le=100,
+    )
+    roaster_city: str = _optional("The roaster's city, as written.")
+    roaster_region: str = _optional(
+        "The roaster's state or province, by its standard name."
+    )
+    roaster_country: str = _optional(
+        "The roaster's country (Hawaiʻi roasters: United States)."
+    )
+    origin_country: str = _optional(
+        "Where the coffee was grown: one country (Hawaiʻi and Puerto Rico count as"
+        ' their own), "Multiple" for a blend, empty if not disclosed.'
+    )
+    origin_region: str = _optional(
+        "The growing region(s), comma-separated, without filler words; direction "
+        'words kept ("Guji, Oromia", "North Sumatra").'
+    )
+    roast_level: pl.Enum = pa.Field(
+        description=(
+            "Roast level, ordered light to dark: Light, Medium-Light, Medium, "
+            "Medium-Dark, Dark, Very Dark."
+        ),
+        nullable=True,
+        dtype_kwargs={"categories": list(ROAST_LEVELS)},
+    )
+    agtron_whole: pl.Int16 = _agtron(
+        "Agtron reading of the whole bean: higher is lighter."
+    )
+    agtron_ground: pl.Int16 = _agtron(
+        "Agtron reading of the ground coffee: higher is lighter."
+    )
+    agtron_swapped: bool = pa.Field(
+        description=(
+            "True when the readings were printed ground-first (June 2002 – March 2003)"
+            " and swapped back."
+        )
+    )
+    agtron_corrected: bool = pa.Field(
+        description=(
+            "True when a typo with a known pattern was corrected (6489/89 → 64/89)."
+        )
+    )
+    agtron_suspect: bool = pa.Field(
+        description=(
+            "True when a reading is kept as written but doubtful (a decimal, above "
+            "150, or not reversed in the swap window)."
+        )
+    )
+    price_amount: float = _positive("The price in its own currency (not converted).")
+    price_currency: str = pa.Field(
+        description="ISO 4217 currency code (USD, TWD, CAD…).",
+        nullable=True,
+        str_matches=r"^[A-Z]{3}$",
+    )
+    price_currency_inferred: bool = pa.Field(
+        description=(
+            "True when the currency was read from the roaster's country ($ outside the"
+            " US, ¥, E, pesos), not written plainly."
+        )
+    )
+    price_quantity: float = _positive(
+        "How much the price buys, in price_unit. 1 when the page gives none."
+    )
+    price_unit: str = _optional(
+        "The unit: ounce, gram, kilogram, pound, fluid ounce, millilitre, or a "
+        "count (capsule, pod, bag…)."
+    )
+    price_grams: float = _positive("The quantity in grams, for weights only.")
+    price_note: str = _optional(
+        "Anything else in the price text: brackets, a second price, a packaging word."
+    )
+    aroma: pl.Float32 = _score("Aroma, 1–10 (decimals in 1997–1999).")
+    acidity: pl.Float32 = _score("Acidity, 1–10 (decimals in 1997–1999).")
+    body: pl.Float32 = _score("Body, 1–10 (decimals in 1997–1999).")
+    flavor: pl.Float32 = _score("Flavor, 1–10 (decimals in 1997–1999).")
+    aftertaste: pl.Float32 = _score("Aftertaste, 1–10. Missing on many older reviews.")
+    with_milk: pl.Float32 = _score("Espresso only: the score in milk, 1–10.")
+    blind_assessment: str = _optional("The reviewers' tasting notes, written blind.")
+    notes: str = _optional("Background on the coffee, the farm and the roaster.")
+    bottom_line: str = _optional("The summary judgement.")
+    extra_count: pl.Int32 = pa.Field(
+        description=(
+            "How many unrecognised labels the parsed page had (see the parsed "
+            "extra_fields table)."
+        )
+    )
 
     class Config:
         strict = True  # no other columns
@@ -146,35 +281,80 @@ class CleanRoastedFrame(pa.DataFrameModel):
 class CleanGreenFrame(pa.DataFrameModel):
     """The clean green-coffee table."""
 
-    slug: str = pa.Field(unique=True)
-    url: str
-    delisted: bool
-    title: str = _optional()
-    roaster: str = _optional()
-    roaster_url: str = _optional()
-    review_month: dt.date = pa.Field(nullable=True)
-    rating: pl.Int16 = pa.Field(nullable=True, ge=50, le=100)
-    origin_country: str = _optional()
-    origin_region: str = _optional()
-    price_amount: float = _positive()
-    price_currency: str = pa.Field(nullable=True, str_matches=r"^[A-Z]{3}$")
-    price_currency_inferred: bool
-    price_quantity: float = _positive()
-    price_unit: str = _optional()
-    price_grams: float = _positive()
-    price_note: str = _optional()
-    harvest_year: pl.Int16 = _optional()
-    harvest_text: str = _optional()
-    seller: str = _optional()
-    variety: str = _optional()
-    lot_size_kg: float = _positive()
-    lot_size_text: str = _optional()
-    processing_method: str = _optional()
-    lot_id: str = _optional()
-    blind_assessment: str = _optional()
-    notes: str = _optional()
-    bottom_line: str = _optional()
-    extra_count: pl.Int32
+    slug: str = pa.Field(
+        description="The review's id: the last part of its URL. Unique.", unique=True
+    )
+    url: str = pa.Field(description="The review page's address.")
+    delisted: bool = pa.Field(
+        description="True when the review is no longer in the site's sitemaps."
+    )
+    title: str = _optional("The coffee's name as reviewed.")
+    roaster: str = _optional("The roaster (green reviews: the importer or seller).")
+    roaster_url: str = _optional("The link on the roaster's logo.")
+    review_month: dt.date = pa.Field(
+        description=(
+            "The month of the review, always stored as its 1st day (Decision 8)."
+        ),
+        nullable=True,
+    )
+    rating: pl.Int16 = pa.Field(
+        description="Overall score, 50–100. Empty when not rated (NR).",
+        nullable=True,
+        ge=50,
+        le=100,
+    )
+    origin_country: str = _optional(
+        "Where the coffee was grown: one country (Hawaiʻi and Puerto Rico count as"
+        ' their own), "Multiple" for a blend, empty if not disclosed.'
+    )
+    origin_region: str = _optional(
+        "The growing region(s), comma-separated, without filler words; direction "
+        'words kept ("Guji, Oromia", "North Sumatra").'
+    )
+    price_amount: float = _positive("The price in its own currency (not converted).")
+    price_currency: str = pa.Field(
+        description="ISO 4217 currency code (USD, TWD, CAD…).",
+        nullable=True,
+        str_matches=r"^[A-Z]{3}$",
+    )
+    price_currency_inferred: bool = pa.Field(
+        description=(
+            "True when the currency was read from the roaster's country ($ outside the"
+            " US, ¥, E, pesos), not written plainly."
+        )
+    )
+    price_quantity: float = _positive(
+        "How much the price buys, in price_unit. 1 when the page gives none."
+    )
+    price_unit: str = _optional(
+        "The unit: ounce, gram, kilogram, pound, fluid ounce, millilitre, or a "
+        "count (capsule, pod, bag…)."
+    )
+    price_grams: float = _positive("The quantity in grams, for weights only.")
+    price_note: str = _optional(
+        "Anything else in the price text: brackets, a second price, a packaging word."
+    )
+    harvest_year: pl.Int16 = _optional("The (last) year of the harvest.")
+    harvest_text: str = _optional(
+        'The harvest as written ("November 2022 to March 2023").'
+    )
+    seller: str = _optional("Who sells the green coffee.")
+    variety: str = _optional("The coffee variety (cultivar).")
+    lot_size_kg: float = _positive(
+        "The lot size in kilograms, when it starts with a plain weight."
+    )
+    lot_size_text: str = _optional("The lot size as written.")
+    processing_method: str = _optional("How the coffee fruit was processed.")
+    lot_id: str = _optional("The seller's lot number.")
+    blind_assessment: str = _optional("The reviewers' tasting notes, written blind.")
+    notes: str = _optional("Background on the coffee, the farm and the roaster.")
+    bottom_line: str = _optional("The summary judgement.")
+    extra_count: pl.Int32 = pa.Field(
+        description=(
+            "How many unrecognised labels the parsed page had (see the parsed "
+            "extra_fields table)."
+        )
+    )
 
     class Config:
         strict = True  # no other columns
@@ -189,11 +369,15 @@ class CleanGreenFrame(pa.DataFrameModel):
 class CleanLogFrame(pa.DataFrameModel):
     """The cleaning log: one row per rule applied to a field of a review."""
 
-    slug: str
-    dataset: str = pa.Field(isin=["roasted", "green"])
-    field: str
-    rule: str = pa.Field(isin=list(CLEAN_RULES))
-    raw_value: str = _optional()
+    slug: str = pa.Field(description="The review the rule was applied to.")
+    dataset: str = pa.Field(description="roasted or green.", isin=["roasted", "green"])
+    field: str = pa.Field(
+        description="The parsed field the rule was applied to (rating, agtron, price…)."
+    )
+    rule: str = pa.Field(
+        description="The rule: one of the cleaning rules.", isin=list(CLEAN_RULES)
+    )
+    raw_value: str = _optional("The field's parsed text, before cleaning.")
 
     class Config:
         strict = True  # no other columns

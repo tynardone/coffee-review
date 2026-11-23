@@ -13,6 +13,7 @@ from coffee_review.models.clean import (
     GREEN_SCHEMA,
     LOG_SCHEMA,
     ROASTED_SCHEMA,
+    RULE_DESCRIPTIONS,
     CleanContractError,
     validate_clean,
 )
@@ -155,3 +156,8 @@ def test_clean_rules_listed() -> None:
     assert "swapped_2002_2003" in CLEAN_RULES
     assert "typo_corrected" in CLEAN_RULES
     assert len(CLEAN_RULES) == 22
+
+
+def test_every_rule_is_described() -> None:
+    assert set(RULE_DESCRIPTIONS) == set(CLEAN_RULES)
+    assert all(RULE_DESCRIPTIONS.values())

@@ -27,6 +27,7 @@ build-backend = "uv_build"
 [dependency-groups]
 dev = [
     "hypothesis>=6.170.17",
+    "import-linter>=2.17",
     "inline-snapshot>=0.37.0",
     "mypy>=2.4.1",
     "pre-commit>=4.7.0",
@@ -79,6 +80,33 @@ branch = true
 # These classes read their annotations at runtime, so the types they use must
 # be real imports, not TYPE_CHECKING-only ones.
 runtime-evaluated-base-classes = ["pydantic.BaseModel", "pandera.polars.DataFrameModel"]
+
+[tool.importlinter]
+# The dependency rule (ADR 0002, docs/architecture.md), checked on every commit
+# by `lint-imports`. Imports may only point down this list; packages on the same
+# line (separated by |) may not import each other.
+root_package = "coffee_review"
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+name = "The dependency rule: cli → pipeline → workers → models and config"
+type = "layers"
+layers = [
+    "coffee_review.cli",
+    "coffee_review.pipeline | coffee_review.logging_setup | coffee_review.progress_display",
+    "coffee_review.clients | coffee_review.storage | coffee_review.parsers | coffee_review.transforms",
+    "coffee_review.models | coffee_review.config",
+]
+
+[[tool.importlinter.contracts]]
+name = "Pure code does no network or database I/O"
+type = "forbidden"
+source_modules = [
+    "coffee_review.parsers",
+    "coffee_review.transforms",
+    "coffee_review.models",
+]
+forbidden_modules = ["httpx", "sqlite3"]
 
 [tool.mypy]
 strict = true

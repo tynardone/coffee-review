@@ -137,11 +137,16 @@ uv run pytest            # tests (add --cov for coverage)
 uv run ruff check        # lint
 uv run ruff format       # format
 uv run mypy              # types
+uv run lint-imports      # the dependency rule (import-linter)
 uv run pre-commit run --all-files
 ```
 
 ## Docs
 
+- [Architecture](docs/architecture.md): the pipeline, the dependency tree and
+  the data flow inside each stage, as diagrams
+- [Data dictionary](docs/data-dictionary.md): every column of every table,
+  generated from the models (`uv run python scripts/generate_data_dictionary.py`)
 - [Roadmap](docs/roadmap.md): milestones and progress
 - [Conventions](docs/conventions.md): structure, naming and test rules
 - [Decisions](docs/decisions/): why things are the way they are
