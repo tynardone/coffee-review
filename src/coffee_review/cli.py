@@ -223,7 +223,11 @@ def _reference_command(
     kind: Literal["fx", "cpi"], run: Callable[[Settings], ReferenceRunResult]
 ) -> None:
     """Run one reference stage; the summary line is logged by the stage."""
-    settings = get_settings()
+    try:
+        settings = get_settings()
+    except ValidationError as exc:
+        typer.echo(f"{kind} failed: {_first_message(exc)}", err=True)
+        raise typer.Exit(EXIT_ERROR) from None
     configure_logging(
         settings.log_level,
         run_log_path(settings.data_dir, kind, datetime.now(UTC)),

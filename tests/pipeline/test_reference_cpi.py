@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 from datetime import UTC, date, datetime
 
@@ -187,3 +188,17 @@ def test_cpi_needs_no_key_and_reports_an_unknown_source() -> None:
 
     with pytest.raises(UnknownSourceError, match="bls"):
         cpi(settings, now=NOW)
+
+
+async def test_a_bls_message_is_logged(caplog: pytest.LogCaptureFixture) -> None:
+    def answer(series: str, start: int, end: int) -> str:
+        body = json.loads(bls_body(series, []))
+        body["message"] = ["Series does not exist for Series CUUR0000SAX"]
+        return json.dumps(body)
+
+    raw, store = InMemoryReferenceRawStore(), InMemoryReferenceStore()
+
+    with caplog.at_level(logging.WARNING):
+        await run(FakeCpiClient(answer), raw, store)
+
+    assert "Series does not exist" in caplog.text

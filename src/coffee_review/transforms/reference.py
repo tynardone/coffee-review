@@ -62,12 +62,16 @@ def build_fx(
     """The ``fx`` and ``fx_gaps`` tables from parsed responses, as
     ``(source, parsed)`` pairs.
 
-    Each day comes from one response: the preferred source's if it has one,
-    otherwise the alphabetically first other source's. A gap response gives
-    a gap row and no rates.
+    Each day's rates come from one response: the preferred source's if it has
+    rates, otherwise the alphabetically first other source with rates. A gap
+    row means the table has no rates for the day: it names the preferred
+    source if it said so, else the first other source that did.
     """
     chosen: dict[date, tuple[str, FxParsed]] = {}
-    for source, response in sorted(parsed, key=lambda p: _rank(p[0], preferred)):
+    ranked = sorted(
+        parsed, key=lambda p: (p[1].gap is not None, _rank(p[0], preferred))
+    )
+    for source, response in ranked:
         chosen.setdefault(response.day, (source, response))
 
     rates: list[tuple[date, str, float, str]] = []
@@ -105,12 +109,15 @@ def cpi_gap_months(saved: Sequence[SavedCpi]) -> set[date]:
 
     A month is a gap when the source says it's unavailable, or when a
     response covered its year, has a later month, and doesn't have that one.
-    A month after a response's latest is just not out yet.
+    A month after a response's latest is just not out yet. No gaps are
+    inferred from a response that came with a message (it may be partial),
+    and a month whose value was dropped as bad is missing, not a gap.
     """
     gaps: set[date] = {u.month for _, parsed in saved for u in parsed.unavailable}
     for response, parsed in saved:
         present = {m.month for m in parsed.months}
-        if not present:
+        present |= {p.period for p in parsed.problems if p.period is not None}
+        if not present or parsed.messages:
             continue
         latest = max(present)
         for year in range(response.start_year, response.end_year + 1):
@@ -181,15 +188,23 @@ def build_cpi(
     ]
     cpi = pl.DataFrame(rows, schema=CPI_SCHEMA, orient="row").sort("series", "month")
 
-    gaps: list[tuple[date, str, str, str]] = []
-    for source, series in sorted({(r.source, r.series) for r, _ in saved}):
+    # A gap row means the table has no value: one per (month, series), naming
+    # the preferred source if it has the gap, else the first other source.
+    gap_from: dict[tuple[date, str], tuple[str, str]] = {}
+    for source, series in sorted(
+        {(r.source, r.series) for r, _ in saved}, key=lambda k: _rank(k[0], preferred)
+    ):
         own = [s for s in saved if (s[0].source, s[0].series) == (source, series)]
-        valued = {m.month for _, parsed in own for m in parsed.months}
         said = {u.month: u.said for _, parsed in own for u in parsed.unavailable}
-        gaps += [
-            (month, series, source, said.get(month, GAP_SAID))
-            for month in sorted(cpi_gap_months(own) - valued)
-        ]
+        for month in cpi_gap_months(own):
+            if (month, series) not in chosen:
+                gap_from.setdefault(
+                    (month, series), (source, said.get(month, GAP_SAID))
+                )
+    gaps = [
+        (month, series, source, said)
+        for (month, series), (source, said) in sorted(gap_from.items())
+    ]
     return cpi, pl.DataFrame(gaps, schema=CPI_GAPS_SCHEMA, orient="row")
 
 

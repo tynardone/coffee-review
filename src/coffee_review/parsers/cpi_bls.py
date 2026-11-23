@@ -66,7 +66,10 @@ def parse_cpi_bls(text: str, series: str) -> CpiParsed:
             if index is None:
                 where = f"cpi {series} {month:%Y-%m}"
                 reason = "not a positive number"
-                problems.append(ParseProblem(where=where, value=value, reason=reason))
+                problem = ParseProblem(
+                    where=where, value=value, reason=reason, period=month
+                )
+                problems.append(problem)
                 continue
             months.append(
                 CpiMonth(
@@ -78,6 +81,7 @@ def parse_cpi_bls(text: str, series: str) -> CpiParsed:
         months=tuple(months),
         problems=tuple(problems),
         unavailable=tuple(unavailable),
+        messages=_messages(body),
     )
 
 
@@ -89,6 +93,14 @@ def _load(text: str) -> dict[str, Any]:
     if not isinstance(body, dict):
         raise ReferenceParseError("not a JSON object")
     return body
+
+
+def _messages(body: dict[str, Any]) -> tuple[str, ...]:
+    """BLS's notes on the request: an empty list when all went well."""
+    message = body.get("message") or []
+    if isinstance(message, str):
+        message = [message]
+    return tuple(str(m) for m in message if m)
 
 
 def _month(row: object) -> date | None:

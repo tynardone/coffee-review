@@ -57,8 +57,16 @@ readable.
 **Gaps are recorded, not retried.** A period the source answers but has no
 data for (OpenExchangeRates' `not_available`; BLS's `-` with footnote X for
 October 2025, when no data was collected) is saved, written to a gaps table in
-the source's own words, and never asked for again. What M5 does with a review
-in a gap month is M5's decision.
+the source's own words, and never asked for again. **A gap row always means
+the table has no value for that period**: if another saved source has one, it
+fills the period and there's no gap row. What M5 does with a review in a gap
+month is M5's decision.
+
+**A systematic failure stops the run.** Three answers in a row that won't
+parse (a format change, or a non-USD base) stop it with exit 3, rather than
+spend the month's quota on answers that are thrown away. A BLS `message` is
+logged, and no gaps are inferred from a response that carries one, since it
+may be partial.
 
 **Every date is UTC**, as OpenExchangeRates' dates are. "Today" comes from the
 UTC clock and is passed into the pure planning functions, so a rate for a day

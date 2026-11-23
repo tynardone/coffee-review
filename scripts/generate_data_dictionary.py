@@ -191,13 +191,19 @@ def render() -> str:
         ),
         _pandera_table(
             "`fx_gaps.parquet`",
-            "Days a source answered but had no rates for. Never asked again.",
+            (
+                "Days with no rates in `fx.parquet`: a source answered but had none."
+                " Never asked again."
+            ),
             FxGapFrame,
         ),
         _pandera_table("`cpi.parquet`", "One row per series and month.", CpiFrame),
         _pandera_table(
             "`cpi_gaps.parquet`",
-            "Months a source will never have, and what it said.",
+            (
+                "Months with no value in `cpi.parquet`: the source will never have"
+                " them, in its words."
+            ),
             CpiGapFrame,
         ),
         "## Lookup tables: `src/coffee_review/transforms/lookups/`",

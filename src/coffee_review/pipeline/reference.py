@@ -110,6 +110,10 @@ CPI_SOURCES: Mapping[str, CpiSource] = {
     ),
 }
 
+# Answers in a row that won't parse before a run stops: a systematic change
+# (a new format, a non-USD base) shouldn't spend a month's quota.
+MAX_UNPARSABLE_IN_A_ROW = 3
+
 # How many gap periods the summary line names before "…".
 GAPS_SHOWN = 5
 
@@ -217,7 +221,7 @@ async def run_fx(
     wanted = fx_wanted_days(start, today)
     have = {r.day for r in parsed if r.source == source_name}
     missing = fx_missing(wanted, have)
-    requests = fetched = failed = 0
+    requests = fetched = failed = unparsable = 0
     outcome: Literal["finished", "stopped"] = "finished"
     reason: str | None = None
 
@@ -234,8 +238,14 @@ async def run_fx(
                 fx_parsed = source.parse(text, day)
             except ReferenceParseError as exc:
                 failed += 1
+                unparsable += 1
                 logger.warning("fx %s: not saved, asked again next run: %s", day, exc)
+                if unparsable == MAX_UNPARSABLE_IN_A_ROW:
+                    outcome, reason = "stopped", _unparsable_reason(exc)
+                    logger.warning("fx stopped: %s", reason)
+                    break
                 continue
+            unparsable = 0
             response = FxResponse(source=source_name, day=day)
             raw.save_fx(response, text)
             parsed[response] = fx_parsed
@@ -325,7 +335,7 @@ async def run_cpi(
     wanted = cpi_wanted_months(start, today)
     known = cpi_stored_months(own) | cpi_gap_months(own)
     already = sum(1 for month in wanted if month in known)
-    requests = fetched = failed = 0
+    requests = fetched = failed = unparsable = 0
     outcome: Literal["finished", "stopped"] = "finished"
     reason: str | None = None
 
@@ -343,10 +353,18 @@ async def run_cpi(
                 cpi_parsed = source.parse(text, series)
             except ReferenceParseError as exc:
                 failed += 1
+                unparsable += 1
                 logger.warning(
                     "cpi %s: not saved, asked again next run: %s", years, exc
                 )
+                if unparsable == MAX_UNPARSABLE_IN_A_ROW:
+                    outcome, reason = "stopped", _unparsable_reason(exc)
+                    logger.warning("cpi stopped: %s", reason)
+                    break
                 continue
+            unparsable = 0
+            for message in cpi_parsed.messages:
+                logger.warning("cpi %s %s: the source said: %s", series, years, message)
             response = CpiResponse(
                 source=source_name,
                 series=series,
@@ -401,6 +419,10 @@ def _parse_saved_cpi(
             exc,
         )
         return None
+
+
+def _unparsable_reason(exc: ReferenceParseError) -> str:
+    return f"{MAX_UNPARSABLE_IN_A_ROW} answers in a row wouldn't parse; last: {exc}"
 
 
 def _log(result: ReferenceRunResult) -> None:

@@ -308,3 +308,25 @@ def test_describe_names_gap_periods() -> None:
     assert "1 gap (2025-10)," not in one
     assert "1 gap (2025-10)" in one
     assert "7 gaps (2020-01, 2020-02, 2020-03, 2020-04, 2020-05, …)" in many.describe()
+
+
+async def test_stops_after_three_answers_in_a_row_that_wont_parse() -> None:
+    eur = json.dumps({"base": "EUR", "rates": {"USD": 1.1}})
+    client = FakeFxClient.answering({}, default=eur)
+    raw, store = InMemoryReferenceRawStore(), InMemoryReferenceStore()
+
+    result = await run(client, raw, store)
+
+    assert result.outcome == "stopped"
+    assert len(client.calls) == 3
+    assert result.reason is not None and "'EUR'" in result.reason
+    assert raw.list_fx() == []
+
+
+async def test_one_bad_answer_between_good_ones_doesnt_stop() -> None:
+    client = FakeFxClient.answering({date(2026, 9, 1): "<html>"})
+    raw, store = InMemoryReferenceRawStore(), InMemoryReferenceStore()
+
+    result = await run(client, raw, store)
+
+    assert (result.outcome, result.failed, len(client.calls)) == ("finished", 1, 4)

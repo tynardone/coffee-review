@@ -163,3 +163,25 @@ def test_unavailable_without_text_says_so() -> None:
     parsed = parse_cpi_bls(unavailable_row(text=""), SERIES)
 
     assert parsed.unavailable[0].said == "unavailable (BLS footnote X)"
+
+
+def test_message_kept_with_partial_data() -> None:
+    text = bls(
+        [("2026", "M01", "1.0")],
+        message=[
+            "Year range has been reduced to the system-allowed limit of 10 years."
+        ],
+    )
+
+    parsed = parse_cpi_bls(text, SERIES)
+
+    assert parsed.messages == (
+        "Year range has been reduced to the system-allowed limit of 10 years.",
+    )
+    assert len(parsed.months) == 1
+
+
+def test_problem_records_its_month() -> None:
+    parsed = parse_cpi_bls(bls([("2020", "M01", "-")]), SERIES)
+
+    assert parsed.problems[0].period == date(2020, 1, 1)

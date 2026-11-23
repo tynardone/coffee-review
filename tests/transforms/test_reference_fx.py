@@ -126,13 +126,21 @@ def test_build_gap_row() -> None:
     assert gaps.rows() == [(date(2020, 1, 1), "s", "not_available")]
 
 
-def test_preferred_gap_beats_another_sources_rates() -> None:
+def test_another_sources_rates_fill_a_preferred_gap() -> None:
     day = date(2020, 1, 1)
 
     fx, gaps = build_fx([("s", gap(day)), ("o", day_with(day, {"TWD": 30.0}))], "s")
 
-    assert fx.is_empty()
-    assert gaps["source"].to_list() == ["s"]
+    assert fx.select("currency", "source").rows() == [("TWD", "o")]
+    assert gaps.is_empty()  # a gap row always means "no value in fx"
+
+
+def test_gap_from_the_preferred_source_when_nobody_has_rates() -> None:
+    day = date(2020, 1, 1)
+
+    _, gaps = build_fx([("o", gap(day)), ("s", gap(day))], "s")
+
+    assert gaps.select("source").rows() == [("s",)]
 
 
 def test_vanished_currency_is_only_absent() -> None:

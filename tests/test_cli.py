@@ -387,3 +387,16 @@ def test_reference_commands_in_help(command: str) -> None:
     output = runner.invoke(app, ["--help"]).output
 
     assert re.search(rf"^\W*{command}\s", output, re.MULTILINE)
+
+
+@pytest.mark.parametrize("command", ["fx", "cpi"])
+def test_bad_start_setting_is_one_clear_line(
+    command: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("COFFEE_REVIEW_REFERENCE__FX_START", "2010-01-15")
+
+    result = runner.invoke(app, [command])
+
+    assert result.exit_code == 1
+    assert f"{command} failed: fx_start must be the 1st of a month" in result.output
+    assert "Traceback" not in result.output

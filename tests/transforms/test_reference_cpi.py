@@ -12,6 +12,7 @@ from coffee_review.models.reference import (
     CpiParsed,
     CpiResponse,
     CpiUnavailable,
+    ParseProblem,
     validate_reference,
 )
 from coffee_review.transforms.reference import (
@@ -283,3 +284,37 @@ def test_unavailable_latest_month_is_a_gap_too() -> None:
     ]
 
     assert cpi_gap_months(saved) == {date(2026, 10, 1)}
+
+
+def test_cpi_gap_only_when_the_table_has_no_value() -> None:
+    without_oct = [m for m in months_of(2025) if m != date(2025, 10, 1)]
+    saved = [
+        resp(2025, 2025, months=without_oct, source="bls"),
+        resp(2025, 2025, months=[date(2025, 10, 1)], source="other"),
+    ]
+
+    cpi, gaps = build_cpi(saved, "bls")
+
+    assert date(2025, 10, 1) in cpi["month"].to_list()
+    assert gaps.is_empty()
+
+
+def test_a_response_with_a_message_settles_no_gaps() -> None:
+    response, parsed = resp(2025, 2025, months=[date(2025, 1, 1), date(2025, 12, 1)])
+    parsed = parsed.model_copy(
+        update={
+            "messages": ("Year range has been reduced to the system-allowed limit",)
+        }
+    )
+
+    assert cpi_gap_months([(response, parsed)]) == set()
+
+
+def test_a_dropped_value_is_not_a_gap() -> None:
+    response, parsed = resp(2025, 2025, months=[date(2025, 1, 1), date(2025, 3, 1)])
+    problem = ParseProblem(
+        where="cpi", value="-", reason="not a positive number", period=date(2025, 2, 1)
+    )
+    parsed = parsed.model_copy(update={"problems": (problem,)})
+
+    assert cpi_gap_months([(response, parsed)]) == set()

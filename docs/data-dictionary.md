@@ -267,7 +267,7 @@ Key: each (`day`, `currency`) appears once.
 
 ### `fx_gaps.parquet`
 
-Days a source answered but had no rates for. Never asked again.
+Days with no rates in `fx.parquet`: a source answered but had none. Never asked again.
 
 Key: each (`day`, `source`) appears once.
 
@@ -292,7 +292,7 @@ Key: each (`month`, `series`) appears once.
 
 ### `cpi_gaps.parquet`
 
-Months a source will never have, and what it said.
+Months with no value in `cpi.parquet`: the source will never have them, in its words.
 
 Key: each (`month`, `series`, `source`) appears once.
 

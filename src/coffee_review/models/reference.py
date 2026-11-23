@@ -55,6 +55,9 @@ class ParseProblem(FrozenModel):
     where: str
     value: str
     reason: str
+    # The period the value was for, when known: a dropped value's month is
+    # missing, not a gap, so it's asked for again.
+    period: dt.date | None = None
 
 
 class FxParsed(FrozenModel):
@@ -84,6 +87,9 @@ class CpiParsed(FrozenModel):
     months: tuple[CpiMonth, ...]
     problems: tuple[ParseProblem, ...] = ()
     unavailable: tuple[CpiUnavailable, ...] = ()
+    # What the source said alongside the data (BLS ``message``). A response
+    # with a message may be partial, so no gaps are worked out from it.
+    messages: tuple[str, ...] = ()
 
 
 class ReferenceParseError(Exception):
@@ -173,7 +179,8 @@ class CpiFrame(pa.DataFrameModel):
 
 
 class FxGapFrame(pa.DataFrameModel):
-    """Days a source answered but has no rates for. Never asked for again."""
+    """Days with no rates in ``fx``: a source answered, but had none. Never
+    asked for again. A gap row always means "no value in the table"."""
 
     day: dt.date = pa.Field(description="The day, in UTC: the 1st of a month.")
     source: str = _text(SOURCE)
@@ -191,7 +198,9 @@ class FxGapFrame(pa.DataFrameModel):
 
 
 class CpiGapFrame(pa.DataFrameModel):
-    """Months a source will never have (e.g. October 2025, not published)."""
+    """Months with no value in ``cpi``: the source will never have them
+    (e.g. October 2025, not collected). A gap row always means "no value in
+    the table"."""
 
     month: dt.date = pa.Field(description="The month, stored as its 1st.")
     series: str = _text("The series id.")
