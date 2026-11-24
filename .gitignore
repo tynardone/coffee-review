@@ -224,8 +224,9 @@ __marimo__/
 
 # Data
 data/
-# Agent workspace
+# Agent workspace, and the working specs and plans from design sessions
 .superpowers/
+docs/superpowers/
 
 # Scratch notess
 NOTES.md
