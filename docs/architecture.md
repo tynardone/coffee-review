@@ -19,7 +19,7 @@ flowchart LR
     clean[("data/clean/<br>roasted, green<br>reviews.parquet<br>cleaning_log.parquet")]
     lookups[["transforms/lookups/*.csv<br>places, currencies, units"]]
     rawref[("data/raw/<br>fx/, cpi/<br>JSON responses")]
-    reference[("data/reference/<br>fx, cpi<br>+ gaps")]
+    reference[("data/reference/<br>fx, cpi")]
     final[("final table")]
 
     site -->|"coffee-review scrape<br>(M1)"| raw
@@ -37,7 +37,7 @@ flowchart LR
 | Raw (bronze) | `scrape` | the HTML as fetched, and a manifest of what was fetched when | adds and refreshes pages (incremental) |
 | Parsed | `parse` | one row per review, every value as the page's text | replaced in full (≈6 s) |
 | Clean (silver) | `clean` | typed columns, a log of every change, a report | replaced in full (≈1 s) |
-| Reference | `fx`, `cpi` | exchange rates and US CPI, plus gaps; the responses they came from in `data/raw/` | fetches only what's missing; tables rebuilt in full |
+| Reference | `fx`, `cpi` | exchange rates and US CPI; the responses they came from in `data/raw/` | fetches only what's missing; tables rebuilt in full |
 | Marts (gold) | M5, planned | joined to exchange rates and inflation | – |
 
 Each stage also writes a Markdown report next to its data
@@ -181,12 +181,12 @@ their contract ([ADR 0008](decisions/0008-clean-in-polars.md)).
 
 ```mermaid
 flowchart TD
-    saved[("data/raw/fx/&lt;source&gt;/&lt;day&gt;.json<br>data/raw/cpi/&lt;source&gt;/&lt;series&gt;/&lt;request&gt;.json")] -->|"ReferenceRawStore"| parse["parse every saved response<br>(each with its source's parser)"]
-    parse --> plan["what's missing for the configured source?<br>transforms/reference.py<br>(today in UTC, passed in)"]
+    saved[("data/raw/fx/openexchangerates/&lt;day&gt;.json<br>data/raw/cpi/bls/&lt;series&gt;/&lt;request&gt;.json")] -->|ReferenceStore| parse["parse every saved response"]
+    parse --> plan["what's missing?<br>transforms/reference.py<br>(today in UTC, passed in)"]
     plan -->|nothing| rebuild
-    plan -->|"missing days / years"| fetch["fetch: FxClient / CpiClient<br>(source from the registry)"]
+    plan -->|"missing days / years"| fetch["fetch<br>clients/forex_api.py · bls_api.py"]
     fetch -->|"answered (data or 'no data')"| save["save the response as received"]
-    save --> rebuild["rebuild fx, fx_gaps / cpi, cpi_gaps<br>configured source first"]
+    save --> rebuild["rebuild fx / cpi<br>(newest response wins)"]
     fetch -->|"refused, bad key, down"| stop(["stop cleanly, exit 3<br>saved files kept"])
     stop --> rebuild
     rebuild --> contract{"pandera contract<br>(models/reference.py)"}
@@ -195,12 +195,10 @@ flowchart TD
 ```
 
 The saved responses are the source of truth; the tables are always rebuilt
-from them, so a parser fix needs no requests, and a rerun costs none. A source
-is a registry entry in `pipeline/reference.py` (a client, its settings, a
-parser), so swapping OpenExchangeRates or the BLS is a new entry and a setting.
-Periods a source will never have, like October 2025's CPI, are kept as gaps in
-the source's own words and not asked for again
-([ADR 0009](decisions/0009-raw-reference-responses-and-swappable-sources.md)).
+from them, so a parser fix needs no requests, and a rerun costs none. Periods a
+source will never have, like October 2025's CPI, are saved like any answer and
+not asked for again; they're simply absent from the table
+([ADR 0009](decisions/0009-keep-raw-reference-responses.md)).
 
 ## The lookup tables
 

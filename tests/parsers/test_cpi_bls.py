@@ -54,7 +54,6 @@ def test_reads_months_and_drops_m13() -> None:
         (date(2020, 1, 1), 257.971)
     ]
     assert parsed.months[0].series == SERIES
-    assert parsed.months[0].final is True
     assert parsed.problems == ()
 
 
@@ -69,12 +68,6 @@ def test_drops_other_periods_silently() -> None:
 
     assert parsed.months == ()
     assert parsed.problems == ()
-
-
-def test_preliminary_is_not_final() -> None:
-    parsed = parse_cpi_bls(bls([("2020", "M02", "258.678")], footnote="P"), SERIES)
-
-    assert parsed.months[0].final is False
 
 
 @pytest.mark.parametrize("value", ["-", "", "0", "-1.5", "nan"])
@@ -154,15 +147,7 @@ def test_unavailable_month_is_the_sources_own_gap_not_a_problem() -> None:
 
     assert [m.month for m in parsed.months] == [date(2025, 9, 1)]
     assert parsed.problems == ()
-    assert [(u.month, u.said) for u in parsed.unavailable] == [
-        (date(2025, 10, 1), "Data unavailable due to the 2025 lapse")
-    ]
-
-
-def test_unavailable_without_text_says_so() -> None:
-    parsed = parse_cpi_bls(unavailable_row(text=""), SERIES)
-
-    assert parsed.unavailable[0].said == "unavailable (BLS footnote X)"
+    assert parsed.unavailable == (date(2025, 10, 1),)
 
 
 def test_message_kept_with_partial_data() -> None:
@@ -179,9 +164,3 @@ def test_message_kept_with_partial_data() -> None:
         "Year range has been reduced to the system-allowed limit of 10 years.",
     )
     assert len(parsed.months) == 1
-
-
-def test_problem_records_its_month() -> None:
-    parsed = parse_cpi_bls(bls([("2020", "M01", "-")]), SERIES)
-
-    assert parsed.problems[0].period == date(2020, 1, 1)

@@ -26,7 +26,7 @@ class MissingApiKeyError(Exception):
 
 
 class ForexApiClient(BaseHttpClient):
-    """OpenExchangeRates: one day's rates per request (an ``FxClient``)."""
+    """OpenExchangeRates: one day's rates per request."""
 
     retryable_status = REFERENCE_RETRYABLE_STATUS
 

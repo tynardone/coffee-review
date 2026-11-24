@@ -38,8 +38,8 @@ Written by `fx` and `cpi`. The tidy reference tables are rebuilt from these on e
 
 | File | What it holds |
 |---|---|
-| `fx/<source>/<YYYY-MM-DD>.json` | One exchange-rate response per source and day (UTC), exactly as received; a 'no data' answer is kept too, as a gap. |
-| `cpi/<source>/<series>/<YYYYMMDDTHHMMSSZ>_<start>-<end>.json` | One CPI response per request: when it was made (UTC) and the years it asked for. A month can appear in several; the newest wins. |
+| `fx/openexchangerates/<YYYY-MM-DD>.json` | One exchange-rate response per day (UTC), exactly as received; a 'not_available' answer is kept too, so that day isn't asked again. |
+| `cpi/bls/<series>/<YYYYMMDDTHHMMSSZ>_<start>-<end>.json` | One CPI response per request: when it was made (UTC) and the years it asked for. A month can appear in several; the newest wins. |
 
 ## Parsed layer: `data/parsed/`
 
@@ -250,7 +250,7 @@ The values of `cleaning_log.rule`: every change the clean stage makes.
 
 ## Reference layer: `data/reference/`
 
-Exchange rates and US CPI for M5 to convert and adjust prices with. Rebuilt in full from the saved responses and checked against the contracts in `models/reference.py` on every run. Written by `fx` and `cpi`.
+Exchange rates and US CPI for M5 to convert and adjust prices with. Rebuilt in full from the saved responses and checked against the contracts in `models/reference.py` on every run. Written by `fx` and `cpi`. A period the source has no data for (October 2025's CPI) is simply absent.
 
 ### `fx.parquet`
 
@@ -263,19 +263,6 @@ Key: each (`day`, `currency`) appears once.
 | `day` | Date | no | always the 1st | The day the rate is for, in UTC: always the 1st of a month. |
 | `currency` | String | no | matches `^[A-Z]{3}$` | ISO 4217 currency code. |
 | `units_per_usd` | Float64 | no | > 0 | Units of the currency one US dollar bought that day. |
-| `source` | String | no | – | Which source the row came from (its raw folder's name). |
-
-### `fx_gaps.parquet`
-
-Days with no rates in `fx.parquet`: a source answered but had none. Never asked again.
-
-Key: each (`day`, `source`) appears once.
-
-| Column | Type | Can be empty | Checks | Meaning |
-|---|---|---|---|---|
-| `day` | Date | no | always the 1st | The day, in UTC: the 1st of a month. |
-| `source` | String | no | – | Which source the row came from (its raw folder's name). |
-| `said` | String | no | – | What the source said (e.g. not_available). |
 
 ### `cpi.parquet`
 
@@ -288,20 +275,6 @@ Key: each (`month`, `series`) appears once.
 | `month` | Date | no | always the 1st | The month, stored as its 1st. |
 | `series` | String | no | – | The series id (CUUR0000SA0: CPI-U, all items, US city average, not seasonally adjusted). |
 | `index_value` | Float64 | no | > 0 | The index for the month (1982–84 = 100 for CUUR0000SA0). |
-| `source` | String | no | – | Which source the row came from (its raw folder's name). |
-
-### `cpi_gaps.parquet`
-
-Months with no value in `cpi.parquet`: the source will never have them, in its words.
-
-Key: each (`month`, `series`, `source`) appears once.
-
-| Column | Type | Can be empty | Checks | Meaning |
-|---|---|---|---|---|
-| `month` | Date | no | always the 1st | The month, stored as its 1st. |
-| `series` | String | no | – | The series id. |
-| `source` | String | no | – | Which source the row came from (its raw folder's name). |
-| `said` | String | no | – | What the source said (BLS: its footnote), or 'absent from a response that has later months'. |
 
 ## Lookup tables: `src/coffee_review/transforms/lookups/`
 

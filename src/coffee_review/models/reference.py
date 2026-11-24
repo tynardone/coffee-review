@@ -1,11 +1,9 @@
 """The reference stage's contracts: exchange rates and CPI (M4).
 
-Three kinds of thing live here:
-
 - **What a parser returns** (``FxParsed``, ``CpiParsed``): rows in project
-  terms, whatever the source. A swapped source returns the same models.
-- **The identity of a saved response** (``FxResponse``, ``CpiResponse``): what
-  the raw store files a response under.
+  terms.
+- **A saved CPI response's name** (``CpiFile``): when it was fetched and the
+  years it asked for.
 - **The tidy tables' contracts**: a pandera ``DataFrameModel`` per table, as
   in ``models/clean.py``, checked before anything is written.
 """
@@ -14,7 +12,7 @@ from __future__ import annotations
 
 import datetime as dt
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Literal
 
 import pandera.polars as pa
 import polars as pl
@@ -40,13 +38,11 @@ class FxRate(FrozenModel):
 
 
 class CpiMonth(FrozenModel):
-    """One month of a CPI series. ``final`` is False when the source marks the
-    value preliminary, so it's asked for again later."""
+    """One month of a CPI series."""
 
     month: dt.date
     series: str
     index_value: float
-    final: bool
 
 
 class ParseProblem(FrozenModel):
@@ -55,9 +51,6 @@ class ParseProblem(FrozenModel):
     where: str
     value: str
     reason: str
-    # The period the value was for, when known: a dropped value's month is
-    # missing, not a gap, so it's asked for again.
-    period: dt.date | None = None
 
 
 class FxParsed(FrozenModel):
@@ -70,48 +63,28 @@ class FxParsed(FrozenModel):
     problems: tuple[ParseProblem, ...] = ()
 
 
-class CpiUnavailable(FrozenModel):
-    """A month the source says it doesn't have, in its own words (BLS marks
-    October 2025 with ``-`` and footnote X: no data was collected)."""
-
-    month: dt.date
-    series: str
-    said: str
-
-
 class CpiParsed(FrozenModel):
-    """One response's months for one series, and the months it says are
-    unavailable."""
+    """One response's months for one series.
+
+    ``unavailable`` are months the source says it will never have (BLS
+    footnote X). ``messages`` are what the source said alongside the data.
+    """
 
     series: str
     months: tuple[CpiMonth, ...]
-    problems: tuple[ParseProblem, ...] = ()
-    unavailable: tuple[CpiUnavailable, ...] = ()
-    # What the source said alongside the data (BLS ``message``). A response
-    # with a message may be partial, so no gaps are worked out from it.
+    unavailable: tuple[dt.date, ...] = ()
     messages: tuple[str, ...] = ()
+    problems: tuple[ParseProblem, ...] = ()
 
 
 class ReferenceParseError(Exception):
     """A response that isn't a valid answer: not saved, asked for again."""
 
 
-# --- Saved responses ---------------------------------------------------------
+class CpiFile(FrozenModel):
+    """A saved CPI response: when it was fetched (UTC) and the years it asked
+    for. A month can arrive in several; the newest wins."""
 
-
-class FxResponse(FrozenModel):
-    """A saved exchange-rate response: one per source and day."""
-
-    source: str
-    day: dt.date
-
-
-class CpiResponse(FrozenModel):
-    """A saved CPI response: one per request, named by when it was made (UTC)
-    and the years it asked for, since a month can arrive in several."""
-
-    source: str
-    series: str
     fetched_at: UtcDatetime
     start_year: int
     end_year: int
@@ -119,13 +92,7 @@ class CpiResponse(FrozenModel):
 
 # --- The tidy tables ---------------------------------------------------------
 
-type ReferenceTable = Literal["fx", "cpi", "fx_gaps", "cpi_gaps"]
-
-SOURCE = "Which source the row came from (its raw folder's name)."
-
-
-def _text(description: str) -> Any:
-    return pa.Field(description=description)
+type ReferenceTable = Literal["fx", "cpi"]
 
 
 class FxFrame(pa.DataFrameModel):
@@ -140,7 +107,6 @@ class FxFrame(pa.DataFrameModel):
     units_per_usd: float = pa.Field(
         description="Units of the currency one US dollar bought that day.", gt=0
     )
-    source: str = _text(SOURCE)
 
     class Config:
         strict = True
@@ -157,15 +123,16 @@ class CpiFrame(pa.DataFrameModel):
     """CPI: one row per series and month."""
 
     month: dt.date = pa.Field(description="The month, stored as its 1st.")
-    series: str = _text(
-        "The series id (CUUR0000SA0: CPI-U, all items, US city average, not"
-        " seasonally adjusted)."
+    series: str = pa.Field(
+        description=(
+            "The series id (CUUR0000SA0: CPI-U, all items, US city average, not"
+            " seasonally adjusted)."
+        )
     )
     index_value: float = pa.Field(
         description="The index for the month (1982–84 = 100 for CUUR0000SA0).",
         gt=0,
     )
-    source: str = _text(SOURCE)
 
     class Config:
         strict = True
@@ -178,51 +145,8 @@ class CpiFrame(pa.DataFrameModel):
         return first_of_month(data)
 
 
-class FxGapFrame(pa.DataFrameModel):
-    """Days with no rates in ``fx``: a source answered, but had none. Never
-    asked for again. A gap row always means "no value in the table"."""
-
-    day: dt.date = pa.Field(description="The day, in UTC: the 1st of a month.")
-    source: str = _text(SOURCE)
-    said: str = _text("What the source said (e.g. not_available).")
-
-    class Config:
-        strict = True
-        ordered = True
-        unique = ["day", "source"]  # noqa: RUF012
-
-    @pa.check("day")
-    @classmethod
-    def first_of_month(cls, data: PolarsData) -> pl.LazyFrame:
-        return first_of_month(data)
-
-
-class CpiGapFrame(pa.DataFrameModel):
-    """Months with no value in ``cpi``: the source will never have them
-    (e.g. October 2025, not collected). A gap row always means "no value in
-    the table"."""
-
-    month: dt.date = pa.Field(description="The month, stored as its 1st.")
-    series: str = _text("The series id.")
-    source: str = _text(SOURCE)
-    said: str = _text(
-        "What the source said (BLS: its footnote), or 'absent from a response that"
-        " has later months'."
-    )
-
-    class Config:
-        strict = True
-        ordered = True
-        unique = ["month", "series", "source"]  # noqa: RUF012
-
-    @pa.check("month")
-    @classmethod
-    def first_of_month(cls, data: PolarsData) -> pl.LazyFrame:
-        return first_of_month(data)
-
-
 _MODELS: Mapping[ReferenceTable, type[pa.DataFrameModel]] = MappingProxyType(
-    {"fx": FxFrame, "cpi": CpiFrame, "fx_gaps": FxGapFrame, "cpi_gaps": CpiGapFrame}
+    {"fx": FxFrame, "cpi": CpiFrame}
 )
 
 
@@ -233,16 +157,6 @@ def _polars_schema(model: type[pa.DataFrameModel]) -> pl.Schema:
 
 FX_SCHEMA = _polars_schema(FxFrame)
 CPI_SCHEMA = _polars_schema(CpiFrame)
-FX_GAPS_SCHEMA = _polars_schema(FxGapFrame)
-CPI_GAPS_SCHEMA = _polars_schema(CpiGapFrame)
-SCHEMAS: Mapping[ReferenceTable, pl.Schema] = MappingProxyType(
-    {
-        "fx": FX_SCHEMA,
-        "cpi": CPI_SCHEMA,
-        "fx_gaps": FX_GAPS_SCHEMA,
-        "cpi_gaps": CPI_GAPS_SCHEMA,
-    }
-)
 
 
 class ReferenceContractError(Exception):

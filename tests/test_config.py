@@ -127,7 +127,6 @@ def test_user_agent_links_the_public_repo() -> None:
 def test_reference_defaults() -> None:
     reference = load_settings().reference
 
-    assert (reference.fx_source, reference.cpi_source) == ("openexchangerates", "bls")
     assert (reference.fx_start, reference.cpi_start) == (
         date(2010, 1, 1),
         date(1997, 1, 1),

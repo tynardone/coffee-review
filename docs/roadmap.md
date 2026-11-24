@@ -4,7 +4,6 @@ Built one stage at a time. A stage is finished when its **Done when** line is
 true, and only then does the next one start. Ideas that come up along the way go
 in the [Backlog](#backlog), not into the current stage.
 
-Full design: [specs/2026-11-20-pipeline-roadmap-design.md](superpowers/specs/2026-11-20-pipeline-roadmap-design.md).
 Why things are the way they are: [decisions/](decisions/).
 
 ## M0. Foundations
@@ -85,14 +84,13 @@ have property tests.
 
 ## M4. Reference data
 
-Design: [specs/2026-11-22-m4-reference-design.md](superpowers/specs/2026-11-22-m4-reference-design.md);
-why: [ADR 0009](decisions/0009-raw-reference-responses-and-swappable-sources.md).
+Why: [ADR 0009](decisions/0009-keep-raw-reference-responses.md).
 
 - [x] Every response saved as received under `data/raw/`; tidy tables rebuilt from them on every run
-- [x] Sources behind Protocols and a registry (swap = client + parser + entry + setting)
 - [x] FX: the 1st of every month from 2010 (first non-USD price 2010-03), USD base, once each UTC day is over
-- [x] CPI-U `CUUR0000SA0` from 1997, keyless BLS v1 (10 years a request), M13 dropped; gaps kept in the source's words
+- [x] CPI-U `CUUR0000SA0` from 1997, keyless BLS v1 (10 years a request), M13 dropped; months the source marks unavailable not asked again
 - [x] `coffee-review fx`, `coffee-review cpi` (exit 3 when the source refuses or is down)
+- [x] Simplified (2026-11-23): a source registry, Protocols, in-memory fakes and gap tables removed as more than two fixed APIs need
 - [x] First real runs (2026-11-23 UTC): CPI 3 requests, 357 months 1997-01 to 2026-10, October 2025 a gap (BLS: no data collected in the 2025 lapse in appropriations); FX 203 requests, 33,925 rows; both reruns 0 requests
 
 **Done when:** both are up to date and a rerun costs zero requests.

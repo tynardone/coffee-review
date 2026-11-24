@@ -144,9 +144,7 @@ and adjust them for inflation:
 - `data/reference/fx.parquet`: units of each currency per US dollar on the
   1st of every month since 2010 (UTC);
 - `data/reference/cpi.parquet`: US CPI-U (all items, not seasonally adjusted),
-  monthly since 1997;
-- `fx_gaps.parquet`, `cpi_gaps.parquet`: periods the source has no data for,
-  in its own words (October 2025's CPI was never collected).
+  monthly since 1997. October 2025 is missing: the BLS never collected it.
 
 Each run asks only for what isn't saved yet: the first `fx` run is about 200
 requests (of the free plan's 1,000 a month), the first `cpi` run 3, and a
@@ -154,7 +152,7 @@ rerun none. Every response is kept as received under `data/raw/fx/` and
 `data/raw/cpi/`, and the tables are rebuilt from those files, so a parser fix
 needs no new requests. Exit codes: 0 finished · 1 error · 3 stopped because the
 source refused or didn't answer (rerun later; it carries on). See
-[ADR 0009](docs/decisions/0009-raw-reference-responses-and-swappable-sources.md).
+[ADR 0009](docs/decisions/0009-keep-raw-reference-responses.md).
 
 ## Checks
 
@@ -176,4 +174,3 @@ uv run pre-commit run --all-files
 - [Roadmap](docs/roadmap.md): milestones and progress
 - [Conventions](docs/conventions.md): structure, naming and test rules
 - [Decisions](docs/decisions/): why things are the way they are
-- [Design](docs/superpowers/specs/2026-11-20-pipeline-roadmap-design.md): the full roadmap design

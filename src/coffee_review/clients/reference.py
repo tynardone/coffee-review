@@ -1,4 +1,4 @@
-"""What a reference-data source's client looks like to the pipeline.
+"""How the reference-data clients tell an answer from a refusal.
 
 A client returns the response text whenever the source *answered*, including
 "I have no data for that" (the parser decides what the answer means). When
@@ -11,23 +11,19 @@ stops cleanly:
 - ``SourceUnavailableError``: no usable answer after retries (5xx, timeouts,
   network), or a status that isn't an answer.
 
-The Protocols are what the source registry in ``pipeline/reference.py``
-builds; a new source implements one of them.
+Shared by ``forex_api.py`` and ``bls_api.py``.
 """
 
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING, Any, Protocol, Self
+from typing import TYPE_CHECKING, Any
 
 import httpx
 
 from coffee_review.clients.http import RetriesExhaustedError
 
 if TYPE_CHECKING:
-    from datetime import date
-    from types import TracebackType
-
     from coffee_review.clients.http import BaseHttpClient
 
 # Retried: a server or gateway that may recover. Not retried: 429, which here
@@ -46,36 +42,6 @@ class SourceRefusedError(Exception):
 
 class SourceUnavailableError(Exception):
     """The source gave no usable answer, even after retries."""
-
-
-class FxClient(Protocol):
-    """Fetches one day's exchange rates, as the response text."""
-
-    async def fetch_day(self, day: date) -> str: ...
-
-    async def __aenter__(self) -> Self: ...
-
-    async def __aexit__(
-        self,
-        exc_type: type[BaseException] | None,
-        exc: BaseException | None,
-        tb: TracebackType | None,
-    ) -> None: ...
-
-
-class CpiClient(Protocol):
-    """Fetches one CPI series for a range of years, as the response text."""
-
-    async def fetch_years(self, series: str, start: int, end: int) -> str: ...
-
-    async def __aenter__(self) -> Self: ...
-
-    async def __aexit__(
-        self,
-        exc_type: type[BaseException] | None,
-        exc: BaseException | None,
-        tb: TracebackType | None,
-    ) -> None: ...
 
 
 async def fetch_answer(

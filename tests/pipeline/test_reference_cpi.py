@@ -1,204 +1,163 @@
-"""Tests for the cpi stage in coffee_review.pipeline.reference."""
+"""Tests for the cpi stage: the real client over a fake network, a store in a
+temp folder."""
 
 from __future__ import annotations
 
-import json
 import logging
 from datetime import UTC, date, datetime
+from typing import TYPE_CHECKING
 
-import pytest
+import httpx
 
-from coffee_review.clients.reference import SourceRefusedError
-from coffee_review.models.reference import CpiResponse
-from coffee_review.parsers.cpi_bls import parse_cpi_bls
-from coffee_review.pipeline.reference import (
-    CPI_SOURCES,
-    CpiSource,
-    ReferenceRunResult,
-    run_cpi,
-)
-from tests.fakes import (
-    FakeCpiClient,
-    InMemoryReferenceRawStore,
-    InMemoryReferenceStore,
-    bls_body,
-)
+from coffee_review.models.reference import CpiFile
+from coffee_review.pipeline.reference import ReferenceRunResult, run_cpi
+from coffee_review.storage.reference_store import ReferenceStore
+from tests.reference_samples import SERIES, bls_body, bls_client, published_through
 
-SERIES = "CUUR0000SA0"
+if TYPE_CHECKING:
+    from collections.abc import Callable
+    from pathlib import Path
+
+    import pytest
+
+    from tests.reference_samples import Reply
+
 START = date(1997, 1, 1)
 NOW = datetime(2026, 11, 22, 12, tzinfo=UTC)
 OCT_2025 = date(2025, 10, 1)
-
-
-def bls_like(max_years: int = 10) -> CpiSource:
-    return CpiSource(
-        client=CPI_SOURCES["bls"].client, parse=parse_cpi_bls, max_years=max_years
-    )
+THROUGH_OCTOBER = published_through(date(2026, 10, 1), unavailable=[OCT_2025])
 
 
 async def run(
-    client: FakeCpiClient,
-    raw: InMemoryReferenceRawStore,
-    store: InMemoryReferenceStore,
-    *,
+    store: ReferenceStore,
+    answer: Callable[[int, int], Reply] = THROUGH_OCTOBER,
     now: datetime = NOW,
-    name: str = "bls",
-) -> ReferenceRunResult:
-    return await run_cpi(
-        source_name=name,
-        sources={"bls": bls_like(), "other": bls_like()},
-        client=client,
-        raw=raw,
-        store=store,
-        series=SERIES,
-        start=START,
-        now=now,
+) -> tuple[ReferenceRunResult, list[tuple[int, int]]]:
+    client, asked = bls_client(answer)
+    result = await run_cpi(
+        client=client, store=store, series=SERIES, start=START, now=now
+    )
+    return result, asked
+
+
+async def test_first_run_three_requests_then_zero(tmp_path: Path) -> None:
+    store = ReferenceStore(tmp_path)
+
+    first, asked_first = await run(store)
+    again, asked_again = await run(store, now=NOW.replace(hour=13))
+
+    assert asked_first == [(1997, 2006), (2007, 2016), (2017, 2026)]
+    assert asked_again == []
+    assert (first.fetched, first.gaps) == (3, ("2025-10",))
+    assert again.gaps == ("2025-10",)
+    table = store.read_table("cpi")
+    assert table.height == 12 * 29 + 10 - 1  # 1997-01 to 2026-10, without 2025-10
+    assert OCT_2025 not in table["month"].to_list()
+
+
+async def test_unavailable_month_not_asked_again_next_month(tmp_path: Path) -> None:
+    store = ReferenceStore(tmp_path)
+    await run(store)
+
+    _, asked = await run(
+        store,
+        published_through(date(2026, 11, 1), unavailable=[OCT_2025]),
+        now=datetime(2026, 12, 20, 9, tzinfo=UTC),
     )
 
-
-async def test_first_run_three_requests_then_zero() -> None:
-    client = FakeCpiClient.published_through(date(2026, 10, 1), missing={OCT_2025})
-    raw, store = InMemoryReferenceRawStore(), InMemoryReferenceStore()
-
-    first = await run(client, raw, store)
-    again = await run(client, raw, store, now=NOW.replace(hour=13))
-
-    assert client.calls == [
-        (SERIES, 1997, 2006),
-        (SERIES, 2007, 2016),
-        (SERIES, 2017, 2026),
-    ]
-    assert (first.fetched, first.gaps) == (3, 1)
-    assert (again.requests, again.fetched) == (0, 0)
-    assert store.read_table("cpi_gaps")["month"].to_list() == [OCT_2025]
-    cpi = store.read_table("cpi")
-    assert cpi.height == 12 * 29 + 10 - 1  # 1997-01 to 2026-10, without 2025-10
-    assert (again.first, again.last) == (date(1997, 1, 1), date(2026, 10, 1))
+    assert asked == [(2026, 2026)]
 
 
-async def test_next_day_asks_again_only_if_a_month_is_missing() -> None:
-    raw, store = InMemoryReferenceRawStore(), InMemoryReferenceStore()
-    await run(FakeCpiClient.published_through(date(2026, 9, 1)), raw, store)
+async def test_newest_month_asked_once_a_day(tmp_path: Path) -> None:
+    store = ReferenceStore(tmp_path)
+    await run(store, published_through(date(2026, 9, 1)))
 
-    client = FakeCpiClient.published_through(date(2026, 10, 1))
-    later = await run(client, raw, store, now=datetime(2026, 11, 23, 8, tzinfo=UTC))
+    _, same_day = await run(store, published_through(date(2026, 9, 1)))
+    _, next_day = await run(
+        store,
+        published_through(date(2026, 10, 1)),
+        now=datetime(2026, 11, 23, 8, tzinfo=UTC),
+    )
 
-    assert client.calls == [(SERIES, 2026, 2026)]
-    assert later.last == date(2026, 10, 1)
-
-
-async def test_next_month_asks_only_this_year() -> None:
-    raw, store = InMemoryReferenceRawStore(), InMemoryReferenceStore()
-    await run(FakeCpiClient.published_through(date(2026, 10, 1)), raw, store)
-
-    client = FakeCpiClient.published_through(date(2026, 11, 1))
-    await run(client, raw, store, now=datetime(2026, 12, 20, 9, tzinfo=UTC))
-
-    assert client.calls == [(SERIES, 2026, 2026)]
+    assert same_day == []
+    assert next_day == [(2026, 2026)]
+    assert store.read_table("cpi")["month"].max() == date(2026, 10, 1)
 
 
-async def test_refused_daily_limit_stops_with_saved_kept() -> None:
-    published = FakeCpiClient.published_through(date(2026, 10, 1))
+async def test_newest_response_wins(tmp_path: Path) -> None:
+    store = ReferenceStore(tmp_path)
+    store.save_cpi(
+        SERIES,
+        CpiFile(
+            fetched_at=datetime(2026, 1, 1, tzinfo=UTC), start_year=2026, end_year=2026
+        ),
+        bls_body([date(2026, 1, 1)], value=1.0),
+    )
 
-    def answer(series: str, start: int, end: int) -> str | Exception:
-        if start == 2007:
-            return SourceRefusedError("bls: REQUEST_NOT_PROCESSED")
-        return published._answer(series, start, end)
+    await run(store, lambda start, end: bls_body([date(2026, 1, 1)], value=2.0))
 
-    client = FakeCpiClient(answer)
-    raw, store = InMemoryReferenceRawStore(), InMemoryReferenceStore()
+    jan = store.read_table("cpi").filter(
+        store.read_table("cpi")["month"] == date(2026, 1, 1)
+    )
+    assert jan["index_value"].to_list() == [2.0]
 
-    result = await run(client, raw, store)
+
+async def test_daily_limit_stops_with_saved_kept(tmp_path: Path) -> None:
+    store = ReferenceStore(tmp_path)
+    refused = httpx.Response(
+        200, json={"status": "REQUEST_NOT_PROCESSED", "message": ["daily threshold"]}
+    )
+
+    def answer(start: int, end: int) -> Reply:
+        return refused if start == 2007 else THROUGH_OCTOBER(start, end)
+
+    result, asked = await run(store, answer)
 
     assert result.outcome == "stopped"
-    assert client.calls == [(SERIES, 1997, 2006), (SERIES, 2007, 2016)]
-    assert [(r.start_year, r.end_year) for r in raw.list_cpi()] == [(1997, 2006)]
+    assert asked == [(1997, 2006), (2007, 2016)]
+    assert [(f.start_year, f.end_year) for f in store.cpi_files(SERIES)] == [
+        (1997, 2006)
+    ]
     assert store.read_table("cpi")["month"].max() == date(2006, 12, 1)
 
 
-async def test_saved_name_is_utc() -> None:
-    raw, store = InMemoryReferenceRawStore(), InMemoryReferenceStore()
+async def test_saved_name_is_utc(tmp_path: Path) -> None:
+    store = ReferenceStore(tmp_path)
 
-    await run(FakeCpiClient.published_through(date(2026, 10, 1)), raw, store)
+    await run(store)
 
-    assert {r.fetched_at for r in raw.list_cpi()} == {NOW}
+    assert {f.fetched_at for f in store.cpi_files(SERIES)} == {NOW}
 
 
-async def test_malformed_response_not_saved(caplog: pytest.LogCaptureFixture) -> None:
-    client = FakeCpiClient(lambda series, start, end: "<html>")
-    raw, store = InMemoryReferenceRawStore(), InMemoryReferenceStore()
+async def test_a_bls_message_is_logged(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    store = ReferenceStore(tmp_path)
 
     with caplog.at_level(logging.WARNING):
-        result = await run(client, raw, store)
+        await run(
+            store,
+            lambda start, end: bls_body([], message=["Series does not exist"]),
+        )
 
-    assert result.failed == 3
-    assert raw.list_cpi() == []
-    assert "1997-2006" in caplog.text
+    assert "Series does not exist" in caplog.text
 
 
 async def test_corrupt_saved_file_skipped_and_its_years_fetched_again(
-    caplog: pytest.LogCaptureFixture,
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
-    raw, store = InMemoryReferenceRawStore(), InMemoryReferenceStore()
-    earlier = datetime(2026, 11, 1, tzinfo=UTC)
-    raw.save_cpi(
-        CpiResponse(
-            source="bls",
-            series=SERIES,
-            fetched_at=earlier,
-            start_year=1997,
-            end_year=2006,
+    store = ReferenceStore(tmp_path)
+    store.save_cpi(
+        SERIES,
+        CpiFile(
+            fetched_at=datetime(2026, 11, 1, tzinfo=UTC), start_year=1997, end_year=2006
         ),
         "{",
     )
-    client = FakeCpiClient.published_through(date(2026, 10, 1))
 
     with caplog.at_level(logging.WARNING):
-        await run(client, raw, store)
+        _, asked = await run(store)
 
-    assert client.calls[0] == (SERIES, 1997, 2006)
+    assert asked[0] == (1997, 2006)
     assert "won't parse" in caplog.text
     assert store.read_table("cpi")["month"].min() == date(1997, 1, 1)
-
-
-async def test_swap_keeps_old_rows_and_fills_from_new() -> None:
-    raw, store = InMemoryReferenceRawStore(), InMemoryReferenceStore()
-    raw.save_cpi(
-        CpiResponse(
-            source="other",
-            series=SERIES,
-            fetched_at=datetime(2026, 1, 1, tzinfo=UTC),
-            start_year=1997,
-            end_year=1997,
-        ),
-        bls_body(SERIES, [date(1997, 1, 1)], value=1.0),
-    )
-
-    await run(FakeCpiClient.published_through(date(2026, 10, 1)), raw, store)
-
-    jan_1997 = store.read_table("cpi").row(0, named=True)
-    assert (jan_1997["source"], jan_1997["index_value"]) == ("bls", 100.0)
-
-
-def test_cpi_needs_no_key_and_reports_an_unknown_source() -> None:
-    from coffee_review.config import ReferenceSettings, Settings
-    from coffee_review.pipeline.reference import UnknownSourceError, cpi
-
-    settings = Settings(reference=ReferenceSettings(cpi_source="nope"))
-
-    with pytest.raises(UnknownSourceError, match="bls"):
-        cpi(settings, now=NOW)
-
-
-async def test_a_bls_message_is_logged(caplog: pytest.LogCaptureFixture) -> None:
-    def answer(series: str, start: int, end: int) -> str:
-        body = json.loads(bls_body(series, []))
-        body["message"] = ["Series does not exist for Series CUUR0000SAX"]
-        return json.dumps(body)
-
-    raw, store = InMemoryReferenceRawStore(), InMemoryReferenceStore()
-
-    with caplog.at_level(logging.WARNING):
-        await run(FakeCpiClient(answer), raw, store)
-
-    assert "Series does not exist" in caplog.text
