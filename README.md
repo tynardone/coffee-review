@@ -138,7 +138,7 @@ uv run coffee-review cpi   # US CPI-U from the BLS; no key needed
 uv run coffee-review fx    # exchange rates; needs COFFEE_REVIEW_FOREX_API__API_KEY
 ```
 
-The two tables the enrich stage (M5) needs to convert prices to US dollars
+The two tables the enrich stage needs to convert prices to US dollars
 and adjust them for inflation:
 
 - `data/economic/fx.parquet`: units of each currency per US dollar on the

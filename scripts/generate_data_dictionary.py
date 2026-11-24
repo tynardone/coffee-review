@@ -99,7 +99,7 @@ LOOKUPS: dict[str, tuple[str, dict[str, str]]] = {
     "roaster_currencies.csv": (
         (
             "Hand-kept: symbols whose currency depends on the roaster's country"
-            " (`$`, `¥`, `E`, `pesos`), Decision 7."
+            " (`$`, `¥`, `E`, `pesos`)."
         ),
         {
             "symbol": "The symbol as written.",
@@ -161,7 +161,7 @@ def render() -> str:
         "## Clean layer: `data/clean/`",
         (
             "Typed columns, checked against the contract in `models/clean.py` on every"
-            " run (Decisions 1–11 in the M3 design). Written by `clean`."
+            " run (ADR 0008). Written by `clean`."
         ),
         _pandera_table(
             "`roasted/reviews.parquet`",
@@ -179,7 +179,8 @@ def render() -> str:
         _rules_table(),
         "## Economic layer: `data/economic/`",
         (
-            "Exchange rates and US CPI for M5 to convert and adjust prices with."
+            "Exchange rates and US CPI for the enrich stage to convert and adjust"
+            " prices with."
             " Rebuilt in full from the saved responses and checked against the"
             " contracts in `models/economic.py` on every run. Written by `fx` and"
             " `cpi`. A period the source has no data for (October 2025's CPI) is"

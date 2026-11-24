@@ -1,6 +1,6 @@
 """Tests for coffee_review.pipeline.clean, against the in-memory fakes.
 
-The parsed store is seeded with records parsed from the M2 fixture pages, the
+The parsed store is seeded with records parsed from the parser's fixture pages, the
 same way a parse run fills it.
 """
 

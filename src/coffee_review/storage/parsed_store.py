@@ -50,7 +50,7 @@ class ParsedStore(Protocol):
     def read_table(self, dataset: Dataset) -> pl.DataFrame:
         """One dataset's reviews as a table, sorted by slug.
 
-        The column view the clean stage (M3) works on: every field as text,
+        The column view the clean stage works on: every field as text,
         with ``extra_count`` but not the extra values.
 
         Raises ``ParsedLayerMissingError`` when nothing has been parsed yet.

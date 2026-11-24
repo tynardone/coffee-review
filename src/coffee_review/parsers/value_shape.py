@@ -1,7 +1,7 @@
 """The shape of a value: what kind of characters it's made of, and in what order.
 
 Used by the parse report to show the formats each field comes in, so the clean
-stage (M3) can be designed from real data.
+stage can be designed from real data.
 
 Every digit becomes ``9``, so the number structure shows (``$99.99`` against
 ``$9.99``). Each run of letters becomes a single ``a``, because the length of a

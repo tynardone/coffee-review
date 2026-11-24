@@ -1,8 +1,7 @@
 """Rule columns, and turning them into the cleaning log.
 
 Every change the clean stage makes is recorded, so a reader can see which rule
-changed which value and why (the M3 design's first anti-goal: no value
-silently disappears).
+changed which value and why: no value silently disappears.
 
 How it works, for one field such as ``agtron``:
 

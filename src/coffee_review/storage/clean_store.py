@@ -48,7 +48,7 @@ class CleanStore(Protocol):
     def read_previous_log(self) -> pl.DataFrame:
         """The last run's cleaning log, or an empty one on a first run.
 
-        The report compares against it to mark what's new (Decision 10).
+        The report compares against it to mark what's new.
         """
         ...
 

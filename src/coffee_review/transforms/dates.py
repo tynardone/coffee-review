@@ -1,7 +1,7 @@
 """Review and harvest dates.
 
 The site gives a review's date only as a month and year ("May 2020"), so the
-clean column is ``review_month``: a date that's always the 1st (Decision 8).
+clean column is ``review_month``: a date that's always the 1st.
 """
 
 from __future__ import annotations

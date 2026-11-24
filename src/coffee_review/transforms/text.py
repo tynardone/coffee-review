@@ -1,4 +1,4 @@
-"""The review's text sections, carried through for M8 with one fix.
+"""The review's text sections, carried through as text, with one fix.
 
 Some notes contain zero-width characters (invisible, but they break word
 matching and lengths). They're removed, and the removal is logged.

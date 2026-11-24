@@ -1,12 +1,12 @@
 """A review's price, split into amount, currency, quantity and unit.
 
 ``NT $700/200 grams`` → 700, TWD, 200, gram (and 200 grams). The parse stage
-kept prices as text; converting to US dollars is M5's job, with exchange rates.
+kept prices as text; converting to US dollars is the enrich stage's job.
 
 - **Currency** comes from the symbol as written (``NT $``, ``CAD $``, ``£``,
   any ISO code). A symbol that means different currencies in different
   countries (``$``, ``¥``) is read using the roaster's country, and flagged
-  ``price_currency_inferred`` (Decision 7).
+  ``price_currency_inferred``.
 - **Quantity and unit** come from the text after the slash: ``12 ounces``,
   ``12-ounce can``, ``10 capsules``. A missing quantity is 1 (``$8.99/can``).
   Grams are worked out for weights only.
@@ -114,7 +114,7 @@ def resolve_currency(
         if ANYWHERE in countries:
             # The symbol's usual meaning ($ → USD) is only certain for a roaster
             # where it is the local currency; anywhere else (or an unknown
-            # roaster) it's an assumption, and flagged as one (Decision 7).
+            # roaster) it's an assumption, and flagged as one.
             home = roaster_country in HOME_COUNTRIES.get(key, ())
             rules: tuple[CleanRule, ...] = () if home else ("currency_from_roaster",)
             return countries[ANYWHERE], not home, rules

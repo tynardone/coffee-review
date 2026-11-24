@@ -1,4 +1,4 @@
-"""The economic stage's contracts: exchange rates and CPI (M4).
+"""The economic stage's contracts: exchange rates and CPI.
 
 - **What a parser returns** (``FxParsed``, ``CpiParsed``): rows in project
   terms.

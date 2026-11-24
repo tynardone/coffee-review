@@ -152,4 +152,4 @@ way in paths, module names and CLI commands.
 
 - One concern per commit. A config fix and a parser change are two commits.
 - `docs/roadmap.md` is updated in the same commit as the work it tracks.
-- `TODO(<milestone>): <what and why>` for known gaps, e.g. `TODO(M1): ...`.
+- `TODO(<stage>): <what and why>` for known gaps, e.g. `TODO(clean): ...`.

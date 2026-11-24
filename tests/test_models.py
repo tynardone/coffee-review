@@ -140,7 +140,7 @@ def test_format_elapsed(seconds: float, text: str) -> None:
     assert format_elapsed(seconds) == text
 
 
-# --- parsed records (M2) -----------------------------------------------------
+# --- parsed records ----------------------------------------------------------
 
 
 def roasted(**overrides: object) -> RoastedReview:

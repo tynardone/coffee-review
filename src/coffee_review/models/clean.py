@@ -1,8 +1,8 @@
 """The clean stage's contract: the clean tables' columns, types and checks.
 
-M3 turns the parsed text into typed columns. This module says what a clean
+The clean stage turns the parsed text into typed columns. This module says what a clean
 table must look like, once, so the pipeline can check every run against it
-before anything is written (see the M3 design, "The contract").
+before anything is written.
 
 The contract is a pandera ``DataFrameModel`` per table, using pandera's Polars
 backend. Each model lists its columns in table order, with their types and
@@ -175,7 +175,8 @@ class CleanRoastedFrame(pa.DataFrameModel):
     roaster_url: str = _optional("The link on the roaster's logo.")
     review_month: dt.date = pa.Field(
         description=(
-            "The month of the review, always stored as its 1st day (Decision 8)."
+            "The month of the review, always stored as its 1st day (the site gives"
+            " only month and year)."
         ),
         nullable=True,
     )
@@ -295,7 +296,8 @@ class CleanGreenFrame(pa.DataFrameModel):
     roaster_url: str = _optional("The link on the roaster's logo.")
     review_month: dt.date = pa.Field(
         description=(
-            "The month of the review, always stored as its 1st day (Decision 8)."
+            "The month of the review, always stored as its 1st day (the site gives"
+            " only month and year)."
         ),
         nullable=True,
     )

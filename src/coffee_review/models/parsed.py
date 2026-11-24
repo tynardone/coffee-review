@@ -9,11 +9,11 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from coffee_review.models.common import FrozenModel, Slug
 
-# --- Parsed records (M2) -----------------------------------------------------
+# --- Parsed records ----------------------------------------------------------
 #
 # Every value is the text as it appears on the page, cleaned of tags and extra
-# whitespace; M3 turns it into numbers, dates and so on. A field that isn't on
-# the page is None, never a guess.
+# whitespace; the clean stage turns it into numbers, dates and so on. A field
+# that isn't on the page is None, never a guess.
 #
 # Roasted and green reviews are different models, so a record can only hold
 # the fields its kind of review has: a green review has no aroma, a roasted one
