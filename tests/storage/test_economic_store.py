@@ -1,4 +1,4 @@
-"""Tests for coffee_review.storage.reference_store."""
+"""Tests for coffee_review.storage.economic_store."""
 
 from __future__ import annotations
 
@@ -8,17 +8,17 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from coffee_review.models.reference import CpiFile
-from coffee_review.storage.reference_store import (
-    ReferenceLayerMissingError,
-    ReferenceStore,
+from coffee_review.models.economic import CpiFile
+from coffee_review.storage.economic_store import (
+    EconomicLayerMissingError,
+    EconomicStore,
 )
-from tests.models.test_reference_contract import frame
+from tests.models.test_economic_contract import frame
 
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from coffee_review.models.reference import ReferenceTable
+    from coffee_review.models.economic import EconomicTable
 
 SERIES = "CUUR0000SA0"
 FILE = CpiFile(
@@ -29,7 +29,7 @@ FILE = CpiFile(
 
 
 def test_fx_save_list_read(tmp_path: Path) -> None:
-    store = ReferenceStore(tmp_path)
+    store = EconomicStore(tmp_path)
 
     store.save_fx(date(2020, 3, 1), '{"note": "Kč ¥"}')
 
@@ -40,7 +40,7 @@ def test_fx_save_list_read(tmp_path: Path) -> None:
 
 
 def test_fx_save_again_replaces(tmp_path: Path) -> None:
-    store = ReferenceStore(tmp_path)
+    store = EconomicStore(tmp_path)
 
     store.save_fx(date(2020, 3, 1), "{")
     store.save_fx(date(2020, 3, 1), "{}")
@@ -51,14 +51,14 @@ def test_fx_save_again_replaces(tmp_path: Path) -> None:
 
 
 def test_nothing_saved_lists_nothing(tmp_path: Path) -> None:
-    store = ReferenceStore(tmp_path)
+    store = EconomicStore(tmp_path)
 
     assert store.fx_days() == []
     assert store.cpi_files(SERIES) == []
 
 
 def test_cpi_save_list_read(tmp_path: Path) -> None:
-    store = ReferenceStore(tmp_path)
+    store = EconomicStore(tmp_path)
 
     store.save_cpi(SERIES, FILE, "{}")
 
@@ -69,7 +69,7 @@ def test_cpi_save_list_read(tmp_path: Path) -> None:
 
 
 def test_cpi_fetched_at_named_in_utc(tmp_path: Path) -> None:
-    store = ReferenceStore(tmp_path)
+    store = EconomicStore(tmp_path)
     eastern = timezone(timedelta(hours=-5))
     local = FILE.model_copy(
         update={"fetched_at": datetime(2026, 11, 22, 7, 30, 5, tzinfo=eastern)}
@@ -81,7 +81,7 @@ def test_cpi_fetched_at_named_in_utc(tmp_path: Path) -> None:
 
 
 def test_cpi_files_oldest_first(tmp_path: Path) -> None:
-    store = ReferenceStore(tmp_path)
+    store = EconomicStore(tmp_path)
     later = FILE.model_copy(
         update={"fetched_at": datetime(2026, 12, 1, tzinfo=UTC), "start_year": 2026}
     )
@@ -95,7 +95,7 @@ def test_cpi_files_oldest_first(tmp_path: Path) -> None:
 def test_stray_files_skipped_with_a_warning(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
-    store = ReferenceStore(tmp_path)
+    store = EconomicStore(tmp_path)
     store.save_fx(date(2020, 1, 1), "{}")
     fx_dir = tmp_path / "raw" / "fx" / "openexchangerates"
     (fx_dir / "notes.txt").write_text("hi", encoding="utf-8")
@@ -115,16 +115,16 @@ def test_stray_files_skipped_with_a_warning(
 
 
 @pytest.mark.parametrize("table", ["fx", "cpi"])
-def test_table_write_then_read(tmp_path: Path, table: ReferenceTable) -> None:
-    store = ReferenceStore(tmp_path)
+def test_table_write_then_read(tmp_path: Path, table: EconomicTable) -> None:
+    store = EconomicStore(tmp_path)
     written = frame(table)
 
     store.write_table(table, written)
 
     assert store.read_table(table).equals(written)
-    assert store.location(table) == str(tmp_path / "reference" / f"{table}.parquet")
+    assert store.location(table) == str(tmp_path / "economic" / f"{table}.parquet")
 
 
 def test_table_read_before_write_raises(tmp_path: Path) -> None:
-    with pytest.raises(ReferenceLayerMissingError, match="run fx or cpi first"):
-        ReferenceStore(tmp_path).read_table("fx")
+    with pytest.raises(EconomicLayerMissingError, match="run fx or cpi first"):
+        EconomicStore(tmp_path).read_table("fx")

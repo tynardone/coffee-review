@@ -11,12 +11,12 @@ from __future__ import annotations
 import json
 from typing import TYPE_CHECKING
 
-from coffee_review.clients.http import BaseHttpClient
-from coffee_review.clients.reference import (
-    REFERENCE_RETRYABLE_STATUS,
+from coffee_review.clients.economic import (
+    ECONOMIC_RETRYABLE_STATUS,
     SourceRefusedError,
     fetch_answer,
 )
+from coffee_review.clients.http import BaseHttpClient
 
 if TYPE_CHECKING:
     import httpx
@@ -28,7 +28,7 @@ NOT_PROCESSED = "REQUEST_NOT_PROCESSED"
 
 
 class BlsApiClient(BaseHttpClient):
-    retryable_status = REFERENCE_RETRYABLE_STATUS
+    retryable_status = ECONOMIC_RETRYABLE_STATUS
 
     def __init__(
         self,

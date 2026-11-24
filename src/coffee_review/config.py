@@ -129,8 +129,8 @@ class BLSApiSettings(HttpClientSettings):
     max_concurrency: int = Field(default=1, ge=1)
 
 
-class ReferenceSettings(BaseModel):
-    """How far back the reference stages go, and which CPI series."""
+class EconomicSettings(BaseModel):
+    """How far back the economic stages go, and which CPI series."""
 
     # Exchange rates for the 1st of every month from here (first non-USD
     # price: 2010-03).
@@ -160,7 +160,7 @@ class Settings(BaseSettings):
     coffee_site: CoffeeSiteSettings = Field(default_factory=CoffeeSiteSettings)
     forex_api: ForexApiSettings = Field(default_factory=ForexApiSettings)
     bls_api: BLSApiSettings = Field(default_factory=BLSApiSettings)
-    reference: ReferenceSettings = Field(default_factory=ReferenceSettings)
+    economic: EconomicSettings = Field(default_factory=EconomicSettings)
 
     # Root of every data layer (raw, parsed, ...) and of run logs.
     data_dir: Path = Path("data")

@@ -1,10 +1,10 @@
-"""The reference stages: exchange rates (``fx``) and CPI (``cpi``).
+"""The economic stages: exchange rates (``fx``) and CPI (``cpi``).
 
 Each stage works the same way:
 
 1. Parse every saved response. A saved file that won't parse is treated as
    missing, so it's fetched again.
-2. Work out what's missing (``transforms/reference``) and fetch only that,
+2. Work out what's missing (``transforms/economic``) and fetch only that,
    saving each answer before it's used.
 3. Rebuild the tidy table in full from the saved responses, check it against
    its contract, and write it.
@@ -25,21 +25,21 @@ from pathlib import PurePath
 from typing import TYPE_CHECKING, Literal
 
 from coffee_review.clients.bls_api import BlsApiClient
-from coffee_review.clients.forex_api import ForexApiClient
-from coffee_review.clients.reference import (
+from coffee_review.clients.economic import (
     SourceAuthError,
     SourceRefusedError,
     SourceUnavailableError,
 )
-from coffee_review.models.reference import (
+from coffee_review.clients.forex_api import ForexApiClient
+from coffee_review.models.economic import (
     CpiFile,
-    ReferenceParseError,
-    validate_reference,
+    EconomicParseError,
+    validate_economic,
 )
 from coffee_review.parsers.cpi_bls import parse_cpi_bls
 from coffee_review.parsers.fx_openexchangerates import parse_fx_openexchangerates
-from coffee_review.storage.reference_store import open_reference_store
-from coffee_review.transforms.reference import (
+from coffee_review.storage.economic_store import open_economic_store
+from coffee_review.transforms.economic import (
     build_cpi,
     build_fx,
     cpi_wanted_months,
@@ -52,8 +52,8 @@ if TYPE_CHECKING:
     import polars as pl
 
     from coffee_review.config import Settings
-    from coffee_review.models.reference import CpiParsed, FxParsed
-    from coffee_review.storage.reference_store import ReferenceStore
+    from coffee_review.models.economic import CpiParsed, FxParsed
+    from coffee_review.storage.economic_store import EconomicStore
 
 logger = logging.getLogger(__name__)
 
@@ -71,7 +71,7 @@ type Outcome = Literal["finished", "stopped"]
 
 
 @dataclass(frozen=True)
-class ReferenceRunResult:
+class EconomicRunResult:
     """What one fx or cpi run did, and what the table holds afterwards."""
 
     kind: Literal["fx", "cpi"]
@@ -122,7 +122,7 @@ class _Fetching:
         self.outcome, self.reason = "stopped", reason
         logger.warning("%s stopped: %s", self.kind, reason)
 
-    def unparsable_answer(self, what: str, exc: ReferenceParseError) -> bool:
+    def unparsable_answer(self, what: str, exc: EconomicParseError) -> bool:
         """Count an answer that won't parse; True when the run should stop."""
         self.failed += 1
         self.unparsable += 1
@@ -142,29 +142,29 @@ class _Fetching:
 # --- Exchange rates ----------------------------------------------------------
 
 
-def fx(settings: Settings, *, today: date | None = None) -> ReferenceRunResult:
+def fx(settings: Settings, *, today: date | None = None) -> EconomicRunResult:
     """Bring the exchange-rate table up to date. Needs the API key, checked
     before anything else."""
     client = ForexApiClient(settings.forex_api)
     return asyncio.run(
         run_fx(
             client=client,
-            store=open_reference_store(settings),
-            start=settings.reference.fx_start,
+            store=open_economic_store(settings),
+            start=settings.economic.fx_start,
             today=today or datetime.now(UTC).date(),
         )
     )
 
 
 async def run_fx(
-    *, client: ForexApiClient, store: ReferenceStore, start: date, today: date
-) -> ReferenceRunResult:
+    *, client: ForexApiClient, store: EconomicStore, start: date, today: date
+) -> EconomicRunResult:
     """Fetch the missing days, then rebuild the FX table."""
     parsed: dict[date, FxParsed] = {}
     for day in store.fx_days():
         try:
             parsed[day] = parse_fx_openexchangerates(store.read_fx(day), day)
-        except ReferenceParseError as exc:
+        except EconomicParseError as exc:
             logger.warning(
                 "fx %s: saved file won't parse, fetching again: %s", day, exc
             )
@@ -181,7 +181,7 @@ async def run_fx(
                 break
             try:
                 response = parse_fx_openexchangerates(text, day)
-            except ReferenceParseError as exc:
+            except EconomicParseError as exc:
                 if tally.unparsable_answer(str(day), exc):
                     break
                 continue
@@ -189,7 +189,7 @@ async def run_fx(
             parsed[day] = response
             tally.saved()
 
-    table = validate_reference(build_fx(parsed.values()), "fx")
+    table = validate_economic(build_fx(parsed.values()), "fx")
     store.write_table("fx", table)
     gaps = [f"{day}" for day in sorted(parsed) if parsed[day].gap]
     already = len(wanted) - len(missing)
@@ -199,14 +199,14 @@ async def run_fx(
 # --- CPI ---------------------------------------------------------------------
 
 
-def cpi(settings: Settings, *, now: datetime | None = None) -> ReferenceRunResult:
+def cpi(settings: Settings, *, now: datetime | None = None) -> EconomicRunResult:
     """Bring the CPI table up to date (no key needed)."""
     return asyncio.run(
         run_cpi(
             client=BlsApiClient(settings.bls_api),
-            store=open_reference_store(settings),
-            series=settings.reference.cpi_series,
-            start=settings.reference.cpi_start,
+            store=open_economic_store(settings),
+            series=settings.economic.cpi_series,
+            start=settings.economic.cpi_start,
             now=now or datetime.now(UTC),
         )
     )
@@ -215,11 +215,11 @@ def cpi(settings: Settings, *, now: datetime | None = None) -> ReferenceRunResul
 async def run_cpi(
     *,
     client: BlsApiClient,
-    store: ReferenceStore,
+    store: EconomicStore,
     series: str,
     start: date,
     now: datetime,
-) -> ReferenceRunResult:
+) -> EconomicRunResult:
     """Fetch the missing years of ``series``, then rebuild the CPI table.
 
     ``now`` (UTC) names each saved response, and its date is "today" for the
@@ -231,7 +231,7 @@ async def run_cpi(
     for file in store.cpi_files(series):
         try:
             saved.append((file, parse_cpi_bls(store.read_cpi(series, file), series)))
-        except ReferenceParseError as exc:
+        except EconomicParseError as exc:
             logger.warning(
                 "cpi %s (%s-%s): saved file won't parse; its years count as"
                 " missing: %s",
@@ -262,7 +262,7 @@ async def run_cpi(
                 break
             try:
                 response = parse_cpi_bls(text, series)
-            except ReferenceParseError as exc:
+            except EconomicParseError as exc:
                 if tally.unparsable_answer(years, exc):
                     break
                 continue
@@ -274,7 +274,7 @@ async def run_cpi(
             tally.saved()
 
     newest_first = [p for _, p in sorted(saved, key=lambda s: s[0].fetched_at)][::-1]
-    table = validate_reference(build_cpi(newest_first), "cpi")
+    table = validate_economic(build_cpi(newest_first), "cpi")
     store.write_table("cpi", table)
     gaps = sorted(
         {m for p in newest_first for m in p.unavailable} - set(table["month"])
@@ -292,10 +292,10 @@ def _result(
     already: int,
     gaps: list[str],
     table: pl.DataFrame,
-    store: ReferenceStore,
-) -> ReferenceRunResult:
+    store: EconomicStore,
+) -> EconomicRunResult:
     dates = table[table.columns[0]]
-    result = ReferenceRunResult(
+    result = EconomicRunResult(
         kind=kind,
         outcome=tally.outcome,
         reason=tally.reason,

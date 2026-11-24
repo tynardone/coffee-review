@@ -10,7 +10,7 @@ from datetime import date
 
 import pytest
 
-from coffee_review.models.reference import ReferenceParseError
+from coffee_review.models.economic import EconomicParseError
 from coffee_review.parsers.cpi_bls import parse_cpi_bls
 
 SERIES = "CUUR0000SA0"
@@ -106,7 +106,7 @@ def test_empty_data_with_message_is_no_months() -> None:
     ],
 )
 def test_rejects_what_isnt_an_answer(text: str) -> None:
-    with pytest.raises(ReferenceParseError):
+    with pytest.raises(EconomicParseError):
         parse_cpi_bls(text, SERIES)
 
 

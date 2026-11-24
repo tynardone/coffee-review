@@ -20,11 +20,11 @@ import re
 from datetime import date
 from typing import Any
 
-from coffee_review.models.reference import (
+from coffee_review.models.economic import (
     CpiMonth,
     CpiParsed,
+    EconomicParseError,
     ParseProblem,
-    ReferenceParseError,
 )
 
 MONTH_PERIOD = re.compile(r"^M(0[1-9]|1[0-2])$")
@@ -35,13 +35,13 @@ def parse_cpi_bls(text: str, series: str) -> CpiParsed:
     """The months of ``series`` in one response."""
     body = _load(text)
     if body.get("status") != "REQUEST_SUCCEEDED":
-        raise ReferenceParseError(
+        raise EconomicParseError(
             f"cpi: status {body.get('status')!r}, message {body.get('message')!r}"
         )
     results = body.get("Results")
     entries = results.get("series") if isinstance(results, dict) else None
     if not isinstance(entries, list):
-        raise ReferenceParseError("cpi: no Results.series list")
+        raise EconomicParseError("cpi: no Results.series list")
 
     months: list[CpiMonth] = []
     problems: list[ParseProblem] = []
@@ -78,9 +78,9 @@ def _load(text: str) -> dict[str, Any]:
     try:
         body = json.loads(text)
     except json.JSONDecodeError as exc:
-        raise ReferenceParseError(f"not JSON: {exc}") from None
+        raise EconomicParseError(f"not JSON: {exc}") from None
     if not isinstance(body, dict):
-        raise ReferenceParseError("not a JSON object")
+        raise EconomicParseError("not a JSON object")
     return body
 
 

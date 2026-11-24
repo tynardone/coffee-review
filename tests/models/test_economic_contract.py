@@ -1,4 +1,4 @@
-"""Tests for coffee_review.models.reference: the reference-table contracts."""
+"""Tests for coffee_review.models.economic: the economic-table contracts."""
 
 from __future__ import annotations
 
@@ -8,15 +8,15 @@ from typing import TYPE_CHECKING
 import polars as pl
 import pytest
 
-from coffee_review.models.reference import (
+from coffee_review.models.economic import (
     CPI_SCHEMA,
     FX_SCHEMA,
-    ReferenceContractError,
-    validate_reference,
+    EconomicContractError,
+    validate_economic,
 )
 
 if TYPE_CHECKING:
-    from coffee_review.models.reference import ReferenceTable
+    from coffee_review.models.economic import EconomicTable
 
 ROWS: dict[str, dict[str, object]] = {
     "fx": {"day": date(2020, 1, 1), "currency": "TWD", "units_per_usd": 30.1},
@@ -31,10 +31,10 @@ def frame(table: str, *rows: dict[str, object], **changes: object) -> pl.DataFra
 
 
 @pytest.mark.parametrize("table", ["fx", "cpi"])
-def test_each_valid_frame_passes(table: ReferenceTable) -> None:
+def test_each_valid_frame_passes(table: EconomicTable) -> None:
     valid = frame(table)
 
-    assert validate_reference(valid, table).equals(valid)
+    assert validate_economic(valid, table).equals(valid)
 
 
 @pytest.mark.parametrize(
@@ -54,22 +54,22 @@ def test_each_valid_frame_passes(table: ReferenceTable) -> None:
     ],
 )
 def test_each_violation_fails(
-    table: ReferenceTable, bad: pl.DataFrame, column: str
+    table: EconomicTable, bad: pl.DataFrame, column: str
 ) -> None:
-    with pytest.raises(ReferenceContractError, match=column):
-        validate_reference(bad, table)
+    with pytest.raises(EconomicContractError, match=column):
+        validate_economic(bad, table)
 
 
 @pytest.mark.parametrize("table", ["fx", "cpi"])
-def test_duplicate_key_fails(table: ReferenceTable) -> None:
-    with pytest.raises(ReferenceContractError):
-        validate_reference(frame(table, ROWS[table], ROWS[table]), table)
+def test_duplicate_key_fails(table: EconomicTable) -> None:
+    with pytest.raises(EconomicContractError):
+        validate_economic(frame(table, ROWS[table], ROWS[table]), table)
 
 
 def test_same_day_other_currency_passes() -> None:
     valid = frame("fx", ROWS["fx"], ROWS["fx"] | {"currency": "CAD"})
 
-    assert validate_reference(valid, "fx").equals(valid)
+    assert validate_economic(valid, "fx").equals(valid)
 
 
 def test_schemas() -> None:

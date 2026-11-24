@@ -10,7 +10,7 @@ from datetime import date
 
 import pytest
 
-from coffee_review.models.reference import ReferenceParseError
+from coffee_review.models.economic import EconomicParseError
 from coffee_review.parsers.fx_openexchangerates import parse_fx_openexchangerates
 
 DAY = date(2020, 1, 1)
@@ -45,7 +45,7 @@ def test_reads_every_rate() -> None:
 
 
 def test_rejects_a_non_usd_base() -> None:
-    with pytest.raises(ReferenceParseError, match="base"):
+    with pytest.raises(EconomicParseError, match="base"):
         parse_fx_openexchangerates(oxr(base="EUR"), DAY)
 
 
@@ -104,5 +104,5 @@ def test_not_available_is_a_gap() -> None:
     ],
 )
 def test_rejects_what_isnt_an_answer(text: str) -> None:
-    with pytest.raises(ReferenceParseError):
+    with pytest.raises(EconomicParseError):
         parse_fx_openexchangerates(text, DAY)

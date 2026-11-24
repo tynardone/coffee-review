@@ -1,4 +1,4 @@
-"""Checks shared by the pandera table contracts (``clean.py``, ``reference.py``)."""
+"""Checks shared by the pandera table contracts (``clean.py``, ``economic.py``)."""
 
 from __future__ import annotations
 

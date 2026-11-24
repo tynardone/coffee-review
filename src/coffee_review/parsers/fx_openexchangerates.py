@@ -13,11 +13,11 @@ import math
 import re
 from typing import TYPE_CHECKING, Any
 
-from coffee_review.models.reference import (
+from coffee_review.models.economic import (
+    EconomicParseError,
     FxParsed,
     FxRate,
     ParseProblem,
-    ReferenceParseError,
 )
 
 if TYPE_CHECKING:
@@ -34,14 +34,14 @@ def parse_fx_openexchangerates(text: str, day: date) -> FxParsed:
         message = body.get("message")
         if message in GAP_MESSAGES:
             return FxParsed(day=day, rates=(), gap=str(message))
-        raise ReferenceParseError(f"fx {day}: error response {message!r}")
+        raise EconomicParseError(f"fx {day}: error response {message!r}")
     if body.get("base") != "USD":
-        raise ReferenceParseError(
+        raise EconomicParseError(
             f"fx {day}: base is {body.get('base')!r}, expected 'USD'"
         )
     rates = body.get("rates")
     if not isinstance(rates, dict):
-        raise ReferenceParseError(f"fx {day}: no rates object")
+        raise EconomicParseError(f"fx {day}: no rates object")
 
     kept: list[FxRate] = []
     problems: list[ParseProblem] = []
@@ -61,9 +61,9 @@ def _load(text: str) -> dict[str, Any]:
     try:
         body = json.loads(text)
     except json.JSONDecodeError as exc:
-        raise ReferenceParseError(f"not JSON: {exc}") from None
+        raise EconomicParseError(f"not JSON: {exc}") from None
     if not isinstance(body, dict):
-        raise ReferenceParseError("not a JSON object")
+        raise EconomicParseError("not a JSON object")
     return body
 
 
