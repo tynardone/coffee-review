@@ -1,4 +1,4 @@
-"""Client for the BLS Public Data API, keyless (v1): a ``CpiClient``.
+"""Client for the BLS Public Data API, keyless (v1).
 
 Keyless means 25 requests a day and at most 10 years per request; the pipeline
 plans requests within that. BLS reports its daily limit inside a 200 response

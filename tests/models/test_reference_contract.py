@@ -9,9 +9,7 @@ import polars as pl
 import pytest
 
 from coffee_review.models.reference import (
-    CPI_GAPS_SCHEMA,
     CPI_SCHEMA,
-    FX_GAPS_SCHEMA,
     FX_SCHEMA,
     ReferenceContractError,
     validate_reference,
@@ -21,36 +19,10 @@ if TYPE_CHECKING:
     from coffee_review.models.reference import ReferenceTable
 
 ROWS: dict[str, dict[str, object]] = {
-    "fx": {
-        "day": date(2020, 1, 1),
-        "currency": "TWD",
-        "units_per_usd": 30.1,
-        "source": "openexchangerates",
-    },
-    "cpi": {
-        "month": date(2020, 1, 1),
-        "series": "CUUR0000SA0",
-        "index_value": 257.971,
-        "source": "bls",
-    },
-    "fx_gaps": {
-        "day": date(2020, 1, 1),
-        "source": "openexchangerates",
-        "said": "not_available",
-    },
-    "cpi_gaps": {
-        "month": date(2025, 10, 1),
-        "series": "CUUR0000SA0",
-        "source": "bls",
-        "said": "absent from a response that has later months",
-    },
+    "fx": {"day": date(2020, 1, 1), "currency": "TWD", "units_per_usd": 30.1},
+    "cpi": {"month": date(2020, 1, 1), "series": "CUUR0000SA0", "index_value": 257.971},
 }
-SCHEMAS = {
-    "fx": FX_SCHEMA,
-    "cpi": CPI_SCHEMA,
-    "fx_gaps": FX_GAPS_SCHEMA,
-    "cpi_gaps": CPI_GAPS_SCHEMA,
-}
+SCHEMAS = {"fx": FX_SCHEMA, "cpi": CPI_SCHEMA}
 
 
 def frame(table: str, *rows: dict[str, object], **changes: object) -> pl.DataFrame:
@@ -58,76 +30,54 @@ def frame(table: str, *rows: dict[str, object], **changes: object) -> pl.DataFra
     return pl.DataFrame(chosen, schema=SCHEMAS[table])
 
 
-@pytest.mark.parametrize("table", ["fx", "cpi", "fx_gaps", "cpi_gaps"])
+@pytest.mark.parametrize("table", ["fx", "cpi"])
 def test_each_valid_frame_passes(table: ReferenceTable) -> None:
     valid = frame(table)
 
     assert validate_reference(valid, table).equals(valid)
 
 
-def test_fx_rejects_non_positive_rate() -> None:
-    with pytest.raises(ReferenceContractError, match="units_per_usd"):
-        validate_reference(frame("fx", units_per_usd=0.0), "fx")
+@pytest.mark.parametrize(
+    ("table", "bad", "column"),
+    [
+        pytest.param(
+            "fx", frame("fx", units_per_usd=0.0), "units_per_usd", id="rate-0"
+        ),
+        pytest.param("fx", frame("fx", currency="twd"), "currency", id="lowercase"),
+        pytest.param("fx", frame("fx", day=date(2020, 1, 2)), "day", id="not-1st"),
+        pytest.param(
+            "cpi", frame("cpi", index_value=-1.0), "index_value", id="cpi-neg"
+        ),
+        pytest.param(
+            "cpi", frame("cpi", month=date(2020, 1, 15)), "month", id="cpi-1st"
+        ),
+    ],
+)
+def test_each_violation_fails(
+    table: ReferenceTable, bad: pl.DataFrame, column: str
+) -> None:
+    with pytest.raises(ReferenceContractError, match=column):
+        validate_reference(bad, table)
 
 
-def test_fx_rejects_lowercase_currency() -> None:
-    with pytest.raises(ReferenceContractError, match="currency"):
-        validate_reference(frame("fx", currency="twd"), "fx")
-
-
-def test_fx_rejects_day_not_first() -> None:
-    with pytest.raises(ReferenceContractError, match="day"):
-        validate_reference(frame("fx", day=date(2020, 1, 2)), "fx")
-
-
-def test_fx_rejects_duplicate_day_currency() -> None:
+@pytest.mark.parametrize("table", ["fx", "cpi"])
+def test_duplicate_key_fails(table: ReferenceTable) -> None:
     with pytest.raises(ReferenceContractError):
-        validate_reference(frame("fx", ROWS["fx"], ROWS["fx"]), "fx")
+        validate_reference(frame(table, ROWS[table], ROWS[table]), table)
 
 
-def test_fx_allows_same_day_other_currency() -> None:
-    other = ROWS["fx"] | {"currency": "CAD"}
-    valid = frame("fx", ROWS["fx"], other)
+def test_same_day_other_currency_passes() -> None:
+    valid = frame("fx", ROWS["fx"], ROWS["fx"] | {"currency": "CAD"})
 
     assert validate_reference(valid, "fx").equals(valid)
 
 
-def test_cpi_rejects_duplicate_month_series() -> None:
-    with pytest.raises(ReferenceContractError):
-        validate_reference(frame("cpi", ROWS["cpi"], ROWS["cpi"]), "cpi")
-
-
-def test_cpi_rejects_month_not_first() -> None:
-    with pytest.raises(ReferenceContractError, match="month"):
-        validate_reference(frame("cpi", month=date(2020, 1, 15)), "cpi")
-
-
-def test_cpi_gaps_reject_duplicate() -> None:
-    row = ROWS["cpi_gaps"]
-    with pytest.raises(ReferenceContractError):
-        validate_reference(frame("cpi_gaps", row, row), "cpi_gaps")
-
-
-def test_schemas_match_contracts() -> None:
+def test_schemas() -> None:
     assert (
-        pl.Schema(
-            {
-                "day": pl.Date,
-                "currency": pl.String,
-                "units_per_usd": pl.Float64,
-                "source": pl.String,
-            }
-        )
+        pl.Schema({"day": pl.Date, "currency": pl.String, "units_per_usd": pl.Float64})
         == FX_SCHEMA
     )
     assert (
-        pl.Schema(
-            {
-                "month": pl.Date,
-                "series": pl.String,
-                "index_value": pl.Float64,
-                "source": pl.String,
-            }
-        )
+        pl.Schema({"month": pl.Date, "series": pl.String, "index_value": pl.Float64})
         == CPI_SCHEMA
     )

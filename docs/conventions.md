@@ -17,10 +17,10 @@ src/coffee_review/
     scrape.py          Sitemap entries, manifest rows, scrape summaries.
     parsed.py          Parsed review records and parse issues.
     clean.py           The clean-table contract (pandera) and cleaning-rule names.
-    reference.py       Exchange-rate and CPI rows, saved-response names, table contracts.
+    reference.py       Exchange-rate and CPI rows and the reference-table contracts.
     frames.py          Checks shared by the pandera contracts.
   clients/             Talk to the outside world over HTTP. Return raw text/JSON.
-    reference.py       FxClient/CpiClient Protocols; answer vs. refusal errors.
+    reference.py       Telling a reference source's answer from a refusal.
   storage/             Read and write each data layer on disk. Know paths and formats.
   parsers/             Pure functions: raw HTML/XML/JSON in, models out. No I/O.
   transforms/          Pure functions on tables: clean, convert, adjust.
@@ -72,7 +72,6 @@ When it's unclear where new code goes, ask what it *does*:
 | talks to the manifest or saved pages | `storage/` (through a Protocol) |
 | decides which reviews to fetch | `pipeline/fetch_rules.py` (pure) |
 | decides which FX days or CPI years to fetch | `transforms/reference.py` (pure) |
-| adds an exchange-rate or CPI source | a client, a parser, an entry in `pipeline/reference.py` |
 | turns raw HTML/XML into a model | `parsers/` |
 | turns one table into another | `transforms/` |
 | runs a stage from start to finish | `pipeline/` |

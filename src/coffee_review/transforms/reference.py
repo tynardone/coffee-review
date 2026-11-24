@@ -12,19 +12,12 @@ from typing import TYPE_CHECKING
 
 import polars as pl
 
-from coffee_review.models.reference import (
-    CPI_GAPS_SCHEMA,
-    CPI_SCHEMA,
-    FX_GAPS_SCHEMA,
-    FX_SCHEMA,
-)
+from coffee_review.models.reference import CPI_SCHEMA, FX_SCHEMA
 
 if TYPE_CHECKING:
-    from collections.abc import Collection, Sequence
+    from collections.abc import Collection, Iterable, Sequence
 
-    from coffee_review.models.reference import CpiParsed, CpiResponse, FxParsed
-
-    type SavedCpi = tuple[CpiResponse, CpiParsed]
+    from coffee_review.models.reference import CpiParsed, FxParsed
 
 
 def next_month(month: date) -> date:
@@ -32,6 +25,16 @@ def next_month(month: date) -> date:
     if month.month == 12:
         return date(month.year + 1, 1, 1)
     return date(month.year, month.month + 1, 1)
+
+
+def _firsts(start: date, before: date) -> list[date]:
+    """Every 1st from ``start``'s month up to, not including, ``before``."""
+    firsts: list[date] = []
+    month = date(start.year, start.month, 1)
+    while month < before:
+        firsts.append(month)
+        month = next_month(month)
+    return firsts
 
 
 # --- Exchange rates ----------------------------------------------------------
@@ -43,12 +46,7 @@ def fx_wanted_days(start: date, today: date) -> list[date]:
     On the 1st itself, that day's rates are still changing, so it waits until
     tomorrow.
     """
-    wanted: list[date] = []
-    day = date(start.year, start.month, 1)
-    while day < today:
-        wanted.append(day)
-        day = next_month(day)
-    return wanted
+    return _firsts(start, today)
 
 
 def fx_missing(wanted: Sequence[date], have: Collection[date]) -> list[date]:
@@ -56,110 +54,43 @@ def fx_missing(wanted: Sequence[date], have: Collection[date]) -> list[date]:
     return [day for day in wanted if day not in have]
 
 
-def build_fx(
-    parsed: Sequence[tuple[str, FxParsed]], preferred: str
-) -> tuple[pl.DataFrame, pl.DataFrame]:
-    """The ``fx`` and ``fx_gaps`` tables from parsed responses, as
-    ``(source, parsed)`` pairs.
-
-    Each day's rates come from one response: the preferred source's if it has
-    rates, otherwise the alphabetically first other source with rates. A gap
-    row means the table has no rates for the day: it names the preferred
-    source if it said so, else the first other source that did.
-    """
-    chosen: dict[date, tuple[str, FxParsed]] = {}
-    ranked = sorted(
-        parsed, key=lambda p: (p[1].gap is not None, _rank(p[0], preferred))
-    )
-    for source, response in ranked:
-        chosen.setdefault(response.day, (source, response))
-
-    rates: list[tuple[date, str, float, str]] = []
-    gaps: list[tuple[date, str, str]] = []
-    for day in sorted(chosen):
-        source, response = chosen[day]
-        if response.gap is not None:
-            gaps.append((day, source, response.gap))
-            continue
-        rates += [(day, r.currency, r.units_per_usd, source) for r in response.rates]
-
-    fx = pl.DataFrame(rates, schema=FX_SCHEMA, orient="row").sort("day", "currency")
-    return fx, pl.DataFrame(gaps, schema=FX_GAPS_SCHEMA, orient="row")
+def build_fx(parsed: Iterable[FxParsed]) -> pl.DataFrame:
+    """The ``fx`` table from parsed responses, sorted by day then currency. A
+    day the source had no data for simply has no rows."""
+    rows = [
+        (rate.day, rate.currency, rate.units_per_usd)
+        for response in parsed
+        for rate in response.rates
+    ]
+    return pl.DataFrame(rows, schema=FX_SCHEMA, orient="row").sort("day", "currency")
 
 
 # --- CPI ---------------------------------------------------------------------
-
-GAP_SAID = "absent from a response that has later months"
 
 
 def cpi_wanted_months(start: date, today: date) -> list[date]:
     """Every month from ``start`` through the month before ``today``'s: a
     month's CPI comes out during the next month at the earliest."""
-    this_month = date(today.year, today.month, 1)
-    wanted: list[date] = []
-    month = date(start.year, start.month, 1)
-    while month < this_month:
-        wanted.append(month)
-        month = next_month(month)
-    return wanted
-
-
-def cpi_gap_months(saved: Sequence[SavedCpi]) -> set[date]:
-    """Months a source will never have, from one source's responses.
-
-    A month is a gap when the source says it's unavailable, or when a
-    response covered its year, has a later month, and doesn't have that one.
-    A month after a response's latest is just not out yet. No gaps are
-    inferred from a response that came with a message (it may be partial),
-    and a month whose value was dropped as bad is missing, not a gap.
-    """
-    gaps: set[date] = {u.month for _, parsed in saved for u in parsed.unavailable}
-    for response, parsed in saved:
-        present = {m.month for m in parsed.months}
-        present |= {p.period for p in parsed.problems if p.period is not None}
-        if not present or parsed.messages:
-            continue
-        latest = max(present)
-        for year in range(response.start_year, response.end_year + 1):
-            gaps |= {
-                month
-                for month in (date(year, n, 1) for n in range(1, 13))
-                if month < latest and month not in present
-            }
-    return gaps
-
-
-def cpi_stored_months(saved: Sequence[SavedCpi]) -> set[date]:
-    """Months with a final value (a preliminary one is asked for again)."""
-    return {m.month for _, parsed in saved for m in parsed.months if m.final}
+    return _firsts(start, date(today.year, today.month, 1))
 
 
 def plan_cpi(
     wanted: Sequence[date],
-    saved: Sequence[SavedCpi],
-    today: date,
+    known: Collection[date],
+    asked_today: Collection[int],
     max_years: int,
 ) -> list[tuple[int, int]]:
     """The ``(start_year, end_year)`` requests to make, oldest first.
 
-    ``saved`` is the configured source's responses for the series. Missing
-    months are wanted ones neither stored nor gaps. A year a response saved
-    today already covered isn't asked again today: that answer is what the
-    source has today (so a month not out yet is tried once a day). Missing
-    years are grouped into runs of consecutive years, each split into
-    requests of at most ``max_years``.
+    ``known`` are months stored or marked unavailable by the source.
+    ``asked_today`` are years a response saved today already covered: that
+    answer is what the source has today, so a month not out yet is tried at
+    most once a day. Missing years are grouped into runs of consecutive
+    years, each split into requests of at most ``max_years``.
     """
-    known = cpi_stored_months(saved) | cpi_gap_months(saved)
-    asked_today = {
-        year
-        for response, _ in saved
-        if response.fetched_at.date() == today
-        for year in range(response.start_year, response.end_year + 1)
-    }
     years = sorted(
         {m.year for m in wanted if m not in known and m.year not in asked_today}
     )
-
     requests: list[tuple[int, int]] = []
     for run in _consecutive_runs(years):
         for i in range(0, len(run), max_years):
@@ -168,49 +99,15 @@ def plan_cpi(
     return requests
 
 
-def build_cpi(
-    saved: Sequence[SavedCpi], preferred: str
-) -> tuple[pl.DataFrame, pl.DataFrame]:
-    """The ``cpi`` and ``cpi_gaps`` tables from every source's responses.
-
-    Each (month, series) comes from the preferred source if it has a value,
-    otherwise another source (alphabetically), and the newest response within
-    a source. Preliminary values are kept: they're the best known so far.
-    """
-    ordered = sorted(saved, key=lambda s: (_rank(s[0].source, preferred), _newest(s)))
-    chosen: dict[tuple[date, str], tuple[float, str]] = {}
-    for response, parsed in ordered:
+def build_cpi(newest_first: Iterable[CpiParsed]) -> pl.DataFrame:
+    """The ``cpi`` table from parsed responses, newest response first: each
+    (month, series) takes the newest value."""
+    chosen: dict[tuple[date, str], float] = {}
+    for parsed in newest_first:
         for m in parsed.months:
-            chosen.setdefault((m.month, m.series), (m.index_value, response.source))
-    rows = [
-        (month, series, value, source)
-        for (month, series), (value, source) in chosen.items()
-    ]
-    cpi = pl.DataFrame(rows, schema=CPI_SCHEMA, orient="row").sort("series", "month")
-
-    # A gap row means the table has no value: one per (month, series), naming
-    # the preferred source if it has the gap, else the first other source.
-    gap_from: dict[tuple[date, str], tuple[str, str]] = {}
-    for source, series in sorted(
-        {(r.source, r.series) for r, _ in saved}, key=lambda k: _rank(k[0], preferred)
-    ):
-        own = [s for s in saved if (s[0].source, s[0].series) == (source, series)]
-        said = {u.month: u.said for _, parsed in own for u in parsed.unavailable}
-        for month in cpi_gap_months(own):
-            if (month, series) not in chosen:
-                gap_from.setdefault(
-                    (month, series), (source, said.get(month, GAP_SAID))
-                )
-    gaps = [
-        (month, series, source, said)
-        for (month, series), (source, said) in sorted(gap_from.items())
-    ]
-    return cpi, pl.DataFrame(gaps, schema=CPI_GAPS_SCHEMA, orient="row")
-
-
-def _newest(saved: SavedCpi) -> float:
-    """Sort key: the newest response first."""
-    return -saved[0].fetched_at.timestamp()
+            chosen.setdefault((m.month, m.series), m.index_value)
+    rows = [(month, series, value) for (month, series), value in chosen.items()]
+    return pl.DataFrame(rows, schema=CPI_SCHEMA, orient="row").sort("series", "month")
 
 
 def _consecutive_runs(years: Sequence[int]) -> list[list[int]]:
@@ -221,8 +118,3 @@ def _consecutive_runs(years: Sequence[int]) -> list[list[int]]:
         else:
             runs.append([year])
     return runs
-
-
-def _rank(source: str, preferred: str) -> tuple[bool, str]:
-    """Sort key: the preferred source first, then the rest alphabetically."""
-    return (source != preferred, source)

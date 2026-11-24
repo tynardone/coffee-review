@@ -130,15 +130,8 @@ class BLSApiSettings(HttpClientSettings):
 
 
 class ReferenceSettings(BaseModel):
-    """Which sources the reference stages use, and how far back they go.
+    """How far back the reference stages go, and which CPI series."""
 
-    A source is named here and looked up in the pipeline's registry
-    (``pipeline/reference.py``); this module can't import the pipeline, so an
-    unknown name is reported when a command starts.
-    """
-
-    fx_source: str = "openexchangerates"
-    cpi_source: str = "bls"
     # Exchange rates for the 1st of every month from here (first non-USD
     # price: 2010-03).
     fx_start: date = date(2010, 1, 1)

@@ -26,7 +26,7 @@ from coffee_review.models.clean import (
     CleanRoastedFrame,
 )
 from coffee_review.models.parsed import GreenReview, ParseIssue, RoastedReview
-from coffee_review.models.reference import CpiFrame, CpiGapFrame, FxFrame, FxGapFrame
+from coffee_review.models.reference import CpiFrame, FxFrame
 from coffee_review.models.scrape import ManifestRecord
 from coffee_review.storage.parsed_store import reviews_frame
 
@@ -45,11 +45,11 @@ EXTRA_FIELDS = {
 }
 # The reference stages' saved responses: the files themselves, as received.
 RAW_REFERENCE = {
-    "fx/<source>/<YYYY-MM-DD>.json": (
-        "One exchange-rate response per source and day (UTC), exactly as received;"
-        " a 'no data' answer is kept too, as a gap."
+    "fx/openexchangerates/<YYYY-MM-DD>.json": (
+        "One exchange-rate response per day (UTC), exactly as received; a"
+        " 'not_available' answer is kept too, so that day isn't asked again."
     ),
-    "cpi/<source>/<series>/<YYYYMMDDTHHMMSSZ>_<start>-<end>.json": (
+    "cpi/bls/<series>/<YYYYMMDDTHHMMSSZ>_<start>-<end>.json": (
         "One CPI response per request: when it was made (UTC) and the years it"
         " asked for. A month can appear in several; the newest wins."
     ),
@@ -182,30 +182,15 @@ def render() -> str:
             "Exchange rates and US CPI for M5 to convert and adjust prices with."
             " Rebuilt in full from the saved responses and checked against the"
             " contracts in `models/reference.py` on every run. Written by `fx` and"
-            " `cpi`."
+            " `cpi`. A period the source has no data for (October 2025's CPI) is"
+            " simply absent."
         ),
         _pandera_table(
             "`fx.parquet`",
             "One row per day (the 1st of each month) and currency.",
             FxFrame,
         ),
-        _pandera_table(
-            "`fx_gaps.parquet`",
-            (
-                "Days with no rates in `fx.parquet`: a source answered but had none."
-                " Never asked again."
-            ),
-            FxGapFrame,
-        ),
         _pandera_table("`cpi.parquet`", "One row per series and month.", CpiFrame),
-        _pandera_table(
-            "`cpi_gaps.parquet`",
-            (
-                "Months with no value in `cpi.parquet`: the source will never have"
-                " them, in its words."
-            ),
-            CpiGapFrame,
-        ),
         "## Lookup tables: `src/coffee_review/transforms/lookups/`",
         (
             "Versioned with the code. A table gains a row when the clean report"

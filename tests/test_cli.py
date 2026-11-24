@@ -341,12 +341,10 @@ def reference_result(kind: str, outcome: str) -> ReferenceRunResult:
         kind=kind,  # type: ignore[arg-type]
         outcome=outcome,  # type: ignore[arg-type]
         reason="openexchangerates: HTTP 429" if outcome == "stopped" else None,
-        requests=1,
         fetched=1,
         already=0,
         failed=0,
-        gaps=0,
-        dropped=0,
+        gaps=(),
         rows=1,
         first=None,
         last=None,

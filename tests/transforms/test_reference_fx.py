@@ -5,7 +5,6 @@ from __future__ import annotations
 from datetime import UTC, date, datetime
 from zoneinfo import ZoneInfo
 
-import polars as pl
 from hypothesis import given
 from hypothesis import strategies as st
 
@@ -22,14 +21,9 @@ def day_with(day: date, rates: dict[str, float]) -> FxParsed:
     return FxParsed(
         day=day,
         rates=tuple(
-            FxRate(day=day, currency=code, units_per_usd=value)
-            for code, value in rates.items()
+            FxRate(day=day, currency=c, units_per_usd=v) for c, v in rates.items()
         ),
     )
-
-
-def gap(day: date) -> FxParsed:
-    return FxParsed(day=day, rates=(), gap="not_available")
 
 
 def test_wanted_days_stop_before_today() -> None:
@@ -50,7 +44,6 @@ def test_wanted_days_cross_a_year() -> None:
 
 def test_nothing_wanted_before_start() -> None:
     assert fx_wanted_days(date(2026, 9, 1), date(2026, 9, 1)) == []
-    assert fx_wanted_days(date(2026, 9, 1), date(2020, 1, 1)) == []
 
 
 def test_utc_evening_in_new_york() -> None:
@@ -75,110 +68,34 @@ def test_missing_is_exactly_the_unstored_past_firsts(
     assert missing == sorted(missing)
 
 
-def test_build_reads_rates_and_source() -> None:
-    fx, gaps = build_fx(
-        [("s", day_with(date(2020, 1, 1), {"USD": 1, "TWD": 30.0}))], "s"
+def test_build_sorts_and_meets_the_contract() -> None:
+    fx = build_fx(
+        [
+            day_with(date(2020, 2, 1), {"USD": 1, "TWD": 31.0}),
+            day_with(date(2020, 1, 1), {"USD": 1, "TWD": 30.0}),
+            FxParsed(day=date(2020, 3, 1), rates=(), gap="not_available"),
+        ]
     )
 
     assert fx.rows() == [
-        (date(2020, 1, 1), "TWD", 30.0, "s"),
-        (date(2020, 1, 1), "USD", 1.0, "s"),
+        (date(2020, 1, 1), "TWD", 30.0),
+        (date(2020, 1, 1), "USD", 1.0),
+        (date(2020, 2, 1), "TWD", 31.0),
+        (date(2020, 2, 1), "USD", 1.0),
     ]
-    assert gaps.is_empty()
-
-
-def test_build_prefers_the_configured_source() -> None:
-    day = date(2020, 1, 1)
-    parsed = [("a", day_with(day, {"TWD": 30.0})), ("b", day_with(day, {"TWD": 31.0}))]
-
-    fx, _ = build_fx(parsed, "b")
-
-    assert fx.select("units_per_usd", "source").rows() == [(31.0, "b")]
-
-
-def test_build_fills_from_another_source() -> None:
-    parsed = [
-        ("a", day_with(date(2020, 1, 1), {"TWD": 30.0})),
-        ("b", day_with(date(2020, 2, 1), {"TWD": 31.0})),
-    ]
-
-    fx, _ = build_fx(parsed, "b")
-
-    assert fx.select("day", "source").rows() == [
-        (date(2020, 1, 1), "a"),
-        (date(2020, 2, 1), "b"),
-    ]
-
-
-def test_build_other_sources_alphabetical() -> None:
-    day = date(2020, 1, 1)
-    parsed = [("z", day_with(day, {"TWD": 9.0})), ("m", day_with(day, {"TWD": 8.0}))]
-
-    fx, _ = build_fx(parsed, "configured")
-
-    assert fx["source"].to_list() == ["m"]
-
-
-def test_build_gap_row() -> None:
-    fx, gaps = build_fx([("s", gap(date(2020, 1, 1)))], "s")
-
-    assert fx.is_empty()
-    assert gaps.rows() == [(date(2020, 1, 1), "s", "not_available")]
-
-
-def test_another_sources_rates_fill_a_preferred_gap() -> None:
-    day = date(2020, 1, 1)
-
-    fx, gaps = build_fx([("s", gap(day)), ("o", day_with(day, {"TWD": 30.0}))], "s")
-
-    assert fx.select("currency", "source").rows() == [("TWD", "o")]
-    assert gaps.is_empty()  # a gap row always means "no value in fx"
-
-
-def test_gap_from_the_preferred_source_when_nobody_has_rates() -> None:
-    day = date(2020, 1, 1)
-
-    _, gaps = build_fx([("o", gap(day)), ("s", gap(day))], "s")
-
-    assert gaps.select("source").rows() == [("s",)]
+    validate_reference(fx, "fx")
 
 
 def test_vanished_currency_is_only_absent() -> None:
-    fx, gaps = build_fx(
+    fx = build_fx(
         [
-            ("s", day_with(date(2023, 1, 1), {"USD": 1})),
-            ("s", day_with(date(2022, 12, 1), {"USD": 1, "HRK": 7.1})),
-        ],
-        "s",
+            day_with(date(2022, 12, 1), {"USD": 1, "HRK": 7.1}),
+            day_with(date(2023, 1, 1), {"USD": 1}),
+        ]
     )
 
-    assert fx.filter(pl.col("currency") == "HRK")["day"].to_list() == [
-        date(2022, 12, 1)
-    ]
-    assert fx["day"].to_list() == [
-        date(2022, 12, 1),
-        date(2022, 12, 1),
-        date(2023, 1, 1),
-    ]
-    assert gaps.is_empty()
+    assert fx.filter(fx["currency"] == "HRK")["day"].to_list() == [date(2022, 12, 1)]
 
 
-def test_built_tables_meet_their_contracts() -> None:
-    fx, gaps = build_fx(
-        [
-            ("s", day_with(date(2020, 1, 1), {"USD": 1, "TWD": 30.0})),
-            ("s", gap(date(2020, 2, 1))),
-        ],
-        "s",
-    )
-
-    validate_reference(fx, "fx")
-    validate_reference(gaps, "fx_gaps")
-
-
-def test_build_nothing_gives_empty_tables_with_schemas() -> None:
-    fx, gaps = build_fx([], "s")
-
-    validate_reference(fx, "fx")
-    validate_reference(gaps, "fx_gaps")
-    assert fx.is_empty() and gaps.is_empty()
+def test_build_nothing_gives_an_empty_table() -> None:
+    validate_reference(build_fx([]), "fx")

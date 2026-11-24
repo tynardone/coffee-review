@@ -2,19 +2,17 @@
 
 Each stage works the same way:
 
-1. Parse every saved response once. A saved file that won't parse is treated
-   as missing, so it's fetched again and replaced.
-2. Work out what's missing for the configured source (``transforms/reference``)
-   and fetch only that. Each answer is saved before it's used.
-3. Rebuild the tidy tables in full from every saved response, check them
-   against their contracts, and write them.
+1. Parse every saved response. A saved file that won't parse is treated as
+   missing, so it's fetched again.
+2. Work out what's missing (``transforms/reference``) and fetch only that,
+   saving each answer before it's used.
+3. Rebuild the tidy table in full from the saved responses, check it against
+   its contract, and write it.
 
-A source is an entry in ``FX_SOURCES`` or ``CPI_SOURCES``: a client, the
-settings it's built from, and a parser. Swapping one is a new entry and a
-setting (``COFFEE_REVIEW_REFERENCE__FX_SOURCE``); nothing else changes.
-
-``run_fx`` and ``run_cpi`` take their client and stores as arguments, so tests
-hand them fakes; ``fx`` and ``cpi`` are the composition roots.
+So a rerun costs no requests, and a parser fix needs none either.
+``run_fx`` and ``run_cpi`` take their client and store as arguments, so tests
+hand them a client over a fake network and a store in a temp folder; ``fx``
+and ``cpi`` are the composition roots.
 """
 
 from __future__ import annotations
@@ -34,22 +32,16 @@ from coffee_review.clients.reference import (
     SourceUnavailableError,
 )
 from coffee_review.models.reference import (
-    CpiResponse,
-    FxResponse,
+    CpiFile,
     ReferenceParseError,
     validate_reference,
 )
 from coffee_review.parsers.cpi_bls import parse_cpi_bls
 from coffee_review.parsers.fx_openexchangerates import parse_fx_openexchangerates
-from coffee_review.storage.reference_store import (
-    open_reference_raw_store,
-    open_reference_store,
-)
+from coffee_review.storage.reference_store import open_reference_store
 from coffee_review.transforms.reference import (
     build_cpi,
     build_fx,
-    cpi_gap_months,
-    cpi_stored_months,
     cpi_wanted_months,
     fx_missing,
     fx_wanted_days,
@@ -57,69 +49,25 @@ from coffee_review.transforms.reference import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Mapping
-
     import polars as pl
 
-    from coffee_review.clients.reference import CpiClient, FxClient
     from coffee_review.config import Settings
     from coffee_review.models.reference import CpiParsed, FxParsed
-    from coffee_review.storage.reference_store import (
-        ReferenceRawStore,
-        ReferenceStore,
-    )
+    from coffee_review.storage.reference_store import ReferenceStore
 
 logger = logging.getLogger(__name__)
 
 # The source didn't answer: stop cleanly, keep what's saved.
 STOPPING_ERRORS = (SourceAuthError, SourceRefusedError, SourceUnavailableError)
-
-
-@dataclass(frozen=True)
-class FxSource:
-    """An exchange-rate source: how to build its client, and its parser."""
-
-    client: Callable[[Settings], FxClient]
-    parse: Callable[[str, date], FxParsed]
-
-
-FX_SOURCES: Mapping[str, FxSource] = {
-    "openexchangerates": FxSource(
-        client=lambda settings: ForexApiClient(settings.forex_api),
-        parse=parse_fx_openexchangerates,
-    ),
-}
-
-
-@dataclass(frozen=True)
-class CpiSource:
-    """A CPI source: its client, its parser, and how many years one request
-    may cover."""
-
-    client: Callable[[Settings], CpiClient]
-    parse: Callable[[str, str], CpiParsed]
-    max_years: int
-
-
-CPI_SOURCES: Mapping[str, CpiSource] = {
-    # Keyless BLS: 10 years per request, 25 requests a day.
-    "bls": CpiSource(
-        client=lambda settings: BlsApiClient(settings.bls_api),
-        parse=parse_cpi_bls,
-        max_years=10,
-    ),
-}
-
 # Answers in a row that won't parse before a run stops: a systematic change
 # (a new format, a non-USD base) shouldn't spend a month's quota.
 MAX_UNPARSABLE_IN_A_ROW = 3
-
+# Keyless BLS: at most 10 years per request.
+BLS_MAX_YEARS = 10
 # How many gap periods the summary line names before "…".
 GAPS_SHOWN = 5
 
-
-class UnknownSourceError(Exception):
-    """A setting names a source the registry doesn't have."""
+type Outcome = Literal["finished", "stopped"]
 
 
 @dataclass(frozen=True)
@@ -127,19 +75,16 @@ class ReferenceRunResult:
     """What one fx or cpi run did, and what the table holds afterwards."""
 
     kind: Literal["fx", "cpi"]
-    outcome: Literal["finished", "stopped"]
+    outcome: Outcome
     reason: str | None
-    requests: int
     fetched: int
     already: int
     failed: int
-    gaps: int
-    dropped: int
+    gaps: tuple[str, ...]
     rows: int
     first: date | None
     last: date | None
     location: str
-    gap_periods: tuple[str, ...] = ()
 
     def describe(self) -> str:
         """One summary line for the terminal and the run log."""
@@ -149,14 +94,10 @@ class ReferenceRunResult:
             f"{self.failed} failed",
         ]
         if self.gaps:
-            gaps = _count(self.gaps, "gap")
-            if self.gap_periods:
-                shown = ", ".join(self.gap_periods[:GAPS_SHOWN])
-                more = ", …" if len(self.gap_periods) > GAPS_SHOWN else ""
-                gaps += f" ({shown}{more})"
-            parts.append(gaps)
-        if self.dropped:
-            parts.append(_count(self.dropped, "value") + " dropped")
+            shown = ", ".join(self.gaps[:GAPS_SHOWN])
+            more = ", …" if len(self.gaps) > GAPS_SHOWN else ""
+            noun = "gap" if len(self.gaps) == 1 else "gaps"
+            parts.append(f"{len(self.gaps)} {noun} ({shown}{more})")
         line = f"{self.kind} {self.outcome}: " + ", ".join(parts)
         if self.outcome == "stopped":
             line += f" (stopped: {self.reason})"
@@ -166,309 +107,207 @@ class ReferenceRunResult:
         return f"{line} · {table}"
 
 
-def fx(settings: Settings, *, today: date | None = None) -> ReferenceRunResult:
-    """Bring the exchange-rate tables up to date with the configured source.
+@dataclass
+class _Fetching:
+    """The running tally of one stage's fetch loop."""
 
-    The source is looked up and its client built (which needs the API key)
-    before any store is opened or request sent.
-    """
-    name = settings.reference.fx_source
-    source = _lookup(FX_SOURCES, name, "fx")
-    client = source.client(settings)
-    raw = open_reference_raw_store(settings)
-    try:
-        store = open_reference_store(settings)
-        try:
-            return asyncio.run(
-                run_fx(
-                    source_name=name,
-                    sources=FX_SOURCES,
-                    client=client,
-                    raw=raw,
-                    store=store,
-                    start=settings.reference.fx_start,
-                    today=today or datetime.now(UTC).date(),
-                )
-            )
-        finally:
-            store.close()
-    finally:
-        raw.close()
+    kind: str
+    fetched: int = 0
+    failed: int = 0
+    unparsable: int = 0
+    outcome: Outcome = "finished"
+    reason: str | None = None
+
+    def stop(self, reason: str) -> None:
+        self.outcome, self.reason = "stopped", reason
+        logger.warning("%s stopped: %s", self.kind, reason)
+
+    def unparsable_answer(self, what: str, exc: ReferenceParseError) -> bool:
+        """Count an answer that won't parse; True when the run should stop."""
+        self.failed += 1
+        self.unparsable += 1
+        logger.warning(
+            "%s %s: not saved, asked again next run: %s", self.kind, what, exc
+        )
+        if self.unparsable == MAX_UNPARSABLE_IN_A_ROW:
+            self.stop(f"{self.unparsable} answers in a row wouldn't parse; last: {exc}")
+            return True
+        return False
+
+    def saved(self) -> None:
+        self.fetched += 1
+        self.unparsable = 0
+
+
+# --- Exchange rates ----------------------------------------------------------
+
+
+def fx(settings: Settings, *, today: date | None = None) -> ReferenceRunResult:
+    """Bring the exchange-rate table up to date. Needs the API key, checked
+    before anything else."""
+    client = ForexApiClient(settings.forex_api)
+    return asyncio.run(
+        run_fx(
+            client=client,
+            store=open_reference_store(settings),
+            start=settings.reference.fx_start,
+            today=today or datetime.now(UTC).date(),
+        )
+    )
 
 
 async def run_fx(
-    *,
-    source_name: str,
-    sources: Mapping[str, FxSource],
-    client: FxClient,
-    raw: ReferenceRawStore,
-    store: ReferenceStore,
-    start: date,
-    today: date,
+    *, client: ForexApiClient, store: ReferenceStore, start: date, today: date
 ) -> ReferenceRunResult:
-    """Fetch the missing days from ``source_name``, then rebuild the FX tables.
-
-    ``sources`` is the registry: every saved response is parsed with its own
-    source's parser, so the history of a swapped-out source stays readable.
-    """
-    source = _lookup(sources, source_name, "fx")
-    parsed: dict[FxResponse, FxParsed] = {}
-    for response in raw.list_fx():
-        fx_parsed = _parse_saved_fx(raw, response, sources)
-        if fx_parsed is not None:
-            parsed[response] = fx_parsed
+    """Fetch the missing days, then rebuild the FX table."""
+    parsed: dict[date, FxParsed] = {}
+    for day in store.fx_days():
+        try:
+            parsed[day] = parse_fx_openexchangerates(store.read_fx(day), day)
+        except ReferenceParseError as exc:
+            logger.warning(
+                "fx %s: saved file won't parse, fetching again: %s", day, exc
+            )
 
     wanted = fx_wanted_days(start, today)
-    have = {r.day for r in parsed if r.source == source_name}
-    missing = fx_missing(wanted, have)
-    requests = fetched = failed = unparsable = 0
-    outcome: Literal["finished", "stopped"] = "finished"
-    reason: str | None = None
-
+    missing = fx_missing(wanted, parsed)
+    tally = _Fetching("fx")
     async with client:
         for day in missing:
-            requests += 1
             try:
                 text = await client.fetch_day(day)
             except STOPPING_ERRORS as exc:
-                outcome, reason = "stopped", str(exc)
-                logger.warning("fx stopped at %s: %s", day, exc)
+                tally.stop(str(exc))
                 break
             try:
-                fx_parsed = source.parse(text, day)
+                response = parse_fx_openexchangerates(text, day)
             except ReferenceParseError as exc:
-                failed += 1
-                unparsable += 1
-                logger.warning("fx %s: not saved, asked again next run: %s", day, exc)
-                if unparsable == MAX_UNPARSABLE_IN_A_ROW:
-                    outcome, reason = "stopped", _unparsable_reason(exc)
-                    logger.warning("fx stopped: %s", reason)
+                if tally.unparsable_answer(str(day), exc):
                     break
                 continue
-            unparsable = 0
-            response = FxResponse(source=source_name, day=day)
-            raw.save_fx(response, text)
-            parsed[response] = fx_parsed
-            fetched += 1
+            store.save_fx(day, text)
+            parsed[day] = response
+            tally.saved()
 
-    fx_table, gaps = build_fx(
-        [(r.source, p) for r, p in parsed.items()], preferred=source_name
-    )
-    _write(store, {"fx": fx_table, "fx_gaps": gaps})
-    dropped = sum(len(p.problems) for p in parsed.values())
-    days = fx_table["day"]
-    result = ReferenceRunResult(
-        kind="fx",
-        outcome=outcome,
-        reason=reason,
-        requests=requests,
-        fetched=fetched,
-        already=len(wanted) - len(missing),
-        failed=failed,
-        gaps=gaps.height,
-        dropped=dropped,
-        rows=fx_table.height,
-        first=days.min() if fx_table.height else None,  # type: ignore[arg-type]
-        last=days.max() if fx_table.height else None,  # type: ignore[arg-type]
-        location=store.location("fx"),
-        gap_periods=tuple(f"{d:%Y-%m-%d}" for d in gaps["day"]),
-    )
-    _log(result)
-    return result
+    table = validate_reference(build_fx(parsed.values()), "fx")
+    store.write_table("fx", table)
+    gaps = [f"{day}" for day in sorted(parsed) if parsed[day].gap]
+    already = len(wanted) - len(missing)
+    return _result("fx", tally, already, gaps, table, store)
+
+
+# --- CPI ---------------------------------------------------------------------
 
 
 def cpi(settings: Settings, *, now: datetime | None = None) -> ReferenceRunResult:
-    """Bring the CPI tables up to date with the configured source (no key needed)."""
-    name = settings.reference.cpi_source
-    source = _lookup(CPI_SOURCES, name, "cpi")
-    client = source.client(settings)
-    raw = open_reference_raw_store(settings)
-    try:
-        store = open_reference_store(settings)
-        try:
-            return asyncio.run(
-                run_cpi(
-                    source_name=name,
-                    sources=CPI_SOURCES,
-                    client=client,
-                    raw=raw,
-                    store=store,
-                    series=settings.reference.cpi_series,
-                    start=settings.reference.cpi_start,
-                    now=now or datetime.now(UTC),
-                )
-            )
-        finally:
-            store.close()
-    finally:
-        raw.close()
+    """Bring the CPI table up to date (no key needed)."""
+    return asyncio.run(
+        run_cpi(
+            client=BlsApiClient(settings.bls_api),
+            store=open_reference_store(settings),
+            series=settings.reference.cpi_series,
+            start=settings.reference.cpi_start,
+            now=now or datetime.now(UTC),
+        )
+    )
 
 
 async def run_cpi(
     *,
-    source_name: str,
-    sources: Mapping[str, CpiSource],
-    client: CpiClient,
-    raw: ReferenceRawStore,
+    client: BlsApiClient,
     store: ReferenceStore,
     series: str,
     start: date,
     now: datetime,
 ) -> ReferenceRunResult:
-    """Fetch the missing years of ``series``, then rebuild the CPI tables.
+    """Fetch the missing years of ``series``, then rebuild the CPI table.
 
     ``now`` (UTC) names each saved response, and its date is "today" for the
     once-a-day rule.
     """
     now = now.astimezone(UTC)
     today = now.date()
-    source = _lookup(sources, source_name, "cpi")
-    saved: list[tuple[CpiResponse, CpiParsed]] = []
-    for response in raw.list_cpi():
-        if response.series != series:
-            continue
-        cpi_parsed = _parse_saved_cpi(raw, response, sources)
-        if cpi_parsed is not None:
-            saved.append((response, cpi_parsed))
+    saved: list[tuple[CpiFile, CpiParsed]] = []
+    for file in store.cpi_files(series):
+        try:
+            saved.append((file, parse_cpi_bls(store.read_cpi(series, file), series)))
+        except ReferenceParseError as exc:
+            logger.warning(
+                "cpi %s (%s-%s): saved file won't parse; its years count as"
+                " missing: %s",
+                file.fetched_at,
+                file.start_year,
+                file.end_year,
+                exc,
+            )
 
-    own = [s for s in saved if s[0].source == source_name]
+    stored = {m.month for _, p in saved for m in p.months}
+    unavailable = {m for _, p in saved for m in p.unavailable} - stored
+    asked_today = {
+        year
+        for file, _ in saved
+        if file.fetched_at.date() == today
+        for year in range(file.start_year, file.end_year + 1)
+    }
     wanted = cpi_wanted_months(start, today)
-    known = cpi_stored_months(own) | cpi_gap_months(own)
-    already = sum(1 for month in wanted if month in known)
-    requests = fetched = failed = unparsable = 0
-    outcome: Literal["finished", "stopped"] = "finished"
-    reason: str | None = None
-
+    known = stored | unavailable
+    tally = _Fetching("cpi")
     async with client:
-        for first_year, last_year in plan_cpi(wanted, own, today, source.max_years):
-            years = f"{first_year}-{last_year}"
-            requests += 1
+        for first, last in plan_cpi(wanted, known, asked_today, BLS_MAX_YEARS):
+            years = f"{first}-{last}"
             try:
-                text = await client.fetch_years(series, first_year, last_year)
+                text = await client.fetch_years(series, first, last)
             except STOPPING_ERRORS as exc:
-                outcome, reason = "stopped", str(exc)
-                logger.warning("cpi stopped at %s: %s", years, exc)
+                tally.stop(str(exc))
                 break
             try:
-                cpi_parsed = source.parse(text, series)
+                response = parse_cpi_bls(text, series)
             except ReferenceParseError as exc:
-                failed += 1
-                unparsable += 1
-                logger.warning(
-                    "cpi %s: not saved, asked again next run: %s", years, exc
-                )
-                if unparsable == MAX_UNPARSABLE_IN_A_ROW:
-                    outcome, reason = "stopped", _unparsable_reason(exc)
-                    logger.warning("cpi stopped: %s", reason)
+                if tally.unparsable_answer(years, exc):
                     break
                 continue
-            unparsable = 0
-            for message in cpi_parsed.messages:
+            for message in response.messages:
                 logger.warning("cpi %s %s: the source said: %s", series, years, message)
-            response = CpiResponse(
-                source=source_name,
-                series=series,
-                fetched_at=now,
-                start_year=first_year,
-                end_year=last_year,
-            )
-            raw.save_cpi(response, text)
-            saved.append((response, cpi_parsed))
-            fetched += 1
+            file = CpiFile(fetched_at=now, start_year=first, end_year=last)
+            store.save_cpi(series, file, text)
+            saved.append((file, response))
+            tally.saved()
 
-    cpi_table, gaps = build_cpi(saved, preferred=source_name)
-    _write(store, {"cpi": cpi_table, "cpi_gaps": gaps})
-    months = cpi_table["month"]
-    result = ReferenceRunResult(
-        kind="cpi",
-        outcome=outcome,
-        reason=reason,
-        requests=requests,
-        fetched=fetched,
-        already=already,
-        failed=failed,
-        gaps=gaps.height,
-        dropped=sum(len(p.problems) for _, p in saved),
-        rows=cpi_table.height,
-        first=months.min() if cpi_table.height else None,  # type: ignore[arg-type]
-        last=months.max() if cpi_table.height else None,  # type: ignore[arg-type]
-        location=store.location("cpi"),
-        gap_periods=tuple(f"{m:%Y-%m}" for m in gaps["month"]),
+    newest_first = [p for _, p in sorted(saved, key=lambda s: s[0].fetched_at)][::-1]
+    table = validate_reference(build_cpi(newest_first), "cpi")
+    store.write_table("cpi", table)
+    gaps = sorted(
+        {m for p in newest_first for m in p.unavailable} - set(table["month"])
     )
-    _log(result)
+    already = sum(1 for month in wanted if month in known)
+    return _result("cpi", tally, already, [f"{m:%Y-%m}" for m in gaps], table, store)
+
+
+# --- Shared ------------------------------------------------------------------
+
+
+def _result(
+    kind: Literal["fx", "cpi"],
+    tally: _Fetching,
+    already: int,
+    gaps: list[str],
+    table: pl.DataFrame,
+    store: ReferenceStore,
+) -> ReferenceRunResult:
+    dates = table[table.columns[0]]
+    result = ReferenceRunResult(
+        kind=kind,
+        outcome=tally.outcome,
+        reason=tally.reason,
+        fetched=tally.fetched,
+        already=already,
+        failed=tally.failed,
+        gaps=tuple(gaps),
+        rows=table.height,
+        first=dates.min() if table.height else None,  # type: ignore[arg-type]
+        last=dates.max() if table.height else None,  # type: ignore[arg-type]
+        location=store.location(kind),
+    )
+    log = logger.warning if result.outcome == "stopped" else logger.info
+    log(result.describe())
     return result
-
-
-def _parse_saved_cpi(
-    raw: ReferenceRawStore, response: CpiResponse, sources: Mapping[str, CpiSource]
-) -> CpiParsed | None:
-    """A saved response parsed, or None (with a warning) if it won't parse."""
-    source = sources.get(response.source)
-    if source is None:
-        logger.warning("cpi: no parser for saved source %r; skipped", response.source)
-        return None
-    try:
-        return source.parse(raw.read_cpi(response), response.series)
-    except ReferenceParseError as exc:
-        logger.warning(
-            "cpi %s %s-%s (%s): saved file won't parse; its years count as missing: %s",
-            response.source,
-            response.start_year,
-            response.end_year,
-            response.fetched_at,
-            exc,
-        )
-        return None
-
-
-def _unparsable_reason(exc: ReferenceParseError) -> str:
-    return f"{MAX_UNPARSABLE_IN_A_ROW} answers in a row wouldn't parse; last: {exc}"
-
-
-def _log(result: ReferenceRunResult) -> None:
-    """The summary line: to the terminal and the run log."""
-    if result.outcome == "stopped":
-        logger.warning(result.describe())
-    else:
-        logger.info(result.describe())
-
-
-def _parse_saved_fx(
-    raw: ReferenceRawStore, response: FxResponse, sources: Mapping[str, FxSource]
-) -> FxParsed | None:
-    """A saved response parsed, or None (with a warning) if it won't parse."""
-    parse = sources.get(response.source)
-    if parse is None:
-        logger.warning("fx: no parser for saved source %r; skipped", response.source)
-        return None
-    try:
-        return parse.parse(raw.read_fx(response), response.day)
-    except ReferenceParseError as exc:
-        logger.warning(
-            "fx %s %s: saved file won't parse, fetching again: %s",
-            response.source,
-            response.day,
-            exc,
-        )
-        return None
-
-
-def _write(store: ReferenceStore, tables: Mapping[str, pl.DataFrame]) -> None:
-    """Check every table, then write them: nothing is written if one fails."""
-    for name, frame in tables.items():
-        validate_reference(frame, name)  # type: ignore[arg-type]
-    for name, frame in tables.items():
-        store.write(name, frame)  # type: ignore[arg-type]
-
-
-def _lookup[S](sources: Mapping[str, S], name: str, kind: str) -> S:
-    try:
-        return sources[name]
-    except KeyError:
-        known = ", ".join(sorted(sources))
-        msg = f"unknown {kind} source {name!r}; known: {known}"
-        raise UnknownSourceError(msg) from None
-
-
-def _count(n: int, noun: str) -> str:
-    return f"{n:,} {noun}" + ("" if n == 1 else "s")
