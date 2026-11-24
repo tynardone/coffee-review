@@ -39,21 +39,35 @@ GONE_STATUS = frozenset({404, 410})
 
 @dataclass(frozen=True)
 class Fetched:
+    """The page was fetched; ``text`` is its HTML."""
+
     text: str
 
 
 @dataclass(frozen=True)
 class Failed:
+    """The fetch failed for now; ``error`` says how. Tried again next run."""
+
     error: str
 
 
 @dataclass(frozen=True)
 class Gone:
+    """The page no longer exists (404, or redirected away); ``reason`` says why."""
+
     reason: str
 
 
 @dataclass(frozen=True)
 class Pushback:
+    """The site is pushing back (a 429, 403 or challenge page): stop the run.
+
+    Attributes:
+        reason: What happened, for the summary line.
+        url: The address that got the pushback.
+        status: The HTTP status, when there was one.
+    """
+
     reason: str
     url: str
     status: int | None
@@ -70,6 +84,16 @@ def is_challenge(response: httpx.Response) -> bool:
 
 
 class CoffeeScraper(BaseHttpClient):
+    """Fetches coffeereview.com's sitemaps and review pages.
+
+    Every fetch comes back as one of ``Fetched``, ``Failed``, ``Gone`` or
+    ``Pushback``; it never raises for a bad response.
+
+    Args:
+        settings: The site's address, speed and retry settings.
+        transport: An httpx transport to use instead of the network (tests).
+    """
+
     # 429 and 503 are not retried here: they come back to the pipeline, which
     # decides whether the site is pushing back.
     retryable_status = frozenset({408, 500, 502, 504})
@@ -93,10 +117,18 @@ class CoffeeScraper(BaseHttpClient):
     async def fetch_review_page(
         self, entry: SitemapEntry, *, stop: asyncio.Event | None = None
     ) -> FetchResult:
-        """Fetch one review page. A redirect to any other page counts as Gone.
+        """Fetch one review page.
 
-        If ``stop`` is set while this page is being retried, no further retry is
-        sent and the page comes back Failed (to be fetched again next run).
+        A redirect to any other page counts as ``Gone``.
+
+        Args:
+            entry: The review, as the sitemap lists it.
+            stop: When set while this page is being retried, no further retry is
+                sent and the page comes back ``Failed``, to be fetched next run.
+
+        Returns:
+            ``Fetched``, ``Failed``, ``Gone`` or ``Pushback``; never raises for a bad
+            response.
         """
         # Compare decoded paths: the sitemap lists "ka%ca%bbu-..." but the site
         # answers at "kaʻu-..." (httpx reports response paths decoded). Same page.

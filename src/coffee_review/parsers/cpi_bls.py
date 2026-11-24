@@ -32,7 +32,19 @@ UNAVAILABLE = "X"
 
 
 def parse_cpi_bls(text: str, series: str) -> CpiParsed:
-    """The months of ``series`` in one response."""
+    """Parse one BLS response.
+
+    Args:
+        text: The response as received.
+        series: The series to read; any other series in the response is ignored.
+
+    Returns:
+        The series' months, the months the BLS marks unavailable, any messages,
+        and values dropped as bad.
+
+    Raises:
+        EconomicParseError: If the response isn't a successful BLS answer.
+    """
     body = _load(text)
     if body.get("status") != "REQUEST_SUCCEEDED":
         raise EconomicParseError(

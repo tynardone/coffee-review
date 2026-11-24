@@ -27,6 +27,8 @@ DELISTING_MIN_COUNT = 25
 
 
 class Delistings(NamedTuple):
+    """Reviews that left the sitemaps this run, and ones that came back."""
+
     delisted: frozenset[str]
     relisted: frozenset[str]
 
@@ -38,9 +40,18 @@ def fetch_reason(
     now: datetime,
     full: bool,
 ) -> FetchReason | None:
-    """Why ``entry`` should be fetched this run, or None if it shouldn't be.
+    """Decide why a review should be fetched this run, if at all.
 
     Rules are checked in order; the first match wins.
+
+    Args:
+        entry: The review, as the sitemap lists it.
+        stored: Its manifest row, or None if it's never been seen.
+        now: The run's start time (UTC).
+        full: Whether this is a ``--full`` run (fetch everything).
+
+    Returns:
+        The reason, or None if it shouldn't be fetched.
     """
     lastmod = entry.lastmod
     if full:
@@ -76,9 +87,19 @@ def select_reviews_to_fetch(
     now: datetime,
     full: bool,
 ) -> list[tuple[SitemapEntry, FetchReason]]:
-    """The reviews to fetch and why, newest lastmod first (unknown lastmod last).
+    """Choose the reviews to fetch this run, and why.
 
-    Newest first means new reviews are saved first if a run stops early.
+    Newest lastmod first (unknown lastmod last), so new reviews are saved first
+    if a run stops early.
+
+    Args:
+        entries: Every review the sitemaps list.
+        manifest: What the raw store knows, by slug.
+        now: The run's start time (UTC).
+        full: Whether this is a ``--full`` run.
+
+    Returns:
+        ``(entry, reason)`` pairs, in fetch order.
     """
     selected = [
         (entry, reason)
@@ -99,7 +120,15 @@ def find_delistings(
     entries: Sequence[SitemapEntry],
     manifest: Mapping[str, ManifestRecord],
 ) -> Delistings:
-    """Which stored reviews left the sitemap, and which came back."""
+    """Find stored reviews that left the sitemaps, and ones that came back.
+
+    Args:
+        entries: Every review the sitemaps list now.
+        manifest: What the raw store knows, by slug.
+
+    Returns:
+        The slugs to mark delisted and relisted.
+    """
     listed = {entry.slug for entry in entries}
     delisted = frozenset(
         slug
@@ -115,10 +144,17 @@ def find_delistings(
 
 
 def delisting_exceeds_limit(plan: Delistings, manifest_size: int) -> bool:
-    """True if the plan looks like a broken sitemap rather than real delistings.
+    """Check whether a delisting looks like a broken sitemap.
 
-    That's more than DELISTING_MIN_COUNT reviews *and* more than
-    DELISTING_LIMIT of the manifest at once.
+    That's more than ``DELISTING_MIN_COUNT`` reviews *and* more than
+    ``DELISTING_LIMIT`` of the manifest at once.
+
+    Args:
+        plan: The delistings found this run.
+        manifest_size: How many reviews the manifest holds.
+
+    Returns:
+        True if the run shouldn't mark them without ``--allow-delisting``.
     """
     count = len(plan.delisted)
     if manifest_size == 0 or count <= DELISTING_MIN_COUNT:

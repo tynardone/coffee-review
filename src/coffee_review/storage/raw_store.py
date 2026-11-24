@@ -13,7 +13,7 @@ import os
 import sqlite3
 import tempfile
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Protocol
+from typing import TYPE_CHECKING, Any, Protocol, override
 
 from coffee_review.models.common import require_slug
 from coffee_review.models.scrape import ManifestRecord
@@ -44,23 +44,47 @@ class RawStore(Protocol):
     def save_page(
         self, entry: SitemapEntry, html: str, fetched_at: datetime, *, lookback: bool
     ) -> None:
-        """Save a successfully fetched page and mark its row ``ok``."""
+        """Save a successfully fetched page and mark its row ``ok``.
+
+        Args:
+            entry: The review, as the sitemap lists it.
+            html: The page as fetched.
+            fetched_at: When it was fetched (UTC).
+            lookback: Whether this was the one re-fetch a day after it appeared.
+        """
         ...
 
     def record_failure(
         self, entry: SitemapEntry, error: str, attempted_at: datetime
     ) -> None:
-        """Mark a temporary failure. Any previously saved page is kept."""
+        """Mark a temporary failure. Any previously saved page is kept.
+
+        Args:
+            entry: The review, as the sitemap lists it.
+            error: What went wrong.
+            attempted_at: When the fetch was tried (UTC).
+        """
         ...
 
     def record_gone(
         self, entry: SitemapEntry, reason: str, attempted_at: datetime
     ) -> None:
-        """Mark a page as gone (404, redirected away). Any saved page is kept."""
+        """Mark a page as gone (404, redirected away). Any saved page is kept.
+
+        Args:
+            entry: The review, as the sitemap lists it.
+            reason: Why it counts as gone.
+            attempted_at: When the fetch was tried (UTC).
+        """
         ...
 
     def mark_delisted(self, slugs: Collection[str], at: datetime) -> None:
-        """Record that these reviews are no longer listed in the sitemap."""
+        """Record that these reviews are no longer listed in the sitemap.
+
+        Args:
+            slugs: The reviews that left.
+            at: When it was noticed (UTC).
+        """
         ...
 
     def mark_relisted(self, slugs: Collection[str]) -> None:
@@ -130,7 +154,7 @@ def _iso(value: datetime | None) -> str | None:
     return value.isoformat() if value is not None else None
 
 
-class GzipSqliteRawStore:
+class GzipSqliteRawStore(RawStore):
     """Pages as ``reviews/<slug>.html.gz``; the manifest in ``manifest.sqlite``."""
 
     def __init__(self, root: Path) -> None:
@@ -159,10 +183,12 @@ class GzipSqliteRawStore:
     def _page_path(self, slug: str) -> Path:
         return self._pages / f"{slug}.html.gz"
 
+    @override
     def load_manifest(self) -> dict[str, ManifestRecord]:
         rows = self._db.execute("SELECT * FROM reviews").fetchall()
         return {row["slug"]: ManifestRecord.model_validate(dict(row)) for row in rows}
 
+    @override
     def save_page(
         self, entry: SitemapEntry, html: str, fetched_at: datetime, *, lookback: bool
     ) -> None:
@@ -194,11 +220,13 @@ class GzipSqliteRawStore:
             tmp_path.unlink(missing_ok=True)
             raise
 
+    @override
     def record_failure(
         self, entry: SitemapEntry, error: str, attempted_at: datetime
     ) -> None:
         self._record_unsuccessful(entry, "failed", error, attempted_at)
 
+    @override
     def record_gone(
         self, entry: SitemapEntry, reason: str, attempted_at: datetime
     ) -> None:
@@ -217,6 +245,7 @@ class GzipSqliteRawStore:
             error=error,
         )
 
+    @override
     def mark_delisted(self, slugs: Collection[str], at: datetime) -> None:
         with self._db:
             self._db.executemany(
@@ -224,6 +253,7 @@ class GzipSqliteRawStore:
                 [(_iso(at), slug) for slug in slugs],
             )
 
+    @override
     def mark_relisted(self, slugs: Collection[str]) -> None:
         with self._db:
             self._db.executemany(
@@ -231,6 +261,7 @@ class GzipSqliteRawStore:
                 [(slug,) for slug in slugs],
             )
 
+    @override
     def read_page(self, slug: str) -> str:
         try:
             data = self._page_path(require_slug(slug)).read_bytes()
@@ -238,6 +269,7 @@ class GzipSqliteRawStore:
             raise PageNotFoundError(slug) from None
         return gzip.decompress(data).decode("utf-8")
 
+    @override
     def close(self) -> None:
         self._db.close()
 

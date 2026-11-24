@@ -71,9 +71,11 @@ class ParseReport:
 
     @property
     def issue_count(self) -> int:
+        """How many issues the run found, of every kind."""
         return sum(self.issues_by_kind.values())
 
     def summary_line(self, elapsed_seconds: float) -> str:
+        """The one-line summary logged at the end of a parse run."""
         roasted = self.by_dataset.get("roasted", 0)
         green = self.by_dataset.get("green", 0)
         return (
@@ -91,7 +93,17 @@ def build_parse_report(
     pages: int,
     skipped: int,
 ) -> ParseReport:
-    """Summarise one parse run's records and issues."""
+    """Summarise one parse run.
+
+    Args:
+        records: Every record parsed.
+        issues: Every issue found.
+        pages: How many reviews the manifest lists.
+        skipped: How many of those had no saved copy.
+
+    Returns:
+        The report's contents, ready to render.
+    """
     in_order = sorted(records, key=lambda r: r.slug)  # stable examples
     return ParseReport(
         pages=pages,
@@ -149,7 +161,15 @@ def _shapes(records: Sequence[ParsedReview]) -> dict[str, list[ShapeRow]]:
 
 
 def render_report_markdown(report: ParseReport, issues: Sequence[ParseIssue]) -> str:
-    """The full report as Markdown, one section after another."""
+    """Render the parse report as Markdown, one section after another.
+
+    Args:
+        report: The report's contents.
+        issues: Every issue, for the issues section.
+
+    Returns:
+        The Markdown text.
+    """
     sections = [
         ["# Parse report"],
         _totals_section(report),

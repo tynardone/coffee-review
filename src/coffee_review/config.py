@@ -121,8 +121,10 @@ class ForexApiSettings(HttpClientSettings):
 
 
 class BLSApiSettings(HttpClientSettings):
-    """Bureau of Labor Statistics public API. No key: keyless requests use v1
-    (25 a day, 10 years each)."""
+    """Bureau of Labor Statistics public API.
+
+    No key: keyless requests use v1 (25 a day, 10 years each).
+    """
 
     base_url: HttpUrl = HttpUrl("https://api.bls.gov/publicAPI/v1/")
     rate_per_sec: float = Field(default=0.5, gt=0)
@@ -149,6 +151,12 @@ class EconomicSettings(BaseModel):
 
 
 class Settings(BaseSettings):
+    """Every setting the project has, loaded from the environment and ``.env``.
+
+    Each section has working defaults; override any field with
+    ``COFFEE_REVIEW_<SECTION>__<FIELD>``.
+    """
+
     model_config = SettingsConfigDict(
         env_prefix="COFFEE_REVIEW_",
         env_nested_delimiter="__",
@@ -169,10 +177,19 @@ class Settings(BaseSettings):
     def with_scrape_speed(
         self, rate_per_sec: float, max_concurrency: int | None
     ) -> Self:
-        """A copy with a new scrape speed, checked by CoffeeSiteSettings' rules.
+        """Return a copy with a new scrape speed, checked by the site's rules.
 
-        With ``max_concurrency=None`` the concurrency is worked out from the
-        rate. Raises pydantic.ValidationError for a rate or pair it rejects.
+        Args:
+            rate_per_sec: Requests per second.
+            max_concurrency: Requests in flight at once; None works it out from the
+                rate.
+
+        Returns:
+            The new settings.
+
+        Raises:
+            pydantic.ValidationError: For a rate, or rate and concurrency pair, the
+                rules reject.
         """
         site = CoffeeSiteSettings.model_validate(
             {

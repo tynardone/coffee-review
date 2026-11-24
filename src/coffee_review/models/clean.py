@@ -278,6 +278,7 @@ class CleanRoastedFrame(pa.DataFrameModel):
     @pa.check("review_month")
     @classmethod
     def first_of_month(cls, data: PolarsData) -> pl.LazyFrame:
+        """Check the column holds months, stored as their 1st day."""
         return first_of_month(data)
 
 
@@ -367,6 +368,7 @@ class CleanGreenFrame(pa.DataFrameModel):
     @pa.check("review_month")
     @classmethod
     def first_of_month(cls, data: PolarsData) -> pl.LazyFrame:
+        """Check the column holds months, stored as their 1st day."""
         return first_of_month(data)
 
 
@@ -410,9 +412,19 @@ class CleanContractError(Exception):
 
 
 def validate_clean(frame: pl.DataFrame, table: CleanTable) -> pl.DataFrame:
-    """``frame`` unchanged if it meets its table's contract.
+    """Check a clean table against its contract.
 
     Every check runs (pandera's lazy mode), so one error lists every failure.
+
+    Args:
+        frame: The table to check.
+        table: Which table it is.
+
+    Returns:
+        ``frame``, unchanged.
+
+    Raises:
+        CleanContractError: If any check fails; the message lists each one.
     """
     try:
         _MODELS[table].validate(frame, lazy=True)

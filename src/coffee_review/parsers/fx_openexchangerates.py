@@ -28,7 +28,18 @@ GAP_MESSAGES = frozenset({"not_available"})
 
 
 def parse_fx_openexchangerates(text: str, day: date) -> FxParsed:
-    """The rates in one day's response, or the gap it reports."""
+    """Parse one day's OpenExchangeRates response.
+
+    Args:
+        text: The response as received.
+        day: The day it's for.
+
+    Returns:
+        The day's rates (bad ones dropped and recorded), or the gap it reports.
+
+    Raises:
+        EconomicParseError: If it isn't a USD-based answer or a ``not_available``.
+    """
     body = _load(text)
     if body.get("error") is True:
         message = body.get("message")

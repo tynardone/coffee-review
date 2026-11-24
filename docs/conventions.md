@@ -119,6 +119,29 @@ way in paths, module names and CLI commands.
 - **Errors end in `Error`** and say what to do: `MissingApiKeyError` names the
   env var to set.
 
+## Docstrings
+
+Google style, for every public module, class, function and method in `src/`.
+Ruff checks that they exist and are well formed (`pydocstyle`, Google
+convention); the rest is on us.
+
+- **One-line summary** that stands alone, then a blank line, then any detail.
+- **`Args:`** for every function with two or more parameters, or one whose
+  meaning isn't obvious. Types come from the hints, so don't repeat them.
+- **`Returns:`** when the return value needs explaining; **`Raises:`** for
+  every error a caller should expect to handle.
+- **`Attributes:`** on result and record classes whose fields aren't obvious
+  from their names.
+- Simple things stay one line: properties, `close()`, `describe()`.
+- **Constructor arguments go on the class** docstring, not `__init__`.
+- **An implementation of a Protocol subclasses it and marks its methods
+  `@override`**, so the Protocol's docstrings cover them, and mypy checks every
+  method really matches.
+- **CLI commands are the exception:** a Typer command's docstring is its
+  `--help` text and each option documents itself, so they get no `Args:`.
+- Code is written with double backticks (``` ``raw_price`` ```), as Sphinx and
+  other docs tools expect.
+
 ## Tests
 
 - `tests/` mirrors `src/coffee_review/`: `clients/http.py` is tested in

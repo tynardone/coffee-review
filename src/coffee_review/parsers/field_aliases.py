@@ -24,8 +24,17 @@ _BOTH: frozenset[Dataset] = frozenset({"roasted", "green"})
 
 
 def normalise_label(raw: str) -> str:
-    """Comparable form of a label or heading: trimmed, no trailing colon,
-    single spaces, lower case. ``" Roast  Level :"`` becomes ``"roast level"``."""
+    """Turn a label or heading into a form that can be compared.
+
+    Trimmed, no trailing colon, single spaces, lower case:
+    ``" Roast  Level :"`` becomes ``"roast level"``.
+
+    Args:
+        raw: The label or heading as written on the page.
+
+    Returns:
+        The comparable form.
+    """
     text = re.sub(r"\s+", " ", raw).strip()
     return text.removesuffix(":").strip().lower()
 

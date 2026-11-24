@@ -42,7 +42,15 @@ def clean_rating(frame: pl.LazyFrame) -> pl.LazyFrame:
 
 
 def clean_scores(frame: pl.LazyFrame, fields: Sequence[str]) -> pl.LazyFrame:
-    """Each of ``fields`` from text to a 1–10 decimal, with its rules."""
+    """Turn score fields from text into 1–10 decimals.
+
+    Args:
+        frame: A table with ``raw_<field>`` for each field.
+        fields: The score fields to clean.
+
+    Returns:
+        The frame with each score and its rule column added.
+    """
     return frame.with_columns(
         expression for field in fields for expression in _score(field)
     )

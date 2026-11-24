@@ -54,8 +54,15 @@ class ParseProblem(FrozenModel):
 
 
 class FxParsed(FrozenModel):
-    """One day's response. ``gap`` is what the source said when it has no data
-    for the day (``"not_available"``); then ``rates`` is empty."""
+    """One day's exchange-rate response, parsed.
+
+    Attributes:
+        day: The day the rates are for (UTC).
+        rates: Every rate the response had that passed the checks.
+        gap: What the source said when it has no data for the day
+            (``"not_available"``); then ``rates`` is empty.
+        problems: Values dropped as bad.
+    """
 
     day: dt.date
     rates: tuple[FxRate, ...]
@@ -82,8 +89,15 @@ class EconomicParseError(Exception):
 
 
 class CpiFile(FrozenModel):
-    """A saved CPI response: when it was fetched (UTC) and the years it asked
-    for. A month can arrive in several; the newest wins."""
+    """The name of a saved CPI response.
+
+    A month can arrive in several responses; the newest wins.
+
+    Attributes:
+        fetched_at: When the request was made (UTC).
+        start_year: The first year asked for.
+        end_year: The last year asked for.
+    """
 
     fetched_at: UtcDatetime
     start_year: int
@@ -116,6 +130,7 @@ class FxFrame(pa.DataFrameModel):
     @pa.check("day")
     @classmethod
     def first_of_month(cls, data: PolarsData) -> pl.LazyFrame:
+        """Check the column holds months, stored as their 1st day."""
         return first_of_month(data)
 
 
@@ -142,6 +157,7 @@ class CpiFrame(pa.DataFrameModel):
     @pa.check("month")
     @classmethod
     def first_of_month(cls, data: PolarsData) -> pl.LazyFrame:
+        """Check the column holds months, stored as their 1st day."""
         return first_of_month(data)
 
 
@@ -164,9 +180,19 @@ class EconomicContractError(Exception):
 
 
 def validate_economic(frame: pl.DataFrame, table: EconomicTable) -> pl.DataFrame:
-    """``frame`` unchanged if it meets its table's contract.
+    """Check an economic table against its contract.
 
     Every check runs (pandera's lazy mode), so one error lists every failure.
+
+    Args:
+        frame: The table to check.
+        table: Which table it is.
+
+    Returns:
+        ``frame``, unchanged.
+
+    Raises:
+        EconomicContractError: If any check fails; the message lists each one.
     """
     try:
         _MODELS[table].validate(frame, lazy=True)

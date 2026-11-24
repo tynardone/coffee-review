@@ -23,7 +23,17 @@ _WEIGHT_FIRST = r"^\s*(?P<number>\d[\d,]*(?:\.\d+)?)\s*(?P<unit>[A-Za-z.]+)"
 
 
 def clean_lot_size(frame: pl.LazyFrame, units: Mapping[str, Unit]) -> pl.LazyFrame:
-    """``raw_lot_size`` → ``lot_size_kg`` (plain weights only) and ``lot_size_text``."""
+    """Turn ``raw_lot_size`` into ``lot_size_kg`` and ``lot_size_text``.
+
+    Only plain weights get a ``lot_size_kg``; everything keeps its text.
+
+    Args:
+        frame: The green table, with ``raw_lot_size``.
+        units: The unit lookup table.
+
+    Returns:
+        The frame with the lot-size columns and their rule column added.
+    """
     grams_per_unit = {
         spelling: unit.grams for spelling, unit in units.items() if unit.grams
     }

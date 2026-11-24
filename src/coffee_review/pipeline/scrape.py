@@ -61,7 +61,20 @@ def scrape(
     allow_delisting: bool = False,
     progress: RunProgress | None = None,
 ) -> ScrapeSummary:
-    """Run a scrape with the real client and store."""
+    """Run a scrape with the real client and store.
+
+    Args:
+        settings: The project settings, scrape speed included.
+        full: Fetch every review, not just new or changed ones.
+        limit: Fetch at most this many pages; None for no limit.
+        now: The run's start time (UTC).
+        allow_delisting: Mark reviews delisted even past the broken-sitemap
+            guard.
+        progress: Where to report progress; None for none.
+
+    Returns:
+        How the run ended, what it fetched, and its measurement.
+    """
 
     async def main() -> ScrapeSummary:
         try:
@@ -100,12 +113,24 @@ async def run_scrape(
     clock: Callable[[], float] = time.monotonic,
     progress: RunProgress | None = None,
 ) -> ScrapeSummary:
-    """Fetch new and changed reviews into ``store``; stop on any pushback.
-
-    ``allow_delisting`` lets a run mark more reviews delisted than the guard
-    normally allows, for when a large delisting is known to be real.
+    """Fetch new and changed reviews into the store; stop on any pushback.
 
     Every outcome, early endings included, comes back measured (ADR 0005).
+
+    Args:
+        settings: The project settings.
+        client: The site client (open).
+        store: The raw store.
+        full: Fetch every review, not just new or changed ones.
+        limit: Fetch at most this many pages; None for no limit.
+        now: The run's start time (UTC).
+        allow_delisting: Mark more reviews delisted than the guard normally
+            allows, for when a large delisting is known to be real.
+        clock: Seconds counter for the measurement (tests pass a fake).
+        progress: Where to report progress; None for none.
+
+    Returns:
+        How the run ended, what it fetched, and its measurement.
     """
     site = settings.coffee_site
     progress = progress or NoProgress()

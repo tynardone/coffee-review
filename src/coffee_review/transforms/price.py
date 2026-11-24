@@ -103,7 +103,19 @@ def resolve_currency(
     currencies: Mapping[str, str],
     by_roaster: Mapping[str, Mapping[str, str]],
 ) -> tuple[str | None, bool, tuple[CleanRule, ...]]:
-    """(ISO code, inferred from the roaster?, rules) for a currency as written."""
+    """Work out the ISO currency for a currency symbol as written.
+
+    Args:
+        symbol: The symbol or code as written (``$``, ``NT``, ``EUR``), or None.
+        roaster_country: The roaster's country, for symbols like ``$`` whose
+            meaning depends on it.
+        currencies: Spellings that always mean one currency.
+        by_roaster: Symbols whose currency depends on the roaster's country.
+
+    Returns:
+        The ISO code (or None), whether it was inferred from the roaster's
+        country, and the rules applied.
+    """
     if symbol is None:
         return None, False, ("unknown_currency",)
     key = normalise_symbol(symbol)
@@ -131,10 +143,18 @@ def clean_price(
     by_roaster: Mapping[str, Mapping[str, str]],
     units: Mapping[str, Unit],
 ) -> pl.LazyFrame:
-    """``raw_price`` → the seven ``price_*`` columns, using ``roaster_country``.
+    """Turn ``raw_price`` into the seven ``price_*`` columns.
 
-    Needs ``roaster_country`` (from ``clean_roaster_location``; the pipeline
-    gives green reviews a null one).
+    Args:
+        frame: A table with ``raw_price`` and ``roaster_country`` (from
+            ``clean_roaster_location``; the pipeline gives green reviews a null
+            one).
+        currencies: Spellings that always mean one currency.
+        by_roaster: Symbols whose currency depends on the roaster's country.
+        units: The unit lookup table.
+
+    Returns:
+        The frame with the price columns and their rule column added.
     """
     source, rules_column = raw("price"), rule_column("price")
     pairs = (

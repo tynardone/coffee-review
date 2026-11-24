@@ -85,10 +85,17 @@ def rules_when(*pairs: tuple[pl.Expr, CleanRule]) -> pl.Expr:
 
 
 def extract_log(frame: pl.DataFrame, dataset: Dataset) -> pl.DataFrame:
-    """One log row per rule applied to a field of a review, sorted.
+    """Turn the rule columns into cleaning-log rows.
 
-    Reads every ``_rule_<field>`` column in ``frame`` and quotes the original
-    text from ``raw_<field>``.
+    Reads every ``_rule_<field>`` column and quotes the original text from
+    ``raw_<field>``.
+
+    Args:
+        frame: A cleaned table, with its rule columns.
+        dataset: ``roasted`` or ``green``.
+
+    Returns:
+        One row per rule applied to a field of a review, sorted.
     """
     parts = [
         frame.select(

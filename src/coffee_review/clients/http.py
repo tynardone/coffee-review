@@ -1,6 +1,7 @@
-"""
-Shared async HTTP plumbing: concurrency cap, rate limit, retries with exponential
-backoff and full jitter, and Retry-After handling.
+"""Shared async HTTP plumbing for every client.
+
+A concurrency cap, a rate limit, retries with exponential backoff and full
+jitter, and Retry-After handling.
 
 Service clients subclass ``BaseHttpClient`` and call ``self.request(...)``.
 Nothing outside of coffee_review.clients should import this module.
@@ -64,7 +65,7 @@ class RequestAbandonedError(Exception):
 
 
 def _make_limiter(rate_per_sec: float) -> AsyncLimiter:
-    """Build a limiter that also works for rates below 1/sec"""
+    """Build a limiter that also works for rates below one per second."""
     capacity = max(1.0, rate_per_sec)
     return AsyncLimiter(max_rate=capacity, time_period=capacity / rate_per_sec)
 
@@ -100,11 +101,14 @@ class RequestStats:
 
     @property
     def mean_response_seconds(self) -> float | None:
+        """The average time a request took, or None if none was sent."""
         return self.response_seconds / self.requests if self.requests else None
 
 
 class BaseHttpClient:
-    """Async HTTP client with limits and retries. Use it as an async context manager::
+    """Async HTTP client with limits and retries.
+
+    Use it as an async context manager::
 
     async with SomeClient(settings) as client:
         await client.some_method()
@@ -133,6 +137,7 @@ class BaseHttpClient:
         self._client: httpx.AsyncClient | None = None
 
     async def open(self) -> None:
+        """Open the connection pool; ``async with`` does this for you."""
         if self._client is not None:
             return
         s = self.settings
@@ -149,13 +154,15 @@ class BaseHttpClient:
         )
 
     async def close(self) -> None:
+        """Close the connection pool; ``async with`` does this for you."""
         if self._client is not None:
             await self._client.aclose()
             self._client = None
 
     def _backoff_delay(self, attempt: int) -> float:
-        """Exponential backoff with full jitter:
-        uniform(0, min(max, base * 2**attempt)).
+        """Exponential backoff with full jitter.
+
+        A uniform draw from ``0`` to ``min(max, base * 2**attempt)``.
         """
         s = self.settings
         cap = min(s.backoff_max_seconds, s.backoff_base_seconds * 2**attempt)
@@ -210,9 +217,21 @@ class BaseHttpClient:
     ) -> httpx.Response:
         """Send a request, retrying retryable failures with backoff.
 
-        ``stop``, when given and set, means "send nothing more": no further
-        attempt starts and a backoff wait ends early, raising
-        RequestAbandonedError.
+        Args:
+            method: The HTTP method.
+            path: The path, relative to the base URL (or a full URL).
+            stop: When given and set, nothing more is sent: no further attempt
+                starts, and a backoff wait ends early.
+            **kwargs: Passed on to ``httpx.AsyncClient.request``.
+
+        Returns:
+            The response, for any status that isn't retried and isn't a 4xx or 5xx.
+
+        Raises:
+            httpx.HTTPStatusError: For an error status that isn't retried.
+            RetriesExhaustedError: When every attempt failed.
+            RequestAbandonedError: When ``stop`` was set before a retry.
+            RuntimeError: If the client isn't open.
         """
         client = self._client
         if client is None:

@@ -64,6 +64,14 @@ class UnloggedNullsError(Exception):
 
 @dataclass(frozen=True)
 class CleanRunResult:
+    """What a clean run produced.
+
+    Attributes:
+        report: The clean report's contents.
+        elapsed_seconds: How long the run took.
+        report_location: Where the Markdown report was written.
+    """
+
     report: CleanReport
     elapsed_seconds: float
     report_location: str
@@ -88,7 +96,22 @@ def run_clean(
     clean: CleanStore,
     clock: Callable[[], float] = time.monotonic,
 ) -> CleanRunResult:
-    """Clean both datasets, check them, and write them with the log and report."""
+    """Clean both datasets, check them, and write them with the log and report.
+
+    Nothing is written unless every check passes.
+
+    Args:
+        parsed: Where to read the parsed tables.
+        clean: Where to write the clean tables, log and report.
+        clock: Seconds counter for timing the run (tests pass a fake).
+
+    Returns:
+        The report, how long the run took, and where the report went.
+
+    Raises:
+        UnloggedNullsError: If a value became null without a rule saying why.
+        CleanContractError: If a table breaks its contract.
+    """
     started = clock()
     roasted = _transform(parsed.read_table("roasted"), _clean_roasted)
     green = _transform(parsed.read_table("green"), _clean_green)

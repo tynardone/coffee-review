@@ -11,7 +11,7 @@ incremental writing to get wrong.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING, Protocol, override
 
 import polars as pl
 
@@ -35,7 +35,13 @@ class ParsedStore(Protocol):
         issues: Sequence[ParseIssue],
         report_markdown: str,
     ) -> None:
-        """Replace everything from the previous run with these."""
+        """Replace everything from the previous run.
+
+        Args:
+            records: Every parsed record, roasted and green.
+            issues: Every issue found.
+            report_markdown: The parse report.
+        """
         ...
 
     def read_reviews(self, dataset: Dataset) -> list[ParsedReview]:
@@ -100,7 +106,15 @@ def _review_schema(dataset: Dataset) -> pl.Schema:
 
 
 def reviews_frame(records: Sequence[ParsedReview], dataset: Dataset) -> pl.DataFrame:
-    """One dataset's records as its ``reviews.parquet`` table, sorted by slug."""
+    """Turn one dataset's records into its ``reviews.parquet`` table.
+
+    Args:
+        records: Records of that dataset.
+        dataset: ``roasted`` or ``green``.
+
+    Returns:
+        The table, sorted by slug.
+    """
     mine = sorted((r for r in records if r.dataset == dataset), key=lambda r: r.slug)
     return pl.DataFrame([_review_row(r) for r in mine], schema=_review_schema(dataset))
 
@@ -113,13 +127,17 @@ _ISSUE_SCHEMA = pl.Schema(
 )
 
 
-class ParquetParsedStore:
-    """``<root>/{roasted,green}/{reviews,extra_fields}.parquet``,
-    ``<root>/parse_issues.parquet`` and ``<root>/report.md``."""
+class ParquetParsedStore(ParsedStore):
+    """The parsed store as Parquet files and a Markdown report.
+
+    ``<root>/{roasted,green}/{reviews,extra_fields}.parquet``,
+    ``<root>/parse_issues.parquet`` and ``<root>/report.md``.
+    """
 
     def __init__(self, root: Path) -> None:
         self._root = root
 
+    @override
     def write(
         self,
         records: Sequence[ParsedReview],
@@ -153,6 +171,7 @@ class ParquetParsedStore:
             lambda tmp: tmp.write_text(report_markdown, encoding="utf-8"),
         )
 
+    @override
     def read_reviews(self, dataset: Dataset) -> list[ParsedReview]:
         folder = self._root / dataset
         extras: dict[str, dict[str, str]] = {}
@@ -167,6 +186,7 @@ class ParquetParsedStore:
             for row in reviews.iter_rows(named=True)
         ]
 
+    @override
     def read_table(self, dataset: Dataset) -> pl.DataFrame:
         path = self._root / dataset / "reviews.parquet"
         if not path.exists():
@@ -174,13 +194,16 @@ class ParquetParsedStore:
             raise ParsedLayerMissingError(msg)
         return pl.read_parquet(path)
 
+    @override
     def read_issues(self) -> list[ParseIssue]:
         frame = pl.read_parquet(self._root / "parse_issues.parquet")
         return [ParseIssue.model_validate(row) for row in frame.iter_rows(named=True)]
 
+    @override
     def report_location(self) -> str:
         return str(self._root / "report.md")
 
+    @override
     def close(self) -> None:
         pass
 
