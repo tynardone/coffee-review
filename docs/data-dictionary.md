@@ -125,7 +125,7 @@ Pages worth a look. Never stops a run.
 
 ## Clean layer: `data/clean/`
 
-Typed columns, checked against the contract in `models/clean.py` on every run (Decisions 1–11 in the M3 design). Written by `clean`.
+Typed columns, checked against the contract in `models/clean.py` on every run (ADR 0008). Written by `clean`.
 
 ### `roasted/reviews.parquet`
 
@@ -140,7 +140,7 @@ One row per roasted review (espresso included).
 | `title` | String | yes | – | The coffee's name as reviewed. |
 | `roaster` | String | yes | – | The roaster (green reviews: the importer or seller). |
 | `roaster_url` | String | yes | – | The link on the roaster's logo. |
-| `review_month` | Date | yes | always the 1st | The month of the review, always stored as its 1st day (Decision 8). |
+| `review_month` | Date | yes | always the 1st | The month of the review, always stored as its 1st day (the site gives only month and year). |
 | `rating` | Int16 | yes | ≥ 50, ≤ 100 | Overall score, 50–100. Empty when not rated (NR). |
 | `roaster_city` | String | yes | – | The roaster's city, as written. |
 | `roaster_region` | String | yes | – | The roaster's state or province, by its standard name. |
@@ -183,7 +183,7 @@ One row per green review.
 | `title` | String | yes | – | The coffee's name as reviewed. |
 | `roaster` | String | yes | – | The roaster (green reviews: the importer or seller). |
 | `roaster_url` | String | yes | – | The link on the roaster's logo. |
-| `review_month` | Date | yes | always the 1st | The month of the review, always stored as its 1st day (Decision 8). |
+| `review_month` | Date | yes | always the 1st | The month of the review, always stored as its 1st day (the site gives only month and year). |
 | `rating` | Int16 | yes | ≥ 50, ≤ 100 | Overall score, 50–100. Empty when not rated (NR). |
 | `origin_country` | String | yes | – | Where the coffee was grown: one country (Hawaiʻi and Puerto Rico count as their own), "Multiple" for a blend, empty if not disclosed. |
 | `origin_region` | String | yes | – | The growing region(s), comma-separated, without filler words; direction words kept ("Guji, Oromia", "North Sumatra"). |
@@ -250,7 +250,7 @@ The values of `cleaning_log.rule`: every change the clean stage makes.
 
 ## Economic layer: `data/economic/`
 
-Exchange rates and US CPI for M5 to convert and adjust prices with. Rebuilt in full from the saved responses and checked against the contracts in `models/economic.py` on every run. Written by `fx` and `cpi`. A period the source has no data for (October 2025's CPI) is simply absent.
+Exchange rates and US CPI for the enrich stage to convert and adjust prices with. Rebuilt in full from the saved responses and checked against the contracts in `models/economic.py` on every run. Written by `fx` and `cpi`. A period the source has no data for (October 2025's CPI) is simply absent.
 
 ### `fx.parquet`
 
@@ -329,7 +329,7 @@ Hand-kept: other ways prices write a currency (`NT`, `£`, `Kč`).
 
 ### `roaster_currencies.csv` (36 rows)
 
-Hand-kept: symbols whose currency depends on the roaster's country (`$`, `¥`, `E`, `pesos`), Decision 7.
+Hand-kept: symbols whose currency depends on the roaster's country (`$`, `¥`, `E`, `pesos`).
 
 | Column | Meaning |
 |---|---|

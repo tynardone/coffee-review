@@ -9,7 +9,7 @@ and CPI are economic time series.
 
 ## Context
 
-M5 converts every price to US dollars and adjusts it for inflation. The method
+The enrich stage converts every price to US dollars and adjusts it for inflation. The method
 is **convert, then adjust**: a price is converted at its review month's
 exchange rate, then adjusted with US CPI-U, so the result reads "what that
 coffee cost an American buyer, in today's dollars". Adjusting each price with

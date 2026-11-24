@@ -22,14 +22,14 @@ flowchart LR
     economic[("data/economic/<br>fx, cpi")]
     final[("final table")]
 
-    site -->|"coffee-review scrape<br>(M1)"| raw
-    raw -->|"coffee-review parse<br>(M2)"| parsed
-    parsed -->|"coffee-review clean<br>(M3)"| clean
+    site -->|"coffee-review scrape"| raw
+    raw -->|"coffee-review parse"| parsed
+    parsed -->|"coffee-review clean"| clean
     lookups -.->|read by| clean
-    clean -.->|"enrich, dbt<br>(M5, planned)"| final
-    apis -->|"coffee-review fx / cpi<br>(M4)"| rawref
+    clean -.->|"enrich, dbt<br>(planned)"| final
+    apis -->|"coffee-review fx / cpi"| rawref
     rawref -->|rebuilt every run| economic
-    economic -.->|"(M5, planned)"| final
+    economic -.->|"(planned)"| final
 ```
 
 | Layer | Written by | What it holds | Every run |
@@ -38,7 +38,7 @@ flowchart LR
 | Parsed | `parse` | one row per review, every value as the page's text | replaced in full (≈6 s) |
 | Clean (silver) | `clean` | typed columns, a log of every change, a report | replaced in full (≈1 s) |
 | Economic | `fx`, `cpi` | exchange rates and US CPI; the responses they came from in `data/raw/` | fetches only what's missing; tables rebuilt in full |
-| Marts (gold) | M5, planned | joined to exchange rates and inflation | – |
+| Marts (gold) | enrich (planned) | joined to exchange rates and inflation | – |
 
 Each stage also writes a Markdown report next to its data
 (`data/parsed/report.md`, `data/clean/report.md`) and a run log under
@@ -109,7 +109,7 @@ tests as the real store.
 
 ## Inside each stage
 
-### Scrape (M1)
+### Scrape
 
 ```mermaid
 flowchart LR
@@ -130,7 +130,7 @@ due its one re-fetch the day after it appeared. The speed controls (`--rate`,
 fetch loop is explained step by step in
 [explainers/scrape-pipeline.md](explainers/scrape-pipeline.md).
 
-### Parse (M2)
+### Parse
 
 ```mermaid
 flowchart LR
@@ -148,7 +148,7 @@ flowchart LR
 Values stay text ([ADR 0007](decisions/0007-parse-text-type-later.md)). One bad
 page never stops the run: it becomes a `ParseIssue`.
 
-### Clean (M3)
+### Clean
 
 ```mermaid
 flowchart TD
@@ -177,7 +177,7 @@ value in plain Python and joined back. The two checks guard the silver layer:
 nothing is written unless every lost value has a rule and both tables meet
 their contract ([ADR 0008](decisions/0008-clean-in-polars.md)).
 
-### Economic data (M4)
+### Economic data
 
 ```mermaid
 flowchart TD

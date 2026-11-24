@@ -1,7 +1,7 @@
 """Where a coffee was grown, and where its roaster is.
 
 **Origin** becomes ``origin_country`` and ``origin_region``, so origins can be
-compared by country and growing region (Decisions 4 and 6):
+compared by country and growing region:
 
 - ``Guji Zone, Oromia Region, southern Ethiopia`` → Ethiopia, ``Guji, Oromia``;
 - an island names its country and stays as detail: ``Sumatra`` → Indonesia,
@@ -14,8 +14,8 @@ complete (``countries.csv``); a country written as the last word of a part is
 found ("Huila Colombia"); and a misspelling of a known place is matched by
 close spelling, logged as ``close_spelling`` so it shows in the report.
 
-**Roaster location** becomes city, region (state or province) and country
-(Decision 5). For roasters, Hawaiʻi is a US state.
+**Roaster location** becomes city, region (state or province) and country.
+For roasters, Hawaiʻi is a US state.
 
 Both work on one text at a time in plain Python (the steps are procedural),
 applied once to each *distinct* value and joined back onto the frame.

@@ -6,7 +6,7 @@ rendered as Markdown for ``data/clean/report.md``. It answers:
 - **What changed:** every rule applied, per field, with examples.
 - **What to review:** values the clean stage couldn't place or parse, and close
   spellings it accepted, each marked **new** when the previous run didn't have
-  it (Decision 10). This is the list for growing the lookup tables.
+  it. This is the list for growing the lookup tables.
 - **Coverage and distributions:** a quick check that the results look right.
 """
 

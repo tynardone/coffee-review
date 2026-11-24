@@ -6,7 +6,7 @@ Markdown for ``data/parsed/report.md``. It answers three questions:
 - **Coverage:** how often each field was found, per dataset.
 - **Surprises:** labels and headings the alias table didn't know, and issues.
 - **Formats:** the value shapes of each short field (``$99.99/99 aaaaaa``), so
-  the clean stage (M3) is designed from the formats that really occur.
+  the clean stage is designed from the formats that really occur.
 """
 
 from __future__ import annotations

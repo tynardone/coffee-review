@@ -1,12 +1,13 @@
 """The hand-kept lookup tables that ship with the code.
 
 They're small CSVs in ``transforms/lookups/``, versioned with the code and
-grown from the clean report's "to review" list, the way M2's alias table was.
+grown from the clean report's "to review" list, the way the parser's alias table
+(``parsers/field_aliases.py``) was.
 They're code, not pipeline data, so reading them here doesn't break the rule
 that only ``storage/`` knows data formats.
 
 - ``countries.csv``: every country and its spellings, generated from ISO 3166
-  by ``scripts/generate_countries.py``, so a country no review has mentioned
+  by ``scripts/generate_lookup_tables.py``, so a country no review has mentioned
   yet is still known;
 - ``places.csv``: hand-kept: other spellings, Hawaiʻi, islands, broad areas,
   US states and Canadian provinces, with each place's standard name, the
@@ -17,8 +18,8 @@ that only ``storage/`` knows data formats.
 - ``currencies.csv``: hand-kept: other ways prices write a currency (``NT``,
   ``£``, ``Kč``), and the code each means;
 - ``roaster_currencies.csv``: symbols that mean different currencies in
-  different countries (``$``, ``¥``), read using the roaster's country
-  (Decision 7); a ``*`` row is the symbol's meaning everywhere else;
+  different countries (``$``, ``¥``), read using the roaster's country;
+  a ``*`` row is the symbol's meaning everywhere else;
 - ``units.csv``: every way prices write a unit, its standard name, its kind
   (weight, volume or count), and grams per unit for weights.
 
@@ -50,9 +51,9 @@ _QUOTES = re.compile(r"[\"“”]")
 class Place:
     """What one spelling of a place stands for.
 
-    ``country`` is the place's coffee-origin country (Hawaiʻi is its own,
-    Decision 6); ``roaster_country`` is the country for a roaster's address
-    (Hawaiʻi is in the United States). They differ only for Hawaiʻi.
+    ``country`` is the place's coffee-origin country (Hawaiʻi is its own);
+    ``roaster_country`` is the country for a roaster's address (Hawaiʻi is in
+    the United States). They differ only for Hawaiʻi.
     """
 
     name: str

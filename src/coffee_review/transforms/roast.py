@@ -4,7 +4,7 @@ Agtron (see docs/agtron.md) measures roast colour: the higher the number, the
 lighter the roast. Coffee Review prints two readings, whole bean then ground
 (``55/68``). Ground coffee is lighter inside, so its number is usually higher.
 
-The rules, from the M3 design (Decisions 2, 3 and 9):
+The rules:
 
 - **Unknown:** a blank side, ``NA`` or ``na``; ``0`` means not measured; ``g`` and
   ``wb`` are the template's own label ("ground/whole bean") printed where the

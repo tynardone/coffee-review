@@ -5,7 +5,7 @@ the same template (``div.review-template``): a score, roaster and title, one or
 more label/value tables, then ``h2`` sections. What varies is which labels and
 sections a page has and what they're called; ``field_aliases`` knows the names.
 
-Rules (from the M2 design):
+Rules:
 
 - The site's ``green-coffee-review`` class decides the dataset.
 - Values are cleaned text, never interpreted; blank values are None.
