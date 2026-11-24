@@ -9,10 +9,10 @@ from typing import TYPE_CHECKING
 
 import httpx
 
-from coffee_review.models.reference import CpiFile
-from coffee_review.pipeline.reference import ReferenceRunResult, run_cpi
-from coffee_review.storage.reference_store import ReferenceStore
-from tests.reference_samples import SERIES, bls_body, bls_client, published_through
+from coffee_review.models.economic import CpiFile
+from coffee_review.pipeline.economic import EconomicRunResult, run_cpi
+from coffee_review.storage.economic_store import EconomicStore
+from tests.economic_samples import SERIES, bls_body, bls_client, published_through
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 
     import pytest
 
-    from tests.reference_samples import Reply
+    from tests.economic_samples import Reply
 
 START = date(1997, 1, 1)
 NOW = datetime(2026, 11, 22, 12, tzinfo=UTC)
@@ -29,10 +29,10 @@ THROUGH_OCTOBER = published_through(date(2026, 10, 1), unavailable=[OCT_2025])
 
 
 async def run(
-    store: ReferenceStore,
+    store: EconomicStore,
     answer: Callable[[int, int], Reply] = THROUGH_OCTOBER,
     now: datetime = NOW,
-) -> tuple[ReferenceRunResult, list[tuple[int, int]]]:
+) -> tuple[EconomicRunResult, list[tuple[int, int]]]:
     client, asked = bls_client(answer)
     result = await run_cpi(
         client=client, store=store, series=SERIES, start=START, now=now
@@ -41,7 +41,7 @@ async def run(
 
 
 async def test_first_run_three_requests_then_zero(tmp_path: Path) -> None:
-    store = ReferenceStore(tmp_path)
+    store = EconomicStore(tmp_path)
 
     first, asked_first = await run(store)
     again, asked_again = await run(store, now=NOW.replace(hour=13))
@@ -56,7 +56,7 @@ async def test_first_run_three_requests_then_zero(tmp_path: Path) -> None:
 
 
 async def test_unavailable_month_not_asked_again_next_month(tmp_path: Path) -> None:
-    store = ReferenceStore(tmp_path)
+    store = EconomicStore(tmp_path)
     await run(store)
 
     _, asked = await run(
@@ -69,7 +69,7 @@ async def test_unavailable_month_not_asked_again_next_month(tmp_path: Path) -> N
 
 
 async def test_newest_month_asked_once_a_day(tmp_path: Path) -> None:
-    store = ReferenceStore(tmp_path)
+    store = EconomicStore(tmp_path)
     await run(store, published_through(date(2026, 9, 1)))
 
     _, same_day = await run(store, published_through(date(2026, 9, 1)))
@@ -85,7 +85,7 @@ async def test_newest_month_asked_once_a_day(tmp_path: Path) -> None:
 
 
 async def test_newest_response_wins(tmp_path: Path) -> None:
-    store = ReferenceStore(tmp_path)
+    store = EconomicStore(tmp_path)
     store.save_cpi(
         SERIES,
         CpiFile(
@@ -103,7 +103,7 @@ async def test_newest_response_wins(tmp_path: Path) -> None:
 
 
 async def test_daily_limit_stops_with_saved_kept(tmp_path: Path) -> None:
-    store = ReferenceStore(tmp_path)
+    store = EconomicStore(tmp_path)
     refused = httpx.Response(
         200, json={"status": "REQUEST_NOT_PROCESSED", "message": ["daily threshold"]}
     )
@@ -122,7 +122,7 @@ async def test_daily_limit_stops_with_saved_kept(tmp_path: Path) -> None:
 
 
 async def test_saved_name_is_utc(tmp_path: Path) -> None:
-    store = ReferenceStore(tmp_path)
+    store = EconomicStore(tmp_path)
 
     await run(store)
 
@@ -132,7 +132,7 @@ async def test_saved_name_is_utc(tmp_path: Path) -> None:
 async def test_a_bls_message_is_logged(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
-    store = ReferenceStore(tmp_path)
+    store = EconomicStore(tmp_path)
 
     with caplog.at_level(logging.WARNING):
         await run(
@@ -146,7 +146,7 @@ async def test_a_bls_message_is_logged(
 async def test_corrupt_saved_file_skipped_and_its_years_fetched_again(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
-    store = ReferenceStore(tmp_path)
+    store = EconomicStore(tmp_path)
     store.save_cpi(
         SERIES,
         CpiFile(

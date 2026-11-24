@@ -8,7 +8,7 @@ import httpx
 import pytest
 
 from coffee_review.clients.bls_api import BlsApiClient
-from coffee_review.clients.reference import (
+from coffee_review.clients.economic import (
     SourceRefusedError,
     SourceUnavailableError,
 )

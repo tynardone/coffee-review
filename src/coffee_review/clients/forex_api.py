@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from coffee_review.clients.economic import ECONOMIC_RETRYABLE_STATUS, fetch_answer
 from coffee_review.clients.http import BaseHttpClient
-from coffee_review.clients.reference import REFERENCE_RETRYABLE_STATUS, fetch_answer
 
 if TYPE_CHECKING:
     from datetime import date
@@ -28,7 +28,7 @@ class MissingApiKeyError(Exception):
 class ForexApiClient(BaseHttpClient):
     """OpenExchangeRates: one day's rates per request."""
 
-    retryable_status = REFERENCE_RETRYABLE_STATUS
+    retryable_status = ECONOMIC_RETRYABLE_STATUS
 
     def __init__(
         self,

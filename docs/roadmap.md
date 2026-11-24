@@ -82,9 +82,9 @@ Left as they are, listed in the report (guessing would be wrong):
 **Done when:** the clean table validates against its schema and the transforms
 have property tests.
 
-## M4. Reference data
+## M4. Economic data
 
-Why: [ADR 0009](decisions/0009-keep-raw-reference-responses.md).
+Why: [ADR 0009](decisions/0009-keep-raw-economic-responses.md).
 
 - [x] Every response saved as received under `data/raw/`; tidy tables rebuilt from them on every run
 - [x] FX: the 1st of every month from 2010 (first non-USD price 2010-03), USD base, once each UTC day is over

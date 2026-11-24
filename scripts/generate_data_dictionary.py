@@ -25,8 +25,8 @@ from coffee_review.models.clean import (
     CleanLogFrame,
     CleanRoastedFrame,
 )
+from coffee_review.models.economic import CpiFrame, FxFrame
 from coffee_review.models.parsed import GreenReview, ParseIssue, RoastedReview
-from coffee_review.models.reference import CpiFrame, FxFrame
 from coffee_review.models.scrape import ManifestRecord
 from coffee_review.storage.parsed_store import reviews_frame
 
@@ -43,8 +43,8 @@ EXTRA_FIELDS = {
     "label": "The label or heading as written (headings are prefixed 'section: ').",
     "value": "Its value as written.",
 }
-# The reference stages' saved responses: the files themselves, as received.
-RAW_REFERENCE = {
+# The economic stages' saved responses: the files themselves, as received.
+RAW_ECONOMIC = {
     "fx/openexchangerates/<YYYY-MM-DD>.json": (
         "One exchange-rate response per day (UTC), exactly as received; a"
         " 'not_available' answer is kept too, so that day isn't asked again."
@@ -134,12 +134,12 @@ def render() -> str:
             ManifestRecord,
         ),
         _files_table(
-            "Reference responses: `data/raw/fx/`, `data/raw/cpi/`",
+            "Economic-data responses: `data/raw/fx/`, `data/raw/cpi/`",
             (
-                "Written by `fx` and `cpi`. The tidy reference tables are rebuilt from"
+                "Written by `fx` and `cpi`. The tidy economic tables are rebuilt from"
                 " these on every run (ADR 0009)."
             ),
-            RAW_REFERENCE,
+            RAW_ECONOMIC,
         ),
         "## Parsed layer: `data/parsed/`",
         (
@@ -177,11 +177,11 @@ def render() -> str:
             CleanLogFrame,
         ),
         _rules_table(),
-        "## Reference layer: `data/reference/`",
+        "## Economic layer: `data/economic/`",
         (
             "Exchange rates and US CPI for M5 to convert and adjust prices with."
             " Rebuilt in full from the saved responses and checked against the"
-            " contracts in `models/reference.py` on every run. Written by `fx` and"
+            " contracts in `models/economic.py` on every run. Written by `fx` and"
             " `cpi`. A period the source has no data for (October 2025's CPI) is"
             " simply absent."
         ),
@@ -213,7 +213,7 @@ def _intro() -> str:
         "| Raw | `data/raw/` | `coffee-review scrape` |\n"
         "| Parsed | `data/parsed/` | `coffee-review parse` |\n"
         "| Clean | `data/clean/` | `coffee-review clean` |\n"
-        "| Reference | `data/reference/` (responses in `data/raw/`) |"
+        "| Economic | `data/economic/` (responses in `data/raw/`) |"
         " `coffee-review fx`, `coffee-review cpi` |"
     )
 

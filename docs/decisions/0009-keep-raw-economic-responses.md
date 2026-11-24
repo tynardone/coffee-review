@@ -1,6 +1,11 @@
-# 0009. Reference data keeps every raw response and rebuilds from it
+# 0009. Economic data keeps every raw response and rebuilds from it
 
 Date: 2026-11-22 · Status: accepted (simplified 2026-11-23)
+
+Until 2026-11-23 this layer was called "reference data" (`data/reference/`).
+It was renamed because in data engineering that term means static lookup lists,
+which this project keeps separately in `transforms/lookups/`; exchange rates
+and CPI are economic time series.
 
 ## Context
 
@@ -11,7 +16,7 @@ coffee cost an American buyer, in today's dollars". Adjusting each price with
 its own country's CPI first was ruled out: it would need a CPI source for
 every currency.
 
-That needs two reference tables: monthly exchange rates (OpenExchangeRates,
+That needs two economic tables: monthly exchange rates (OpenExchangeRates,
 free plan: 1,000 requests a month, one day per request) and US CPI-U (the BLS,
 keyless: 25 requests a day, 10 years per request). Data fetched once shouldn't
 be paid for twice.
@@ -23,7 +28,7 @@ Each stage, `fx` and `cpi`, works in three steps:
 1. Parse every saved response. A saved file that won't parse counts as missing.
 2. Fetch only what isn't saved yet, saving each answer exactly as received
    (under `data/raw/fx/` or `data/raw/cpi/`) before using it.
-3. Rebuild the tidy table in `data/reference/` in full from the saved files,
+3. Rebuild the tidy table in `data/economic/` in full from the saved files,
    check it against its contract, and write it.
 
 The raw files are the source of truth; the tables are never edited.
@@ -62,6 +67,6 @@ parser, and the stage function that calls them.
 - A parser fix is applied by rerunning; it reads the saved files. The first
   real CPI run found the BLS `-`/X marker, and the fix was checked by
   rebuilding from the saved responses with no requests.
-- Every number in a reference table can be traced to the file it came from.
+- Every number in a economic table can be traced to the file it came from.
 - The data is never committed (`data/` is gitignored). OpenExchangeRates'
   terms allow use but not resale of its data.

@@ -19,7 +19,7 @@ flowchart LR
     clean[("data/clean/<br>roasted, green<br>reviews.parquet<br>cleaning_log.parquet")]
     lookups[["transforms/lookups/*.csv<br>places, currencies, units"]]
     rawref[("data/raw/<br>fx/, cpi/<br>JSON responses")]
-    reference[("data/reference/<br>fx, cpi")]
+    economic[("data/economic/<br>fx, cpi")]
     final[("final table")]
 
     site -->|"coffee-review scrape<br>(M1)"| raw
@@ -28,8 +28,8 @@ flowchart LR
     lookups -.->|read by| clean
     clean -.->|"enrich, dbt<br>(M5, planned)"| final
     apis -->|"coffee-review fx / cpi<br>(M4)"| rawref
-    rawref -->|rebuilt every run| reference
-    reference -.->|"(M5, planned)"| final
+    rawref -->|rebuilt every run| economic
+    economic -.->|"(M5, planned)"| final
 ```
 
 | Layer | Written by | What it holds | Every run |
@@ -37,7 +37,7 @@ flowchart LR
 | Raw (bronze) | `scrape` | the HTML as fetched, and a manifest of what was fetched when | adds and refreshes pages (incremental) |
 | Parsed | `parse` | one row per review, every value as the page's text | replaced in full (≈6 s) |
 | Clean (silver) | `clean` | typed columns, a log of every change, a report | replaced in full (≈1 s) |
-| Reference | `fx`, `cpi` | exchange rates and US CPI; the responses they came from in `data/raw/` | fetches only what's missing; tables rebuilt in full |
+| Economic | `fx`, `cpi` | exchange rates and US CPI; the responses they came from in `data/raw/` | fetches only what's missing; tables rebuilt in full |
 | Marts (gold) | M5, planned | joined to exchange rates and inflation | – |
 
 Each stage also writes a Markdown report next to its data
@@ -177,28 +177,28 @@ value in plain Python and joined back. The two checks guard the silver layer:
 nothing is written unless every lost value has a rule and both tables meet
 their contract ([ADR 0008](decisions/0008-clean-in-polars.md)).
 
-### Reference data (M4)
+### Economic data (M4)
 
 ```mermaid
 flowchart TD
-    saved[("data/raw/fx/openexchangerates/&lt;day&gt;.json<br>data/raw/cpi/bls/&lt;series&gt;/&lt;request&gt;.json")] -->|ReferenceStore| parse["parse every saved response"]
-    parse --> plan["what's missing?<br>transforms/reference.py<br>(today in UTC, passed in)"]
+    saved[("data/raw/fx/openexchangerates/&lt;day&gt;.json<br>data/raw/cpi/bls/&lt;series&gt;/&lt;request&gt;.json")] -->|EconomicStore| parse["parse every saved response"]
+    parse --> plan["what's missing?<br>transforms/economic.py<br>(today in UTC, passed in)"]
     plan -->|nothing| rebuild
     plan -->|"missing days / years"| fetch["fetch<br>clients/forex_api.py · bls_api.py"]
     fetch -->|"answered (data or 'no data')"| save["save the response as received"]
     save --> rebuild["rebuild fx / cpi<br>(newest response wins)"]
     fetch -->|"refused, bad key, down"| stop(["stop cleanly, exit 3<br>saved files kept"])
     stop --> rebuild
-    rebuild --> contract{"pandera contract<br>(models/reference.py)"}
+    rebuild --> contract{"pandera contract<br>(models/economic.py)"}
     contract -->|breaks| stop2(["stop, exit 1,<br>nothing written"])
-    contract -->|passes| ref[("data/reference/")]
+    contract -->|passes| ref[("data/economic/")]
 ```
 
 The saved responses are the source of truth; the tables are always rebuilt
 from them, so a parser fix needs no requests, and a rerun costs none. Periods a
 source will never have, like October 2025's CPI, are saved like any answer and
 not asked for again; they're simply absent from the table
-([ADR 0009](decisions/0009-keep-raw-reference-responses.md)).
+([ADR 0009](decisions/0009-keep-raw-economic-responses.md)).
 
 ## The lookup tables
 

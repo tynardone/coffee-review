@@ -17,17 +17,17 @@ src/coffee_review/
     scrape.py          Sitemap entries, manifest rows, scrape summaries.
     parsed.py          Parsed review records and parse issues.
     clean.py           The clean-table contract (pandera) and cleaning-rule names.
-    reference.py       Exchange-rate and CPI rows and the reference-table contracts.
+    economic.py        Exchange-rate and CPI rows and the economic-table contracts.
     frames.py          Checks shared by the pandera contracts.
   clients/             Talk to the outside world over HTTP. Return raw text/JSON.
-    reference.py       Telling a reference source's answer from a refusal.
+    economic.py        Telling an economic-data source's answer from a refusal.
   storage/             Read and write each data layer on disk. Know paths and formats.
   parsers/             Pure functions: raw HTML/XML/JSON in, models out. No I/O.
   transforms/          Pure functions on tables: clean, convert, adjust.
     rules.py           raw_<field> / _rule_<field> columns, the cleaning log.
     dates.py, scores.py, roast.py, places.py, price.py, units.py, lots.py, text.py
                        One module per field family.
-    reference.py       What FX days and CPI years to fetch; build the reference tables.
+    economic.py        What FX days and CPI years to fetch; build the economic tables.
     lookup_tables.py   Loads the CSVs in lookups/ (the one file access allowed).
     lookups/           Hand-kept and generated lookup tables, versioned with code.
   pipeline/            One module per stage: wires clients + storage + parsers/transforms.
@@ -71,7 +71,7 @@ When it's unclear where new code goes, ask what it *does*:
 | reads or writes a file under `data/` | `storage/` |
 | talks to the manifest or saved pages | `storage/` (through a Protocol) |
 | decides which reviews to fetch | `pipeline/fetch_rules.py` (pure) |
-| decides which FX days or CPI years to fetch | `transforms/reference.py` (pure) |
+| decides which FX days or CPI years to fetch | `transforms/economic.py` (pure) |
 | turns raw HTML/XML into a model | `parsers/` |
 | turns one table into another | `transforms/` |
 | runs a stage from start to finish | `pipeline/` |
@@ -97,7 +97,7 @@ way in paths, module names and CLI commands.
 | raw | `data/raw/` | scrape (pages, manifest); fx, cpi (`fx/`, `cpi/` responses) |
 | parsed | `data/parsed/` | parse |
 | clean | `data/clean/` | clean |
-| reference | `data/reference/` | fx, cpi |
+| economic | `data/economic/` | fx, cpi |
 | final | `data/final/` | enrich |
 
 `data/` is never committed.

@@ -1,5 +1,5 @@
 """Hand-written OpenExchangeRates and BLS responses, and the real clients over
-a fake network (``httpx.MockTransport``), for the reference-stage tests.
+a fake network (``httpx.MockTransport``), for the economic-stage tests.
 
 The bodies follow each API's documented shape; none is a real response.
 """

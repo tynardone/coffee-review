@@ -1,4 +1,4 @@
-"""Tests for the CPI half of coffee_review.transforms.reference."""
+"""Tests for the CPI half of coffee_review.transforms.economic."""
 
 from __future__ import annotations
 
@@ -7,8 +7,8 @@ from datetime import date
 from hypothesis import given
 from hypothesis import strategies as st
 
-from coffee_review.models.reference import CpiMonth, CpiParsed, validate_reference
-from coffee_review.transforms.reference import build_cpi, cpi_wanted_months, plan_cpi
+from coffee_review.models.economic import CpiMonth, CpiParsed, validate_economic
+from coffee_review.transforms.economic import build_cpi, cpi_wanted_months, plan_cpi
 
 SERIES = "CUUR0000SA0"
 
@@ -84,8 +84,8 @@ def test_build_takes_the_newest_value() -> None:
     cpi = build_cpi([parsed(month, value=2.0), parsed(month, value=1.0)])
 
     assert cpi.rows() == [(date(2020, 1, 1), SERIES, 2.0)]
-    validate_reference(cpi, "cpi")
+    validate_economic(cpi, "cpi")
 
 
 def test_build_nothing_gives_an_empty_table() -> None:
-    validate_reference(build_cpi([]), "cpi")
+    validate_economic(build_cpi([]), "cpi")

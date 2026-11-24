@@ -1,4 +1,4 @@
-"""The reference stage's contracts: exchange rates and CPI (M4).
+"""The economic stage's contracts: exchange rates and CPI (M4).
 
 - **What a parser returns** (``FxParsed``, ``CpiParsed``): rows in project
   terms.
@@ -77,7 +77,7 @@ class CpiParsed(FrozenModel):
     problems: tuple[ParseProblem, ...] = ()
 
 
-class ReferenceParseError(Exception):
+class EconomicParseError(Exception):
     """A response that isn't a valid answer: not saved, asked for again."""
 
 
@@ -92,7 +92,7 @@ class CpiFile(FrozenModel):
 
 # --- The tidy tables ---------------------------------------------------------
 
-type ReferenceTable = Literal["fx", "cpi"]
+type EconomicTable = Literal["fx", "cpi"]
 
 
 class FxFrame(pa.DataFrameModel):
@@ -145,7 +145,7 @@ class CpiFrame(pa.DataFrameModel):
         return first_of_month(data)
 
 
-_MODELS: Mapping[ReferenceTable, type[pa.DataFrameModel]] = MappingProxyType(
+_MODELS: Mapping[EconomicTable, type[pa.DataFrameModel]] = MappingProxyType(
     {"fx": FxFrame, "cpi": CpiFrame}
 )
 
@@ -159,11 +159,11 @@ FX_SCHEMA = _polars_schema(FxFrame)
 CPI_SCHEMA = _polars_schema(CpiFrame)
 
 
-class ReferenceContractError(Exception):
-    """A reference table broke its contract: a bug, since parsers drop bad values."""
+class EconomicContractError(Exception):
+    """An economic table broke its contract: a bug, since parsers drop bad values."""
 
 
-def validate_reference(frame: pl.DataFrame, table: ReferenceTable) -> pl.DataFrame:
+def validate_economic(frame: pl.DataFrame, table: EconomicTable) -> pl.DataFrame:
     """``frame`` unchanged if it meets its table's contract.
 
     Every check runs (pandera's lazy mode), so one error lists every failure.
@@ -175,6 +175,6 @@ def validate_reference(frame: pl.DataFrame, table: ReferenceTable) -> pl.DataFra
             maintain_order=True
         )
         lines = [f"  {column}: {check}" for column, check in cases.iter_rows()]
-        message = f"reference {table} table broke its contract:\n" + "\n".join(lines)
-        raise ReferenceContractError(message) from None
+        message = f"economic {table} table broke its contract:\n" + "\n".join(lines)
+        raise EconomicContractError(message) from None
     return frame

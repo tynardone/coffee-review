@@ -1,4 +1,4 @@
-"""How the reference-data clients tell an answer from a refusal.
+"""How the economic-data clients tell an answer from a refusal.
 
 A client returns the response text whenever the source *answered*, including
 "I have no data for that" (the parser decides what the answer means). When
@@ -28,7 +28,7 @@ if TYPE_CHECKING:
 
 # Retried: a server or gateway that may recover. Not retried: 429, which here
 # means "you've used your allowance", not "slow down for a moment".
-REFERENCE_RETRYABLE_STATUS: frozenset[int] = frozenset({408, 500, 502, 503, 504})
+ECONOMIC_RETRYABLE_STATUS: frozenset[int] = frozenset({408, 500, 502, 503, 504})
 ANSWER_STATUS = frozenset({200, 400})
 
 

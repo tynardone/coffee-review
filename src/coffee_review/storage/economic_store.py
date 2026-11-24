@@ -1,9 +1,9 @@
-"""The reference layers: saved source responses, and the tidy tables.
+"""The economic layers: saved source responses, and the tidy tables.
 
 - Every response a source answered is kept exactly as received under
   ``data/raw/fx/openexchangerates/`` and ``data/raw/cpi/bls/<series>/``. Those
   files are the source of truth.
-- The tidy tables (``data/reference/fx.parquet``, ``cpi.parquet``) are always
+- The tidy tables (``data/economic/fx.parquet``, ``cpi.parquet``) are always
   rebuilt from them, never edited.
 
 Only this module knows the paths and formats.
@@ -18,14 +18,14 @@ from typing import TYPE_CHECKING
 
 import polars as pl
 
-from coffee_review.models.reference import CpiFile
+from coffee_review.models.economic import CpiFile
 from coffee_review.storage.atomic import write_atomically, write_parquet
 
 if TYPE_CHECKING:
     from pathlib import Path
 
     from coffee_review.config import Settings
-    from coffee_review.models.reference import ReferenceTable
+    from coffee_review.models.economic import EconomicTable
 
 logger = logging.getLogger(__name__)
 
@@ -34,18 +34,18 @@ CPI_NAME = re.compile(r"^(\d{8}T\d{6}Z)_(\d{4})-(\d{4})\.json$")
 STAMP = "%Y%m%dT%H%M%SZ"
 
 
-class ReferenceLayerMissingError(Exception):
-    """There's no reference table to read: fx or cpi hasn't been run here yet."""
+class EconomicLayerMissingError(Exception):
+    """There's no economic table to read: fx or cpi hasn't been run here yet."""
 
 
-def open_reference_store(settings: Settings) -> ReferenceStore:
-    """The reference store the pipeline uses."""
-    return ReferenceStore(settings.data_dir)
+def open_economic_store(settings: Settings) -> EconomicStore:
+    """The economic store the pipeline uses."""
+    return EconomicStore(settings.data_dir)
 
 
-class ReferenceStore:
+class EconomicStore:
     """Saved responses under ``<data_dir>/raw/``, tables under
-    ``<data_dir>/reference/``.
+    ``<data_dir>/economic/``.
 
     ``fx/openexchangerates/<YYYY-MM-DD>.json``: one file per day.
     ``cpi/bls/<series>/<YYYYMMDDTHHMMSSZ>_<start>-<end>.json``: one file per
@@ -56,7 +56,7 @@ class ReferenceStore:
     def __init__(self, data_dir: Path) -> None:
         self._fx = data_dir / "raw" / "fx" / "openexchangerates"
         self._cpi = data_dir / "raw" / "cpi" / "bls"
-        self._tables = data_dir / "reference"
+        self._tables = data_dir / "economic"
 
     # --- Exchange rates
 
@@ -107,24 +107,24 @@ class ReferenceStore:
 
     # --- Tables
 
-    def write_table(self, table: ReferenceTable, frame: pl.DataFrame) -> None:
+    def write_table(self, table: EconomicTable, frame: pl.DataFrame) -> None:
         write_parquet(frame, self._table_path(table))
 
-    def read_table(self, table: ReferenceTable) -> pl.DataFrame:
+    def read_table(self, table: EconomicTable) -> pl.DataFrame:
         path = self._table_path(table)
         if not path.exists():
-            msg = f"no reference data at {path}: run fx or cpi first"
-            raise ReferenceLayerMissingError(msg)
+            msg = f"no economic data at {path}: run fx or cpi first"
+            raise EconomicLayerMissingError(msg)
         return pl.read_parquet(path)
 
-    def location(self, table: ReferenceTable) -> str:
+    def location(self, table: EconomicTable) -> str:
         return str(self._table_path(table))
 
     def _cpi_path(self, series: str, file: CpiFile) -> Path:
         stamp = file.fetched_at.astimezone(UTC).strftime(STAMP)
         return self._cpi / series / f"{stamp}_{file.start_year}-{file.end_year}.json"
 
-    def _table_path(self, table: ReferenceTable) -> Path:
+    def _table_path(self, table: EconomicTable) -> Path:
         return self._tables / f"{table}.parquet"
 
 
@@ -153,4 +153,4 @@ def _parse_stamp(text: str) -> datetime | None:
 
 
 def _skip(path: Path) -> None:
-    logger.warning("skipping %s: not a saved reference response's name", path)
+    logger.warning("skipping %s: not a saved economic response's name", path)

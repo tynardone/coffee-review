@@ -124,14 +124,14 @@ def test_user_agent_links_the_public_repo() -> None:
     )
 
 
-def test_reference_defaults() -> None:
-    reference = load_settings().reference
+def test_economic_defaults() -> None:
+    economic = load_settings().economic
 
-    assert (reference.fx_start, reference.cpi_start) == (
+    assert (economic.fx_start, economic.cpi_start) == (
         date(2010, 1, 1),
         date(1997, 1, 1),
     )
-    assert reference.cpi_series == "CUUR0000SA0"
+    assert economic.cpi_series == "CUUR0000SA0"
 
 
 def test_bls_is_keyless_v1() -> None:
@@ -139,10 +139,10 @@ def test_bls_is_keyless_v1() -> None:
 
 
 @pytest.mark.parametrize("field", ["FX_START", "CPI_START"])
-def test_reference_start_must_be_a_first(
+def test_economic_start_must_be_a_first(
     monkeypatch: pytest.MonkeyPatch, field: str
 ) -> None:
-    monkeypatch.setenv(f"COFFEE_REVIEW_REFERENCE__{field}", "2010-01-15")
+    monkeypatch.setenv(f"COFFEE_REVIEW_ECONOMIC__{field}", "2010-01-15")
 
     with pytest.raises(ValidationError, match="must be the 1st of a month"):
         load_settings()

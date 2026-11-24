@@ -1,4 +1,4 @@
-"""Tests for the FX half of coffee_review.transforms.reference."""
+"""Tests for the FX half of coffee_review.transforms.economic."""
 
 from __future__ import annotations
 
@@ -8,8 +8,8 @@ from zoneinfo import ZoneInfo
 from hypothesis import given
 from hypothesis import strategies as st
 
-from coffee_review.models.reference import FxParsed, FxRate, validate_reference
-from coffee_review.transforms.reference import build_fx, fx_missing, fx_wanted_days
+from coffee_review.models.economic import FxParsed, FxRate, validate_economic
+from coffee_review.transforms.economic import build_fx, fx_missing, fx_wanted_days
 
 months = st.builds(
     date, st.integers(min_value=2005, max_value=2030), st.integers(1, 12), st.just(1)
@@ -83,7 +83,7 @@ def test_build_sorts_and_meets_the_contract() -> None:
         (date(2020, 2, 1), "TWD", 31.0),
         (date(2020, 2, 1), "USD", 1.0),
     ]
-    validate_reference(fx, "fx")
+    validate_economic(fx, "fx")
 
 
 def test_vanished_currency_is_only_absent() -> None:
@@ -98,4 +98,4 @@ def test_vanished_currency_is_only_absent() -> None:
 
 
 def test_build_nothing_gives_an_empty_table() -> None:
-    validate_reference(build_fx([]), "fx")
+    validate_economic(build_fx([]), "fx")

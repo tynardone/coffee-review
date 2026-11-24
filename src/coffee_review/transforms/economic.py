@@ -1,4 +1,4 @@
-"""Pure functions for the reference stages: what to fetch, and building the
+"""Pure functions for the economic stages: what to fetch, and building the
 tidy tables from saved responses.
 
 Nothing here reads a clock: ``today`` (a UTC date) is always passed in, so the
@@ -12,12 +12,12 @@ from typing import TYPE_CHECKING
 
 import polars as pl
 
-from coffee_review.models.reference import CPI_SCHEMA, FX_SCHEMA
+from coffee_review.models.economic import CPI_SCHEMA, FX_SCHEMA
 
 if TYPE_CHECKING:
     from collections.abc import Collection, Iterable, Sequence
 
-    from coffee_review.models.reference import CpiParsed, FxParsed
+    from coffee_review.models.economic import CpiParsed, FxParsed
 
 
 def next_month(month: date) -> date:

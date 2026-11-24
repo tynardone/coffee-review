@@ -9,7 +9,7 @@ Every table the pipeline writes, layer by layer, and the lookup tables that driv
 | Raw | `data/raw/` | `coffee-review scrape` |
 | Parsed | `data/parsed/` | `coffee-review parse` |
 | Clean | `data/clean/` | `coffee-review clean` |
-| Reference | `data/reference/` (responses in `data/raw/`) | `coffee-review fx`, `coffee-review cpi` |
+| Economic | `data/economic/` (responses in `data/raw/`) | `coffee-review fx`, `coffee-review cpi` |
 
 ## Raw layer: `data/raw/`
 
@@ -32,9 +32,9 @@ One row per review the sitemaps have listed. Written by `scrape`.
 | `first_seen_at` | datetime (UTC) | no | When this review first appeared in a sitemap (UTC). |
 | `delisted_at` | datetime (UTC) | yes | When the review dropped out of the sitemaps (UTC); its saved copy is kept. |
 
-### Reference responses: `data/raw/fx/`, `data/raw/cpi/`
+### Economic-data responses: `data/raw/fx/`, `data/raw/cpi/`
 
-Written by `fx` and `cpi`. The tidy reference tables are rebuilt from these on every run (ADR 0009).
+Written by `fx` and `cpi`. The tidy economic tables are rebuilt from these on every run (ADR 0009).
 
 | File | What it holds |
 |---|---|
@@ -248,9 +248,9 @@ The values of `cleaning_log.rule`: every change the clean stage makes.
 | `unknown_unit` | A unit not in the lookup tables (multipacks: "six 8-ounce cans"). Quantity and unit are empty. |
 | `zero_width_removed` | Invisible zero-width characters removed from the text. |
 
-## Reference layer: `data/reference/`
+## Economic layer: `data/economic/`
 
-Exchange rates and US CPI for M5 to convert and adjust prices with. Rebuilt in full from the saved responses and checked against the contracts in `models/reference.py` on every run. Written by `fx` and `cpi`. A period the source has no data for (October 2025's CPI) is simply absent.
+Exchange rates and US CPI for M5 to convert and adjust prices with. Rebuilt in full from the saved responses and checked against the contracts in `models/economic.py` on every run. Written by `fx` and `cpi`. A period the source has no data for (October 2025's CPI) is simply absent.
 
 ### `fx.parquet`
 

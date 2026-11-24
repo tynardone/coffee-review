@@ -13,15 +13,15 @@ import pytest
 
 from coffee_review.clients.forex_api import MissingApiKeyError
 from coffee_review.config import Settings
-from coffee_review.pipeline.reference import ReferenceRunResult, fx, run_fx
-from coffee_review.storage.reference_store import ReferenceStore
-from tests.reference_samples import NOT_AVAILABLE, fx_client, oxr_body
+from coffee_review.pipeline.economic import EconomicRunResult, fx, run_fx
+from coffee_review.storage.economic_store import EconomicStore
+from tests.economic_samples import NOT_AVAILABLE, fx_client, oxr_body
 
 if TYPE_CHECKING:
     from collections.abc import Callable
     from pathlib import Path
 
-    from tests.reference_samples import Reply
+    from tests.economic_samples import Reply
 
 START = date(2026, 8, 1)
 TODAY = date(2026, 11, 22)
@@ -33,8 +33,8 @@ def every_day(_day: date) -> Reply:
 
 
 async def run(
-    store: ReferenceStore, answer: Callable[[date], Reply] = every_day
-) -> tuple[ReferenceRunResult, list[date]]:
+    store: EconomicStore, answer: Callable[[date], Reply] = every_day
+) -> tuple[EconomicRunResult, list[date]]:
     client, asked = fx_client(answer)
     result = await run_fx(client=client, store=store, start=START, today=TODAY)
     return result, asked
@@ -43,7 +43,7 @@ async def run(
 async def test_first_run_fetches_every_missing_first_then_rerun_fetches_nothing(
     tmp_path: Path,
 ) -> None:
-    store = ReferenceStore(tmp_path)
+    store = EconomicStore(tmp_path)
 
     first, asked_first = await run(store)
     again, asked_again = await run(store)
@@ -59,7 +59,7 @@ async def test_first_run_fetches_every_missing_first_then_rerun_fetches_nothing(
 async def test_not_available_is_saved_as_a_gap_and_not_asked_again(
     tmp_path: Path,
 ) -> None:
-    store = ReferenceStore(tmp_path)
+    store = EconomicStore(tmp_path)
 
     def answer(day: date) -> Reply:
         if day == date(2026, 9, 1):
@@ -78,7 +78,7 @@ async def test_not_available_is_saved_as_a_gap_and_not_asked_again(
 async def test_stops_keeps_earlier_files_and_rebuilds(
     tmp_path: Path, status: int
 ) -> None:
-    store = ReferenceStore(tmp_path)
+    store = EconomicStore(tmp_path)
 
     def answer(day: date) -> Reply:
         if day == date(2026, 9, 1):
@@ -95,7 +95,7 @@ async def test_stops_keeps_earlier_files_and_rebuilds(
 
 
 async def test_next_run_carries_on_after_a_stop(tmp_path: Path) -> None:
-    store = ReferenceStore(tmp_path)
+    store = EconomicStore(tmp_path)
     await run(
         store,
         lambda day: httpx.Response(429) if day == date(2026, 9, 1) else oxr_body(),
@@ -109,7 +109,7 @@ async def test_next_run_carries_on_after_a_stop(tmp_path: Path) -> None:
 async def test_malformed_answer_not_saved_and_asked_again(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
-    store = ReferenceStore(tmp_path)
+    store = EconomicStore(tmp_path)
 
     with caplog.at_level(logging.WARNING):
         first, _ = await run(
@@ -125,7 +125,7 @@ async def test_malformed_answer_not_saved_and_asked_again(
 async def test_stops_after_three_answers_in_a_row_that_wont_parse(
     tmp_path: Path,
 ) -> None:
-    store = ReferenceStore(tmp_path)
+    store = EconomicStore(tmp_path)
     eur = json.dumps({"base": "EUR", "rates": {"USD": 1.1}})
 
     result, asked = await run(store, lambda _day: eur)
@@ -139,7 +139,7 @@ async def test_stops_after_three_answers_in_a_row_that_wont_parse(
 async def test_corrupt_saved_file_is_fetched_again_and_replaced(
     tmp_path: Path,
 ) -> None:
-    store = ReferenceStore(tmp_path)
+    store = EconomicStore(tmp_path)
     for day in ALL_DAYS:
         store.save_fx(day, oxr_body())
     store.save_fx(date(2026, 9, 1), "{")
@@ -154,7 +154,7 @@ async def test_nothing_wanted_before_start(tmp_path: Path) -> None:
     client, asked = fx_client(every_day)
 
     result = await run_fx(
-        client=client, store=ReferenceStore(tmp_path), start=START, today=START
+        client=client, store=EconomicStore(tmp_path), start=START, today=START
     )
 
     assert asked == []
@@ -166,7 +166,7 @@ def test_missing_key_fails_before_any_request() -> None:
         fx(Settings(), today=TODAY)
 
 
-def result(**changes: object) -> ReferenceRunResult:
+def result(**changes: object) -> EconomicRunResult:
     fields: dict[str, object] = {
         "kind": "fx",
         "outcome": "finished",
@@ -178,9 +178,9 @@ def result(**changes: object) -> ReferenceRunResult:
         "rows": 34170,
         "first": date(2010, 1, 1),
         "last": date(2026, 11, 1),
-        "location": "data/reference/fx.parquet",
+        "location": "data/economic/fx.parquet",
     }
-    return ReferenceRunResult(**(fields | changes))  # type: ignore[arg-type]
+    return EconomicRunResult(**(fields | changes))  # type: ignore[arg-type]
 
 
 def test_describe_finished() -> None:

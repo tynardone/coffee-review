@@ -19,8 +19,8 @@ from rich.console import Console
 from coffee_review.config import MAX_RATE_PER_SEC, get_settings
 from coffee_review.logging_setup import FILE_ONLY, configure_logging, run_log_path
 from coffee_review.pipeline.clean import clean
+from coffee_review.pipeline.economic import cpi, fx
 from coffee_review.pipeline.parse import parse
-from coffee_review.pipeline.reference import cpi, fx
 from coffee_review.pipeline.scrape import scrape
 from coffee_review.progress_display import RichRunProgress
 
@@ -28,7 +28,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
     from coffee_review.config import Settings
-    from coffee_review.pipeline.reference import ReferenceRunResult
+    from coffee_review.pipeline.economic import EconomicRunResult
 
 # Exit codes. 2 is Click's own code for a usage error (a bad option), so a
 # stopped run gets 3: a script can tell "you typed it wrong" from "the site
@@ -199,30 +199,30 @@ def clean_command() -> None:
 
 @app.command("fx")
 def fx_command() -> None:
-    """Bring exchange rates in data/reference up to date (responses in data/raw).
+    """Bring exchange rates in data/economic up to date (responses in data/raw).
 
     Asks only for days not saved yet. Needs COFFEE_REVIEW_FOREX_API__API_KEY.
     Exit codes: 0 finished, 1 error, 3 stopped by the source (refused, bad key,
     or not answering); a rerun carries on.
     """
-    _reference_command("fx", fx)
+    _economic_command("fx", fx)
 
 
 @app.command("cpi")
 def cpi_command() -> None:
-    """Bring US CPI-U in data/reference up to date (responses in data/raw).
+    """Bring US CPI-U in data/economic up to date (responses in data/raw).
 
     Asks only for months not saved yet; no key needed. Exit codes: 0 finished,
     1 error, 3 stopped by the source (refused or not answering); a rerun carries
     on.
     """
-    _reference_command("cpi", cpi)
+    _economic_command("cpi", cpi)
 
 
-def _reference_command(
-    kind: Literal["fx", "cpi"], run: Callable[[Settings], ReferenceRunResult]
+def _economic_command(
+    kind: Literal["fx", "cpi"], run: Callable[[Settings], EconomicRunResult]
 ) -> None:
-    """Run one reference stage; the summary line is logged by the stage."""
+    """Run one economic stage; the summary line is logged by the stage."""
     try:
         settings = get_settings()
     except ValidationError as exc:

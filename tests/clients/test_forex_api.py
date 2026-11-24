@@ -9,12 +9,12 @@ import httpx
 import pytest
 from pydantic import SecretStr
 
-from coffee_review.clients.forex_api import ForexApiClient, MissingApiKeyError
-from coffee_review.clients.reference import (
+from coffee_review.clients.economic import (
     SourceAuthError,
     SourceRefusedError,
     SourceUnavailableError,
 )
+from coffee_review.clients.forex_api import ForexApiClient, MissingApiKeyError
 from coffee_review.config import ForexApiSettings
 
 KEY = "test-key"
