@@ -95,10 +95,32 @@ Why: [ADR 0009](decisions/0009-keep-raw-economic-responses.md).
 
 **Done when:** both are up to date and a rerun costs zero requests.
 
-For M5: one priced review (2009-02, USD) predates the FX table, which is fine for
+For M6: one priced review (2009-02, USD) predates the FX table, which is fine for
 USD; reviews dated October 2025 have no CPI month (a gap).
 
-## M5. Enrich and final table
+## M5. Roaster names
+
+Why: one roaster is often written several ways (`JBC Coffee Roasters` and
+`JBC`, `El Gran Cafe` and `El Gran Café`), which splits it in two for the
+dashboard and the models. The first clean has 1,621 roaster spellings across
+9,350 roasted reviews. In scope: the same name written differently. Out of
+scope: renamed, merged or sold roasters.
+
+Part of the clean stage, after the roaster location is cleaned.
+
+- [ ] Design written and approved
+- [ ] Matching key: case, accents, `&`, punctuation and words like *Coffee Roasters* ignored; spellings that share a key become one name (116 groups, 241 spellings in a first survey)
+- [ ] Close spellings scored; at or above the automatic threshold, merged and flagged, unless the roasters are in different countries; between the two thresholds, listed in the report's *To review*
+- [ ] Roasters in different countries never merged automatically; city names compared loosely (`Taoyuan City` and `Taoyuan`)
+- [ ] `roasters.csv`: hand-kept merges, and spellings pinned as separate roasters
+- [ ] The most common spelling is kept; the original stays in the cleaning log; both thresholds in settings
+- [ ] First real clean: spellings merged, pairs listed for review, list worked through
+
+**Done when:** every merge is either a shared key, a close spelling above the
+threshold with no location conflict, or a row in `roasters.csv`; the review
+list is worked through; and the rules have tests.
+
+## M6. Enrich and final table
 
 Starting input: `data/clean/`, with `price_currency` as ISO codes and
 `review_month` on the 1st (the FX and CPI join keys). dbt-duckdb is revisited
@@ -115,9 +137,9 @@ run updates it, and a small end-to-end test passes.
 
 Designed when reached.
 
-- **M6.** Orchestration with Dagster, replacing the hand-wired `pipeline/`
-- **M7.** Dashboard over the final table (DuckDB-backed)
-- **M8.** Machine learning on the final table
+- **M7.** Orchestration with Dagster, replacing the hand-wired `pipeline/`
+- **M8.** Dashboard over the final table (DuckDB-backed)
+- **M9.** Machine learning on the final table
 
 ## Backlog
 

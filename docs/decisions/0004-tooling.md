@@ -28,7 +28,7 @@ its own sake.
 | Table validation (M3) | pandera | Contracts at table boundaries |
 | Storage format | Parquet | For parsed, clean, reference, final |
 | Querying | DuckDB | Inspection now; dashboard backend later |
-| Orchestration (M6) | Dagster | After the plain pipeline works |
+| Orchestration | Dagster | After the plain pipeline works |
 
 ## Why
 
