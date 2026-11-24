@@ -4,12 +4,15 @@ from __future__ import annotations
 
 import csv
 import re
+from collections.abc import Mapping
 from importlib.resources import files
 
 import pytest
 
 from coffee_review.transforms.lookup_tables import (
     load_currencies,
+    load_distinct_roasters,
+    load_listed_roasters,
     load_places,
     load_units,
     normalise_place,
@@ -136,3 +139,17 @@ def test_areas_name_known_areas_and_countries() -> None:
     for row in rows("areas.csv"):
         assert row["area"] in areas, row
         assert row["country"] in countries, row
+
+
+def test_roaster_lookups_load() -> None:
+    assert isinstance(load_listed_roasters(), Mapping)
+    assert all(isinstance(pair, tuple) for pair in load_distinct_roasters())
+
+
+def test_distinct_roaster_rows_name_two_spellings() -> None:
+    assert all(a != b for a, b in load_distinct_roasters())
+
+
+def test_listed_roaster_spellings_unique() -> None:
+    spellings = [row["spelling"] for row in rows("roasters.csv")]
+    assert len(spellings) == len(set(spellings))

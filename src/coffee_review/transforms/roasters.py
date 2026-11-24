@@ -26,7 +26,10 @@ from dataclasses import dataclass
 from itertools import product
 from typing import TYPE_CHECKING, Literal
 
+import polars as pl
 from rapidfuzz import fuzz, process
+
+from coffee_review.transforms.rules import raw, rule_column
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator, Mapping, Sequence
@@ -182,7 +185,7 @@ def build_name_map(
     """
     named = [s for s in spellings if s.name.strip()]
     by_key: dict[str, list[Spelling]] = {}
-    for spelling in sorted(named, key=_kept_first):
+    for spelling in sorted(named, key=_by_reviews_then_name):
         by_key.setdefault(roaster_key(spelling.name), []).append(spelling)
     apart = {frozenset(map(roaster_key, pair)) for pair in distinct}
 
@@ -206,8 +209,8 @@ def build_name_map(
     return NameMap(decisions, tuple(unused))
 
 
-def _kept_first(spelling: Spelling) -> tuple[int, str]:
-    """Sort key: the spelling a group keeps comes first (most reviews, then A–Z)."""
+def _by_reviews_then_name(spelling: Spelling) -> tuple[int, str]:
+    """Sort key: most reviews first, then A–Z (the spelling a group keeps)."""
     return (-spelling.reviews, spelling.name)
 
 
@@ -215,7 +218,9 @@ class _Groups:
     """Which spellings are one roaster so far: a union-find over spelling names.
 
     Each group is known by its root spelling and answers questions about all
-    of its members: their countries, cities, reviews and kept name.
+    of its members: their countries, cities, reviews and kept name. Which
+    spelling is the root doesn't matter: the kept name is worked out from the
+    members (or the ``roasters.csv`` name), never from the root.
     """
 
     def __init__(self, spellings: Sequence[Spelling]) -> None:
@@ -224,8 +229,10 @@ class _Groups:
         self._listed_as: dict[str, str] = {}  # root → the name roasters.csv gave
 
     def root(self, name: str) -> str:
-        while self._parent[name] != name:
-            name = self._parent[name]
+        parent = self._parent
+        while parent[name] != name:
+            parent[name] = parent[parent[name]]  # path compression
+            name = parent[name]
         return name
 
     def same(self, a: str, b: str) -> bool:
@@ -251,7 +258,7 @@ class _Groups:
 
     def lead(self, name: str) -> Spelling:
         """The member with the most reviews (ties: first alphabetically)."""
-        return min(self.members(name), key=_kept_first)
+        return min(self.members(name), key=_by_reviews_then_name)
 
     def kept_name(self, name: str) -> str:
         return self.listed_as(name) or self.lead(name).name
@@ -436,3 +443,76 @@ def _open_reviews(
         carrier = name if name in written else groups.lead(other).name
         result.setdefault(carrier, set()).add(groups.kept_name(kept))
     return result
+
+
+# --- From the tables, and back ---------------------------------------------------
+
+
+def roaster_spellings(*frames: pl.DataFrame) -> list[Spelling]:
+    """Every distinct roaster spelling in the frames, with reviews and places.
+
+    Reads ``raw_roaster``, and ``roaster_city`` and ``roaster_country`` where a
+    frame has them (green reviews don't). Blank names are skipped.
+    """
+    rows = pl.concat([_spelling_columns(frame) for frame in frames]).filter(
+        pl.col("raw_roaster").str.strip_chars() != ""
+    )
+    return [
+        Spelling(name, group.height, _places(group))
+        for (name,), group in rows.group_by("raw_roaster", maintain_order=True)
+    ]
+
+
+_SPELLING_COLUMNS = ("raw_roaster", "roaster_city", "roaster_country")
+
+
+def _spelling_columns(frame: pl.DataFrame) -> pl.DataFrame:
+    """The spelling and location columns, null where a frame has none."""
+    return frame.select(
+        pl.col(name) if name in frame.columns else pl.lit(None, pl.String).alias(name)
+        for name in _SPELLING_COLUMNS
+    )
+
+
+def _places(rows: pl.DataFrame) -> frozenset[tuple[str, str]]:
+    """The ``(city, country)`` pairs of one spelling's reviews, country known."""
+    located = rows.filter(pl.col("roaster_country").is_not_null())
+    return frozenset(
+        (normalise_city(city or ""), country)
+        for city, country in located.select(
+            "roaster_city", "roaster_country"
+        ).iter_rows()
+    )
+
+
+def clean_roaster(frame: pl.LazyFrame, names: NameMap) -> pl.LazyFrame:
+    """``raw_roaster`` to one name per roaster, with the rule that explains it.
+
+    A spelling the map doesn't know (or a blank one) is kept as written.
+    """
+    decisions = pl.LazyFrame(
+        {
+            "_spelling": list(names.decisions),
+            "_name": [d.name for d in names.decisions.values()],
+            "_rules": [list(d.rules) for d in names.decisions.values()],
+        },
+        schema={
+            "_spelling": pl.String,
+            "_name": pl.String,
+            "_rules": pl.List(pl.String),
+        },
+    )
+    return (
+        frame.join(
+            decisions,
+            left_on=raw("roaster"),
+            right_on="_spelling",
+            how="left",
+            maintain_order="left",
+        )
+        .with_columns(
+            pl.coalesce("_name", raw("roaster")).alias("roaster"),
+            pl.col("_rules").fill_null([]).alias(rule_column("roaster")),
+        )
+        .drop("_name", "_rules")
+    )

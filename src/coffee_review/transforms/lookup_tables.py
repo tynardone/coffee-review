@@ -21,7 +21,11 @@ that only ``storage/`` knows data formats.
   different countries (``$``, ``¥``), read using the roaster's country;
   a ``*`` row is the symbol's meaning everywhere else;
 - ``units.csv``: every way prices write a unit, its standard name, its kind
-  (weight, volume or count), and grams per unit for weights.
+  (weight, volume or count), and grams per unit for weights;
+- ``roasters.csv``: hand-kept: a roaster spelling and the roaster it is, from
+  the clean report's roaster items (see ``transforms/roasters.py``);
+- ``distinct_roasters.csv``: hand-kept: pairs of spellings that are different
+  roasters, so they're never merged or listed again.
 
 ``scripts/generate_lookup_tables.py`` writes the two generated tables.
 """
@@ -161,6 +165,22 @@ def load_places() -> Mapping[str, Place]:
             roaster_country=row["roaster_country"] or row["country"],
         )
     return MappingProxyType(places)
+
+
+@cache
+def load_listed_roasters() -> Mapping[str, str]:
+    """``roasters.csv``: each spelling → the roaster it is, as written there."""
+    return MappingProxyType(
+        {row["spelling"]: row["roaster"] for row in _read_csv("roasters.csv")}
+    )
+
+
+@cache
+def load_distinct_roasters() -> tuple[tuple[str, str], ...]:
+    """``distinct_roasters.csv``: pairs of spellings that are different roasters."""
+    return tuple(
+        (row["spelling"], row["other"]) for row in _read_csv("distinct_roasters.csv")
+    )
 
 
 def _read_csv(name: str) -> list[dict[str, str]]:

@@ -5,6 +5,7 @@ from __future__ import annotations
 import string
 from typing import TYPE_CHECKING
 
+import polars as pl
 import pytest
 from hypothesis import given
 from hypothesis import strategies as st
@@ -12,12 +13,16 @@ from hypothesis import strategies as st
 from coffee_review.models.clean import CLEAN_RULES, RULE_DESCRIPTIONS
 from coffee_review.transforms.roasters import (
     NameDecision,
+    NameMap,
     Spelling,
     Thresholds,
     build_name_map,
+    clean_roaster,
     normalise_city,
     roaster_key,
+    roaster_spellings,
 )
+from tests.transforms.helpers import run
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
@@ -255,3 +260,60 @@ def test_spelling_with_no_name_is_skipped() -> None:
 def test_a_score_exactly_at_a_threshold_counts() -> None:  # abcd / abcdef: 0.8
     d = decide(S("Abcdef", 3, PDX), S("Abcd", 1, PDX))
     assert d["Abcd"].rules == ("possible_match",)
+
+
+# --- From the tables, and back ---------------------------------------------------
+
+
+def test_spellings_count_reviews_and_places() -> None:
+    roasted = pl.DataFrame(
+        {
+            "raw_roaster": ["JBC", "JBC", "Temple"],
+            "roaster_city": ["Madison", "Madison City", None],
+            "roaster_country": ["United States", "United States", None],
+        }
+    )
+    green = pl.DataFrame({"raw_roaster": ["JBC"]})
+    found = {s.name: s for s in roaster_spellings(roasted, green)}
+    assert found["JBC"] == Spelling("JBC", 3, frozenset({("madison", "United States")}))
+    assert found["Temple"] == Spelling("Temple", 1)
+
+
+def test_spellings_skip_blank_names() -> None:
+    frame = pl.DataFrame({"raw_roaster": [None, "", "  "]})
+    assert roaster_spellings(frame) == []
+
+
+NAMES = NameMap(
+    {
+        "JBC": NameDecision("JBC Coffee Roasters", ("spelling_variant",)),
+        "JBC Coffee Roasters": NameDecision("JBC Coffee Roasters", ()),
+    },
+    (),
+)
+
+
+def test_clean_roaster_applies_decisions() -> None:
+    out = run(
+        lambda f: clean_roaster(f, NAMES), "roaster", ["JBC", "JBC Coffee Roasters"]
+    )
+    assert out["roaster"].to_list() == ["JBC Coffee Roasters", "JBC Coffee Roasters"]
+    assert out["_rule_roaster"].to_list() == [["spelling_variant"], []]
+
+
+def test_unknown_spelling_is_kept() -> None:
+    out = run(lambda f: clean_roaster(f, NAMES), "roaster", ["Temple"])
+    assert out["roaster"].to_list() == ["Temple"]
+    assert out["_rule_roaster"].to_list() == [[]]
+
+
+def test_null_roaster_is_left_alone() -> None:
+    out = run(lambda f: clean_roaster(f, NAMES), "roaster", [None, ""])
+    assert out["roaster"].to_list() == [None, ""]
+    assert out["_rule_roaster"].to_list() == [[], []]
+
+
+def test_clean_roaster_keeps_row_order() -> None:
+    names = ["JBC Coffee Roasters", "Temple", "JBC", None]
+    out = run(lambda f: clean_roaster(f, NAMES), "roaster", names)
+    assert out["slug"].to_list() == ["s0", "s1", "s2", "s3"]
