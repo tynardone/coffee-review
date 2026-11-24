@@ -238,7 +238,10 @@ The values of `cleaning_log.rule`: every change the clean stage makes.
 | `not_disclosed` | "Not disclosed": the site doesn't say. The value is empty. |
 | `unplaced` | No known place found. The value is empty; listed in the report to review. |
 | `multiple_origins` | More than one country, or a blend: origin_country is "Multiple". |
-| `close_spelling` | Matched by a close spelling of a known place or unit (Calfornia → California); listed in the report to review. |
+| `close_spelling` | Matched by a close spelling of a known place or unit (Calfornia → California), or merged into a very close roaster name (Lamill → La Mill); listed in the report to review. |
+| `spelling_variant` | Another spelling of the same roaster name (case, accents, punctuation, words like Coffee Roasters). The kept spelling replaces it. |
+| `listed_name` | A roaster name set by hand in roasters.csv. |
+| `possible_match` | A roaster name close to another one, not merged: listed for a person to decide. |
 | `not_a_price` | Not a price (NA, Not Available, See website…). The price is empty. |
 | `no_quantity` | An amount with no quantity ("$15.00"). |
 | `unparsed` | No known shape. The value is empty; the text is in the log and the report. |
