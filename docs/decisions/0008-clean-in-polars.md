@@ -7,7 +7,7 @@ Date: 2026-11-22 · Status: accepted
 The parse stage (M2) keeps every value as the text the page had
 ([ADR 0007](0007-parse-text-type-later.md)). The clean stage (M3) turns that
 text into typed columns: dates, scores, Agtron readings, prices split into
-parts, and places as country and region, so the dashboard (M7) and models (M8)
+parts, and places as country and region, so the dashboard and models
 can compare origins and roasters by region.
 
 The project is also a data-engineering portfolio piece, so the layers should
@@ -18,7 +18,7 @@ read as a recognisable pattern:
 | Raw (bronze) | `data/raw/` | gzipped HTML + manifest | M1, Python |
 | Parsed | `data/parsed/` | one row per review, all text | M2, Python |
 | Clean (silver) | `data/clean/` | typed columns + cleaning log | M3, Polars |
-| Marts (gold) | later | joined to FX and CPI, dimensions | M5+, dbt revisited |
+| Marts (gold) | later | joined to FX and CPI, dimensions | enrich, dbt revisited |
 
 Three ways to build M3 were weighed: plain Python with a pydantic model per
 row, Polars, and dbt-duckdb.
@@ -44,7 +44,7 @@ row, Polars, and dbt-duckdb.
   don't know, and misspellings matched by close spelling, are listed in the
   report's *To review* table, marked **new** against the previous run, and a
   warning is logged when anything is new.
-- **dbt waits for M5,** where the work is relational: joins to exchange rates
+- **dbt waits for the enrich stage,** where the work is relational: joins to exchange rates
   and inflation, the final table, dimensions. A field that turns out to need
   SQL-unfriendly parsing there can be a dbt Python model.
 
@@ -69,7 +69,7 @@ row, Polars, and dbt-duckdb.
   slugs, coverage) need a frame anyway.
 - **dbt-duckdb for M3.** The standard transform layer, with lineage, tests and
   docs. Rejected for M3 because its hardest work would be its least readable
-  part; kept for M5, where its strengths fit.
+  part; kept for enrich, where its strengths fit.
 - **Matching places with a geocoding service or an LLM.** Rejected: network
   calls in a transform, results that change between runs, and guesses that
   can't be traced to a rule.

@@ -10,7 +10,7 @@ as much the point as the dataset.
 1. **Scrape**: find reviews through the site's sitemap; download only what's new
    or changed.
 2. **Parse**: pull review fields out of the saved HTML.
-3. **Clean**: normalize dates, scores, origins and prices into a typed table.
+3. **Clean**: normalize dates, scores, origins, prices and roaster names into a typed table.
 4. **Economic data**: monthly exchange rates (OpenExchangeRates) and US
    CPI-U (BLS), fetched once and kept.
 5. **Enrich**: convert prices to USD and adjust for inflation.

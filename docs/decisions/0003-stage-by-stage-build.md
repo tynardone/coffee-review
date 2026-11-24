@@ -28,5 +28,5 @@ is finished and tested before anything depends on it.
 - **Thin end-to-end slice first.** Proves the structure early, but forces a
   shallow first pass over stages with real complexity.
 - **Framework first (Dagster).** The framework's conventions would make the
-  structural decisions this project exists to learn. Planned as M6 instead,
+  structural decisions this project exists to learn. Planned as a later stage instead,
   once there's a plain pipeline for it to replace.
