@@ -38,10 +38,13 @@ FILE_ONLY = {"terminal": False}
 def configure_logging(
     level: str, log_file: Path | None, *, console: Console | None = None
 ) -> None:
-    """Send the package's logs to the terminal at ``level``, and all of it to a file.
+    """Send the package's logs to the terminal, and all of them to a file.
 
-    With a Rich ``console``, terminal lines are printed through it, so they
-    appear above a progress bar drawn on the same console instead of breaking it.
+    Args:
+        level: The lowest level shown in the terminal (``INFO``, ``DEBUG``...).
+        log_file: The run log, which gets everything at DEBUG; None for none.
+        console: A Rich console to print terminal lines through, so they appear
+            above a progress bar drawn on it instead of breaking it.
     """
     logger = logging.getLogger(PACKAGE_LOGGER)
     remove_handlers()
@@ -85,7 +88,16 @@ def remove_handlers() -> None:
 
 
 def run_log_path(data_dir: Path, command: str, now: datetime) -> Path:
-    """Where a ``command`` run (``scrape``, ``parse``) started at ``now`` logs."""
+    """Work out where a command's run log goes.
+
+    Args:
+        data_dir: The root of the data layers.
+        command: The command's name (``scrape``, ``parse``...).
+        now: When the run started (UTC).
+
+    Returns:
+        ``<data_dir>/logs/<command>-<YYYYMMDDTHHMMSSZ>.log``.
+    """
     return data_dir / "logs" / f"{command}-{now:%Y%m%dT%H%M%SZ}.log"
 
 

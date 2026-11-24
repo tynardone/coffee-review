@@ -57,10 +57,22 @@ extend-select = [
     "TD",       # Be diligent with TODO comments
     "NPY",      # Some numpy-specific things
     "FURB",     # Suggest more idiomatic Python patterns
+    "D",        # Docstrings (Google style; src only, see per-file-ignores)
 ]
 extend-ignore = [
     "TD003",    # TODOs need no issue link: docs/roadmap.md is the tracker
+    "D105",     # Magic methods (__eq__, __repr__, ...) explain themselves
+    "D106",     # pandera's nested ``Config`` classes are settings, not API
+    "D107",     # Constructor arguments are documented on the class (Google style)
 ]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.per-file-ignores]
+# Tests and scripts are documented by their names and module docstrings.
+"tests/**" = ["D"]
+"scripts/**" = ["D"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

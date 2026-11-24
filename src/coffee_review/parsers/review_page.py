@@ -47,7 +47,20 @@ REQUIRED_FIELDS = ("title", "review_date", "rating")
 
 
 def parse_review_page(slug: str, url: str, html: str, *, delisted: bool) -> ParsedPage:
-    """Parse one review page. Never raises for a strange page; reports it."""
+    """Parse one review page.
+
+    Never raises for a strange page: problems are reported as issues.
+
+    Args:
+        slug: The review's id.
+        url: The page's address.
+        html: The page as saved.
+        delisted: Whether the review has left the sitemaps.
+
+    Returns:
+        The parsed record (None if the page has no review template) and any
+        issues.
+    """
     template = LexborHTMLParser(html).css_first("div.review-template")
     if template is None:
         issue = ParseIssue(
@@ -157,8 +170,17 @@ def _logo_link(template: LexborNode) -> str | None:
 
 
 def _text(node: LexborNode | None) -> str | None:
-    """A node's text with tags removed, entities decoded and whitespace
-    (non-breaking spaces included) collapsed. Blank text is None."""
+    """A node's text, cleaned.
+
+    Tags removed, entities decoded and whitespace (non-breaking spaces
+    included) collapsed.
+
+    Args:
+        node: The node, or None.
+
+    Returns:
+        The cleaned text, or None when there is no node or the text is blank.
+    """
     if node is None:
         return None
     text = " ".join(_joined_text(node).split())
@@ -176,8 +198,10 @@ _BLOCK_TAGS = frozenset(
 
 
 def _joined_text(node: LexborNode) -> str:
-    """The text under a node exactly as written, with a space only where a
-    line break or block edge separates words."""
+    """The text under a node exactly as written.
+
+    A space is added only where a line break or block edge separates words.
+    """
     parts: list[str] = []
     for child in node.iter(include_text=True):
         if child.tag == "-text":

@@ -1,5 +1,8 @@
-"""The scrape stage's contracts: sitemap entries, manifest rows, fetch
-reasons, and the run summary with its measurement."""
+"""The scrape stage's contracts.
+
+Sitemap entries, manifest rows, fetch reasons, and the run summary with its
+measurement.
+"""
 
 from __future__ import annotations
 
@@ -89,9 +92,11 @@ class RunMeasurement(FrozenModel):
 
     @property
     def achieved_rate(self) -> float:
+        """Requests per second actually achieved over the whole run."""
         return self.requests / self.elapsed_seconds if self.elapsed_seconds else 0.0
 
     def describe(self) -> str:
+        """The measurement line printed under the scrape summary."""
         response = (
             f"{self.mean_response_seconds:.2f}s"
             if self.mean_response_seconds is not None

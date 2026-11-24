@@ -41,13 +41,29 @@ logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class ParseRunResult:
+    """What a parse run produced.
+
+    Attributes:
+        report: The parse report's contents.
+        elapsed_seconds: How long the run took.
+        report_location: Where the Markdown report was written.
+    """
+
     report: ParseReport
     elapsed_seconds: float
     report_location: str
 
 
 def parse(settings: Settings, *, progress: RunProgress | None = None) -> ParseRunResult:
-    """Parse every saved page with the real stores."""
+    """Parse every saved page with the real stores.
+
+    Args:
+        settings: The project settings.
+        progress: Where to report progress; None for none.
+
+    Returns:
+        The report, how long the run took, and where the report went.
+    """
     raw = open_raw_store(settings)
     try:
         parsed = open_parsed_store(settings)
@@ -66,7 +82,17 @@ def run_parse(
     progress: RunProgress | None = None,
     clock: Callable[[], float] = time.monotonic,
 ) -> ParseRunResult:
-    """Parse every saved page, write both datasets, the issues and the report."""
+    """Parse every saved page, and write both datasets, the issues and the report.
+
+    Args:
+        raw: Where to read saved pages and the manifest.
+        parsed: Where to write the parsed layer.
+        progress: Where to report progress; None for none.
+        clock: Seconds counter for timing the run (tests pass a fake).
+
+    Returns:
+        The report, how long the run took, and where the report went.
+    """
     progress = progress or NoProgress()
     started = clock()
     manifest = raw.load_manifest()

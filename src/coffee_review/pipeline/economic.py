@@ -143,8 +143,19 @@ class _Fetching:
 
 
 def fx(settings: Settings, *, today: date | None = None) -> EconomicRunResult:
-    """Bring the exchange-rate table up to date. Needs the API key, checked
-    before anything else."""
+    """Bring the exchange-rate table up to date.
+
+    Args:
+        settings: The project settings; the API key is checked before anything
+            else.
+        today: Today's UTC date; defaults to the real one.
+
+    Returns:
+        What the run did.
+
+    Raises:
+        MissingApiKeyError: If no OpenExchangeRates key is set.
+    """
     client = ForexApiClient(settings.forex_api)
     return asyncio.run(
         run_fx(
@@ -159,7 +170,20 @@ def fx(settings: Settings, *, today: date | None = None) -> EconomicRunResult:
 async def run_fx(
     *, client: ForexApiClient, store: EconomicStore, start: date, today: date
 ) -> EconomicRunResult:
-    """Fetch the missing days, then rebuild the FX table."""
+    """Fetch the missing days, then rebuild the FX table.
+
+    Args:
+        client: The OpenExchangeRates client (not yet open).
+        store: Where responses are saved and the table is written.
+        start: The first 1st wanted.
+        today: Today's UTC date; a day is fetched once it's over.
+
+    Returns:
+        What the run did, and what the table holds.
+
+    Raises:
+        EconomicContractError: If the rebuilt table breaks its contract (a bug).
+    """
     parsed: dict[date, FxParsed] = {}
     for day in store.fx_days():
         try:
@@ -200,7 +224,15 @@ async def run_fx(
 
 
 def cpi(settings: Settings, *, now: datetime | None = None) -> EconomicRunResult:
-    """Bring the CPI table up to date (no key needed)."""
+    """Bring the CPI table up to date (no key needed).
+
+    Args:
+        settings: The project settings.
+        now: The current time (UTC); defaults to the real one.
+
+    Returns:
+        What the run did.
+    """
     return asyncio.run(
         run_cpi(
             client=BlsApiClient(settings.bls_api),
@@ -220,10 +252,21 @@ async def run_cpi(
     start: date,
     now: datetime,
 ) -> EconomicRunResult:
-    """Fetch the missing years of ``series``, then rebuild the CPI table.
+    """Fetch the missing years of a CPI series, then rebuild the CPI table.
 
-    ``now`` (UTC) names each saved response, and its date is "today" for the
-    once-a-day rule.
+    Args:
+        client: The BLS client (not yet open).
+        store: Where responses are saved and the table is written.
+        series: The BLS series id.
+        start: The first month wanted.
+        now: The current time (UTC): it names each saved response, and its date
+            is "today" for the once-a-day rule.
+
+    Returns:
+        What the run did, and what the table holds.
+
+    Raises:
+        EconomicContractError: If the rebuilt table breaks its contract (a bug).
     """
     now = now.astimezone(UTC)
     today = now.date()

@@ -34,14 +34,18 @@ class PagesPerSecondColumn(ProgressColumn):
     """Items finished per second, averaged by Rich over recent progress."""
 
     def render(self, task: Task) -> Text:
+        """The task's speed, or a dash before there is one."""
         if task.speed is None:
             return Text("–/s", style="progress.data.speed")
         return Text(f"{task.speed:.1f}/s", style="progress.data.speed")
 
 
 class RichRunProgress:
-    """A one-line bar: label, count, percent, items/s, elapsed, time left, and a
-    running count for each of the stage's outcomes."""
+    """A one-line progress bar for a stage.
+
+    Shows the label, count, percent, items per second, elapsed time, time left,
+    and a running count for each of the stage's outcomes.
+    """
 
     def __init__(
         self, console: Console, *, label: str, outcomes: Sequence[str]
@@ -64,12 +68,18 @@ class RichRunProgress:
         self._counts: dict[str, int] = dict.fromkeys(outcomes, 0)
 
     def start(self, total: int) -> None:
+        """Show the bar, with ``total`` items planned."""
         self._task = self._progress.add_task(
             self.label, total=total, outcomes=self._outcomes()
         )
         self._progress.start()
 
     def advance(self, outcome: str) -> None:
+        """Count one finished item under ``outcome``.
+
+        Raises:
+            ValueError: If ``outcome`` isn't one of the bar's outcomes.
+        """
         if outcome not in self._counts:
             expected = ", ".join(self._counts)
             raise ValueError(f"unknown outcome {outcome!r}; expected one of {expected}")
@@ -79,6 +89,7 @@ class RichRunProgress:
         self._progress.update(self._task, advance=1, outcomes=self._outcomes())
 
     def finish(self) -> None:
+        """Stop the bar, leaving its last line on screen."""
         if self._task is not None:
             self._progress.stop()
 

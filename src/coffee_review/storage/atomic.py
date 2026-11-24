@@ -21,6 +21,10 @@ def write_atomically(path: Path, write: Callable[[Path], object]) -> None:
     """Write to a temp file in the same folder, then move it into place.
 
     A failed write leaves the previous file untouched and no temp file behind.
+
+    Args:
+        path: Where the file ends up.
+        write: Writes the content to the temp path it's given.
     """
     path.parent.mkdir(parents=True, exist_ok=True)
     handle, name = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
@@ -35,5 +39,10 @@ def write_atomically(path: Path, write: Callable[[Path], object]) -> None:
 
 
 def write_parquet(frame: pl.DataFrame, path: Path) -> None:
-    """``frame`` as a Parquet file at ``path``, written atomically."""
+    """Write a frame as a Parquet file, atomically.
+
+    Args:
+        frame: The table to write.
+        path: Where the file ends up.
+    """
     write_atomically(path, frame.write_parquet)

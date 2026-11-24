@@ -44,7 +44,9 @@ def open_economic_store(settings: Settings) -> EconomicStore:
 
 
 class EconomicStore:
-    """Saved responses under ``<data_dir>/raw/``, tables under
+    """Saved economic-data responses and the tables built from them.
+
+    Responses live under ``<data_dir>/raw/``, tables under
     ``<data_dir>/economic/``.
 
     ``fx/openexchangerates/<YYYY-MM-DD>.json``: one file per day.
@@ -61,7 +63,12 @@ class EconomicStore:
     # --- Exchange rates
 
     def save_fx(self, day: date, text: str) -> None:
-        """Save one day's response, replacing any saved before for that day."""
+        """Save one day's response, replacing any saved before for that day.
+
+        Args:
+            day: The day the response is for.
+            text: The response as received.
+        """
         _write_text(self._fx / f"{day:%Y-%m-%d}.json", text)
 
     def fx_days(self) -> list[date]:
@@ -77,11 +84,19 @@ class EconomicStore:
         return days
 
     def read_fx(self, day: date) -> str:
+        """The saved response for ``day``, as received."""
         return (self._fx / f"{day:%Y-%m-%d}.json").read_text(encoding="utf-8")
 
     # --- CPI
 
     def save_cpi(self, series: str, file: CpiFile, text: str) -> None:
+        """Save one CPI response.
+
+        Args:
+            series: The series it's for.
+            file: When it was fetched and the years it asked for.
+            text: The response as received.
+        """
         _write_text(self._cpi_path(series, file), text)
 
     def cpi_files(self, series: str) -> list[CpiFile]:
@@ -103,14 +118,34 @@ class EconomicStore:
         return sorted(found, key=lambda f: f.fetched_at)
 
     def read_cpi(self, series: str, file: CpiFile) -> str:
+        """Read one saved CPI response.
+
+        Args:
+            series: The series it's for.
+            file: When it was fetched and the years it asked for.
+
+        Returns:
+            The response as received.
+        """
         return self._cpi_path(series, file).read_text(encoding="utf-8")
 
     # --- Tables
 
     def write_table(self, table: EconomicTable, frame: pl.DataFrame) -> None:
+        """Replace a table, atomically.
+
+        Args:
+            table: Which table.
+            frame: Its new contents.
+        """
         write_parquet(frame, self._table_path(table))
 
     def read_table(self, table: EconomicTable) -> pl.DataFrame:
+        """The table as last written.
+
+        Raises:
+            EconomicLayerMissingError: If it hasn't been written yet.
+        """
         path = self._table_path(table)
         if not path.exists():
             msg = f"no economic data at {path}: run fx or cpi first"
@@ -118,6 +153,7 @@ class EconomicStore:
         return pl.read_parquet(path)
 
     def location(self, table: EconomicTable) -> str:
+        """Where ``table`` lives, for messages."""
         return str(self._table_path(table))
 
     def _cpi_path(self, series: str, file: CpiFile) -> Path:

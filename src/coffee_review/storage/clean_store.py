@@ -11,7 +11,7 @@ contract (``models/clean.py``) before it ever calls ``write``.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING, Protocol, override
 
 import polars as pl
 
@@ -35,7 +35,14 @@ class CleanStore(Protocol):
         log: pl.DataFrame,
         report_markdown: str,
     ) -> None:
-        """Replace everything from the previous run with these."""
+        """Replace everything from the previous run.
+
+        Args:
+            roasted: The clean roasted table.
+            green: The clean green table.
+            log: The cleaning log.
+            report_markdown: The clean report.
+        """
         ...
 
     def read_table(self, table: CleanTable) -> pl.DataFrame:
@@ -70,13 +77,17 @@ def open_clean_store(settings: Settings) -> CleanStore:
     return ParquetCleanStore(settings.data_dir / "clean")
 
 
-class ParquetCleanStore:
-    """``<root>/{roasted,green}/reviews.parquet``, ``<root>/cleaning_log.parquet``
-    and ``<root>/report.md``."""
+class ParquetCleanStore(CleanStore):
+    """The clean store as Parquet files and a Markdown report.
+
+    ``<root>/{roasted,green}/reviews.parquet``, ``<root>/cleaning_log.parquet``
+    and ``<root>/report.md``.
+    """
 
     def __init__(self, root: Path) -> None:
         self._root = root
 
+    @override
     def write(
         self,
         roasted: pl.DataFrame,
@@ -92,6 +103,7 @@ class ParquetCleanStore:
             lambda tmp: tmp.write_text(report_markdown, encoding="utf-8"),
         )
 
+    @override
     def read_table(self, table: CleanTable) -> pl.DataFrame:
         path = self._path(table)
         if not path.exists():
@@ -99,15 +111,18 @@ class ParquetCleanStore:
             raise CleanLayerMissingError(msg)
         return pl.read_parquet(path)
 
+    @override
     def read_previous_log(self) -> pl.DataFrame:
         path = self._path("log")
         if not path.exists():
             return pl.DataFrame(schema=LOG_SCHEMA)
         return pl.read_parquet(path)
 
+    @override
     def report_location(self) -> str:
         return str(self._root / "report.md")
 
+    @override
     def close(self) -> None:
         pass
 

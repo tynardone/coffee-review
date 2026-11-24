@@ -1,5 +1,7 @@
-"""Building blocks shared by every stage's contracts: slugs, UTC datetimes,
-the frozen model base, and small formatting helpers."""
+"""Building blocks shared by every stage's contracts.
+
+Slugs, UTC datetimes, the frozen model base, and small formatting helpers.
+"""
 
 from __future__ import annotations
 

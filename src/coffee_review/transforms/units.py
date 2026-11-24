@@ -38,11 +38,18 @@ class FoundUnit:
 
 
 def find_unit(text: str, units: Mapping[str, Unit]) -> FoundUnit | None:
-    """The unit in a price's unit text, if it names one.
+    """Find the unit a price's unit text names, if any.
 
     Tried in turn: the whole text, its first word ("ounce can"), its last word
     ("realcup capsules"), then a close spelling of the whole text ("onces").
-    The other words are returned as ``leftover`` (they become the price note).
+
+    Args:
+        text: The text after the quantity.
+        units: The unit lookup table.
+
+    Returns:
+        The unit, how it was found, and the other words as ``leftover`` (they
+        become the price note); None if no unit is named.
     """
     if _COUNTED.search(text):
         return None
@@ -65,5 +72,13 @@ def find_unit(text: str, units: Mapping[str, Unit]) -> FoundUnit | None:
 
 
 def to_grams(quantity: float, unit: Unit) -> float | None:
-    """``quantity`` of ``unit`` in grams, for weights; None for counts and volumes."""
+    """Convert a quantity to grams.
+
+    Args:
+        quantity: How many of the unit.
+        unit: The unit.
+
+    Returns:
+        The weight in grams, or None for counts and volumes.
+    """
     return None if unit.grams is None else quantity * unit.grams

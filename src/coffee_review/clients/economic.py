@@ -47,7 +47,26 @@ class SourceUnavailableError(Exception):
 async def fetch_answer(
     client: BaseHttpClient, source: str, method: str, path: str, **kwargs: Any
 ) -> str:
-    """The response text if the source answered (200 or 400), else a typed error."""
+    """Send a request and return the text if the source answered.
+
+    A 200 or 400 is an answer ("no data for that" included); anything else
+    raises one of the three source errors.
+
+    Args:
+        client: The open client to send through.
+        source: The source's name, for error messages.
+        method: The HTTP method.
+        path: The path, relative to the client's base URL.
+        **kwargs: Passed on to ``BaseHttpClient.request`` (``json=``, ...).
+
+    Returns:
+        The response text, as received.
+
+    Raises:
+        SourceAuthError: On a 401: the key is missing or wrong.
+        SourceRefusedError: On a 403 or 429: quota, over-use or permission.
+        SourceUnavailableError: On any other status, or when retries run out.
+    """
     try:
         response = await client.request(method, path, **kwargs)
     except RetriesExhaustedError as exc:

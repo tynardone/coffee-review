@@ -89,6 +89,14 @@ UNKNOWN_MARKERS = ("na", "n/a")
 
 @dataclass(frozen=True)
 class OriginResult:
+    """Where a coffee was grown, as placed from its origin text.
+
+    Attributes:
+        country: The origin country, ``"Multiple"`` for a blend, or None.
+        region: The growing region, or None.
+        rules: The cleaning rules applied on the way.
+    """
+
     country: str | None
     region: str | None
     rules: tuple[CleanRule, ...]
@@ -96,6 +104,15 @@ class OriginResult:
 
 @dataclass(frozen=True)
 class RoasterResult:
+    """Where a roaster is, as placed from its location text.
+
+    Attributes:
+        city: The city, or None.
+        region: The state or province, or None.
+        country: The country, or None.
+        rules: The cleaning rules applied on the way.
+    """
+
     city: str | None
     region: str | None
     country: str | None
@@ -107,11 +124,17 @@ def place_origin(
     places: Mapping[str, Place],
     areas: Mapping[str, frozenset[str]] | None = None,
 ) -> OriginResult:
-    """A coffee origin's country and growing region.
+    """Place a coffee's origin: its country and growing region.
 
-    ``areas`` (default: ``areas.csv``) says which countries each broad area
-    holds, so "Guatemala, Central America" is Guatemala but "Indonesia; Central
-    and South America" is a blend.
+    Args:
+        text: The origin as written.
+        places: The place lookup table.
+        areas: The countries each broad area holds (default: ``areas.csv``), so
+            "Guatemala, Central America" is Guatemala but "Indonesia; Central and
+            South America" is a blend.
+
+    Returns:
+        The country, region and the rules applied.
     """
     areas = load_area_countries() if areas is None else areas
     if marker := _marker(text):
@@ -171,7 +194,15 @@ def place_origin(
 
 
 def place_roaster(text: str, places: Mapping[str, Place]) -> RoasterResult:
-    """A roaster's city, state or province, and country."""
+    """Place a roaster: its city, state or province, and country.
+
+    Args:
+        text: The roaster location as written.
+        places: The place lookup table.
+
+    Returns:
+        The city, region, country and the rules applied.
+    """
     if marker := _marker(text):
         return RoasterResult(None, None, None, (marker,))
     parts = [p.strip() for p in text.split(",") if p.strip()]
@@ -203,7 +234,15 @@ def place_roaster(text: str, places: Mapping[str, Place]) -> RoasterResult:
 
 
 def clean_origin(frame: pl.LazyFrame, places: Mapping[str, Place]) -> pl.LazyFrame:
-    """``raw_coffee_origin`` → ``origin_country``, ``origin_region``."""
+    """Turn ``raw_coffee_origin`` into ``origin_country`` and ``origin_region``.
+
+    Args:
+        frame: A table with ``raw_coffee_origin``.
+        places: The place lookup table.
+
+    Returns:
+        The frame with the origin columns and their rule column added.
+    """
     return _join_results(
         frame,
         "coffee_origin",
@@ -215,7 +254,16 @@ def clean_origin(frame: pl.LazyFrame, places: Mapping[str, Place]) -> pl.LazyFra
 def clean_roaster_location(
     frame: pl.LazyFrame, places: Mapping[str, Place]
 ) -> pl.LazyFrame:
-    """``raw_roaster_location`` → ``roaster_city``, ``_region`` and ``_country``."""
+    """Turn ``raw_roaster_location`` into city, region and country columns.
+
+    Args:
+        frame: A table with ``raw_roaster_location``.
+        places: The place lookup table.
+
+    Returns:
+        The frame with ``roaster_city``, ``roaster_region``, ``roaster_country``
+        and their rule column added.
+    """
     return _join_results(
         frame,
         "roaster_location",
@@ -360,8 +408,11 @@ def _garbled_copy(part: str, country: str, places: Mapping[str, Place]) -> bool:
 def _is_context(
     area: Place, found: set[str], text: str, areas: Mapping[str, frozenset[str]]
 ) -> bool:
-    """Whether a broad area only places the one country found ("Guatemala,
-    Central America"), rather than adding more ("Indonesia; South America")."""
+    """Whether a broad area only places the one country found.
+
+    "Guatemala, Central America" is Guatemala; "Indonesia; South America" is a
+    blend.
+    """
     if len(found) != 1 or _BLEND_WORDS.search(text):
         return False
     return next(iter(found)) in areas.get(area.name, frozenset())

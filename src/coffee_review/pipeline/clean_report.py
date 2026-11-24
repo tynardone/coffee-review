@@ -51,6 +51,15 @@ MAX_DISTRIBUTION = 15
 
 
 class RuleCount(NamedTuple):
+    """How often one rule was applied to one field.
+
+    Attributes:
+        field: The field the rule was applied to.
+        rule: The rule's name.
+        rows: How many rows it was applied to.
+        examples: A few ``(slug, raw value)`` pairs to look at.
+    """
+
     field: str
     rule: str
     rows: int
@@ -58,6 +67,17 @@ class RuleCount(NamedTuple):
 
 
 class ReviewItem(NamedTuple):
+    """One value for a person to look at, in the report's *To review* list.
+
+    Attributes:
+        field: The field the value is in.
+        rule: Why it's listed (unplaced, unknown unit, close spelling, ...).
+        raw_value: The value as written.
+        rows: How many rows have it.
+        placed_as: For a close spelling, what it was matched to.
+        new: True when the previous run didn't list it.
+    """
+
     field: str
     rule: str
     raw_value: str | None
@@ -87,6 +107,7 @@ class CleanReport:
         return counts
 
     def summary_line(self, elapsed_seconds: float) -> str:
+        """The one-line summary logged at the end of a clean run."""
         roasted = self.rows_by_dataset.get("roasted", 0)
         green = self.rows_by_dataset.get("green", 0)
         new = sum(self.new_to_review.values())
@@ -104,7 +125,18 @@ def build_clean_report(
     log: pl.DataFrame,
     previous_log: pl.DataFrame,
 ) -> CleanReport:
-    """Summarise one clean run: its tables, its log and the last run's log."""
+    """Summarise one clean run.
+
+    Args:
+        roasted: The clean roasted table.
+        green: The clean green table.
+        log: This run's cleaning log.
+        previous_log: The last run's log, to mark what's new on the *To review*
+            list; empty on a first run.
+
+    Returns:
+        The report's contents, ready to render.
+    """
     tables = {"roasted": roasted, "green": green}
     return CleanReport(
         rows_by_dataset={name: table.height for name, table in tables.items()},

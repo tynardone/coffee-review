@@ -1,5 +1,7 @@
-"""The parse stage's contracts: one record per review page, and the issues
-found along the way."""
+"""The parse stage's contracts.
+
+One record per review page, and the issues found along the way.
+"""
 
 from __future__ import annotations
 
@@ -184,8 +186,12 @@ class ParseIssue(FrozenModel):
 
 
 class ParsedPage(FrozenModel):
-    """The result of parsing one page: a record (unless there was nothing to
-    parse) and any issues found along the way."""
+    """The result of parsing one page.
+
+    Attributes:
+        record: The parsed review, or None when there was nothing to parse.
+        issues: Anything worth a look, found along the way.
+    """
 
     record: ParsedReview | None
     issues: list[ParseIssue] = Field(default_factory=list)

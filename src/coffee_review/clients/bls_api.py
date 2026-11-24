@@ -28,6 +28,13 @@ NOT_PROCESSED = "REQUEST_NOT_PROCESSED"
 
 
 class BlsApiClient(BaseHttpClient):
+    """The BLS Public Data API, keyless: one CPI series for a range of years.
+
+    Args:
+        settings: Connection, rate and retry settings for the BLS.
+        transport: An httpx transport to use instead of the network (tests).
+    """
+
     retryable_status = ECONOMIC_RETRYABLE_STATUS
 
     def __init__(
@@ -41,7 +48,21 @@ class BlsApiClient(BaseHttpClient):
         )
 
     async def fetch_years(self, series: str, start: int, end: int) -> str:
-        """``series`` for the years ``start``–``end``, as the response text."""
+        """Fetch one CPI series for a range of years.
+
+        Args:
+            series: The BLS series id, e.g. ``CUUR0000SA0``.
+            start: The first year wanted.
+            end: The last year wanted (at most 10 years after ``start``, keyless).
+
+        Returns:
+            The response text, as received.
+
+        Raises:
+            SourceRefusedError: If the BLS refuses, including its daily limit
+                (``REQUEST_NOT_PROCESSED`` inside a 200).
+            SourceUnavailableError: If the BLS gives no usable answer after retries.
+        """
         body = {"seriesid": [series], "startyear": str(start), "endyear": str(end)}
         text = await fetch_answer(self, SOURCE, "POST", "timeseries/data/", json=body)
         _raise_if_refused(text)
