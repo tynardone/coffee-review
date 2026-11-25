@@ -14,12 +14,13 @@ import polars as pl
 import pytest
 from inline_snapshot import snapshot
 
+from coffee_review.config import CleanSettings
 from coffee_review.models.clean import (
     GREEN_SCHEMA,
     CleanContractError,
     validate_clean,
 )
-from coffee_review.models.parsed import RoastedReview
+from coffee_review.models.parsed import GreenReview, RoastedReview
 from coffee_review.parsers.review_page import parse_review_page
 from coffee_review.pipeline import clean as clean_module
 from coffee_review.pipeline.clean import UnloggedNullsError, run_clean
@@ -44,6 +45,14 @@ def fixture_record(name: str) -> ParsedReview:
 def roasted(slug: str, **fields: object) -> RoastedReview:
     return RoastedReview.model_validate(
         {"slug": slug, "url": URL.format(slug), "delisted": False, "sold_green": False}
+        | {"title": "T", "review_date": "May 2020", "rating": "90"}
+        | fields
+    )
+
+
+def green(slug: str, **fields: object) -> GreenReview:
+    return GreenReview.model_validate(
+        {"slug": slug, "url": URL.format(slug), "delisted": False}
         | {"title": "T", "review_date": "May 2020", "rating": "90"}
         | fields
     )
@@ -237,3 +246,60 @@ def test_odd_values_do_not_stop_the_run() -> None:
     rules = clean.read_table("log").select("field", "rule").rows()
     assert ("price", "suspect_value") in rules
     assert ("agtron", "suspect_value") in rules
+
+
+def test_roaster_variants_become_one_name() -> None:
+    records = [
+        roasted(
+            "a", roaster="JBC Coffee Roasters", roaster_location="Madison, Wisconsin"
+        ),
+        roasted(
+            "b", roaster="JBC Coffee Roasters", roaster_location="Madison, Wisconsin"
+        ),
+        roasted("c", roaster="JBC", roaster_location="Madison, Wisconsin"),
+    ]
+    clean = InMemoryCleanStore()
+
+    run_clean(parsed=parsed_with(*records), clean=clean)
+
+    assert clean.read_table("roasted")["roaster"].unique().to_list() == [
+        "JBC Coffee Roasters"
+    ]
+    log = clean.read_table("log").filter(pl.col("field") == "roaster")
+    assert log.select("slug", "rule", "raw_value").rows() == [
+        ("c", "spelling_variant", "JBC")
+    ]
+
+
+def test_roaster_names_cover_green_reviews() -> None:
+    records: list[ParsedReview] = [
+        roasted("a", roaster="Royal Coffee", roaster_location="Oakland, California"),
+        roasted("b", roaster="Royal Coffee", roaster_location="Oakland, California"),
+        green("g", roaster="ROYAL COFFEE INC"),
+    ]
+    clean = InMemoryCleanStore()
+
+    run_clean(parsed=parsed_with(*records), clean=clean)
+
+    assert clean.read_table("green")["roaster"].to_list() == ["Royal Coffee"]
+
+
+def test_roaster_thresholds_come_from_settings() -> None:
+    records = [
+        roasted("a", roaster="La Mill", roaster_location="Los Angeles, California"),
+        roasted("b", roaster="La Mill", roaster_location="Los Angeles, California"),
+        roasted("c", roaster="Lamill", roaster_location="Los Angeles, California"),
+    ]
+    clean = InMemoryCleanStore()
+
+    run_clean(
+        parsed=parsed_with(*records),
+        clean=clean,
+        settings=CleanSettings(roaster_merge_at=0.95),  # la mill / lamill: 0.92
+    )
+
+    assert clean.read_table("roasted")["roaster"].to_list() == [
+        "La Mill",
+        "La Mill",
+        "Lamill",
+    ]

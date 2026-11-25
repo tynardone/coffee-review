@@ -138,7 +138,7 @@ One row per roasted review (espresso included).
 | `delisted` | Boolean | no | – | True when the review is no longer in the site's sitemaps. |
 | `sold_green` | Boolean | no | – | True when the title says the coffee was sold green (1997–1999). |
 | `title` | String | yes | – | The coffee's name as reviewed. |
-| `roaster` | String | yes | – | The roaster (green reviews: the importer or seller). |
+| `roaster` | String | yes | – | The roaster (green reviews: the importer or seller), one spelling per roaster; the cleaning log has the name as written. |
 | `roaster_url` | String | yes | – | The link on the roaster's logo. |
 | `review_month` | Date | yes | always the 1st | The month of the review, always stored as its 1st day (the site gives only month and year). |
 | `rating` | Int16 | yes | ≥ 50, ≤ 100 | Overall score, 50–100. Empty when not rated (NR). |
@@ -181,7 +181,7 @@ One row per green review.
 | `url` | String | no | – | The review page's address. |
 | `delisted` | Boolean | no | – | True when the review is no longer in the site's sitemaps. |
 | `title` | String | yes | – | The coffee's name as reviewed. |
-| `roaster` | String | yes | – | The roaster (green reviews: the importer or seller). |
+| `roaster` | String | yes | – | The roaster (green reviews: the importer or seller), one spelling per roaster; the cleaning log has the name as written. |
 | `roaster_url` | String | yes | – | The link on the roaster's logo. |
 | `review_month` | Date | yes | always the 1st | The month of the review, always stored as its 1st day (the site gives only month and year). |
 | `rating` | Int16 | yes | ≥ 50, ≤ 100 | Overall score, 50–100. Empty when not rated (NR). |

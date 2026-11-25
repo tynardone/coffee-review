@@ -184,7 +184,10 @@ class CleanRoastedFrame(pa.DataFrameModel):
         description="True when the title says the coffee was sold green (1997–1999)."
     )
     title: str = _optional("The coffee's name as reviewed.")
-    roaster: str = _optional("The roaster (green reviews: the importer or seller).")
+    roaster: str = _optional(
+        "The roaster (green reviews: the importer or seller), one spelling per "
+        "roaster; the cleaning log has the name as written."
+    )
     roaster_url: str = _optional("The link on the roaster's logo.")
     review_month: dt.date = pa.Field(
         description=(
@@ -306,7 +309,10 @@ class CleanGreenFrame(pa.DataFrameModel):
         description="True when the review is no longer in the site's sitemaps."
     )
     title: str = _optional("The coffee's name as reviewed.")
-    roaster: str = _optional("The roaster (green reviews: the importer or seller).")
+    roaster: str = _optional(
+        "The roaster (green reviews: the importer or seller), one spelling per "
+        "roaster; the cleaning log has the name as written."
+    )
     roaster_url: str = _optional("The link on the roaster's logo.")
     review_month: dt.date = pa.Field(
         description=(
