@@ -108,15 +108,15 @@ scope: renamed, merged or sold roasters.
 
 Part of the clean stage, after the roaster location is cleaned.
 
-- [ ] Design written and approved
-- [ ] Matching key: case, accents, `&`, punctuation and words like *Coffee Roasters* ignored; spellings that share a key become one name (116 groups, 241 spellings in a first survey)
-- [ ] Close spellings scored; at or above the automatic threshold, merged and flagged, unless the roasters are in different countries; between the two thresholds, listed in the report's *To review*
-- [ ] Roasters in different countries never merged automatically; city names compared loosely (`Taoyuan City` and `Taoyuan`)
-- [ ] `roasters.csv`: hand-kept merges, and spellings pinned as separate roasters
-- [ ] The most common spelling is kept; the original stays in the cleaning log; both thresholds in settings
+- [x] Design written and approved (2026-11-23)
+- [x] Matching key: case, accents, `&`, punctuation and words like *Coffee Roasters* ignored; spellings that share a key become one name, unless their countries don't overlap (then listed for review)
+- [x] Close spellings scored with rapidfuzz: at or above `merge_at` (0.90), merged and flagged, unless the roasters are in different countries; from `review_at` (0.85), or `review_same_city_at` (0.80) in the same city, listed in the report's *To review*
+- [x] Roasters in different countries never merged automatically, even through a chain of merges; city names compared loosely (`Taoyuan City` and `Taoyuan`)
+- [x] `roasters.csv` (a spelling is that roaster) and `distinct_roasters.csv` (two spellings are different roasters): a person's decisions, never asked again
+- [x] The most common spelling is kept; the original stays in the cleaning log; the three thresholds in settings (`COFFEE_REVIEW_CLEAN__ROASTER_*`)
 - [ ] First real clean: spellings merged, pairs listed for review, list worked through
 
-**Done when:** every merge is either a shared key, a close spelling above the
+**Done when:** every merge is a shared key, a close spelling above the
 threshold with no location conflict, or a row in `roasters.csv`; the review
 list is worked through; and the rules have tests.
 

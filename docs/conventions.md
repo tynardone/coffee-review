@@ -25,7 +25,8 @@ src/coffee_review/
   parsers/             Pure functions: raw HTML/XML/JSON in, models out. No I/O.
   transforms/          Pure functions on tables: clean, convert, adjust.
     rules.py           raw_<field> / _rule_<field> columns, the cleaning log.
-    dates.py, scores.py, roast.py, places.py, price.py, units.py, lots.py, text.py
+    dates.py, scores.py, roast.py, places.py, roasters.py, price.py, units.py,
+    lots.py, text.py
                        One module per field family.
     economic.py        What FX days and CPI years to fetch; build the economic tables.
     lookup_tables.py   Loads the CSVs in lookups/ (the one file access allowed).
