@@ -500,14 +500,19 @@ def _kept_apart(groups: _Groups, a: str, b: str, apart: set[frozenset[_Label]]) 
 
 
 def _decide(spelling: Spelling, groups: _Groups, listed_keys: set[str]) -> NameDecision:
-    """The name a spelling becomes, and the rule that explains it."""
+    """The name a spelling becomes, and the rule that explains it.
+
+    In a group a ``roasters.csv`` row named, the row's own keys are
+    ``listed_name``; anything else joined it by close spelling. In any other
+    group, the kept spelling's key is ``spelling_variant``.
+    """
     name = groups.kept_name(spelling.name)
     key = roaster_key(spelling.name)
     if spelling.name == name:
         return NameDecision(name, ())
     if key in listed_keys:
         return NameDecision(name, ("listed_name",))
-    if key == roaster_key(groups.lead(spelling.name).name):
+    if groups.listed_as(spelling.name) is None and key == roaster_key(name):
         return NameDecision(name, ("spelling_variant",))
     return NameDecision(name, ("close_spelling",))
 
