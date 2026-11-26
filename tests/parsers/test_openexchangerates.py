@@ -1,4 +1,4 @@
-"""Tests for coffee_review.parsers.fx_openexchangerates.
+"""Tests for coffee_review.parsers.openexchangerates.
 
 Samples are hand-written in the documented shape, never real responses.
 """
@@ -11,7 +11,7 @@ from datetime import date
 import pytest
 
 from coffee_review.models.economic import EconomicParseError
-from coffee_review.parsers.fx_openexchangerates import parse_fx_openexchangerates
+from coffee_review.parsers.openexchangerates import parse_openexchangerates
 
 DAY = date(2020, 1, 1)
 
@@ -29,7 +29,7 @@ def oxr(base: str = "USD", rates: dict[str, object] | None = None) -> str:
 
 
 def test_reads_every_rate() -> None:
-    parsed = parse_fx_openexchangerates(
+    parsed = parse_openexchangerates(
         oxr(rates={"USD": 1, "TWD": 31.2, "CAD": 1.35}), DAY
     )
 
@@ -46,11 +46,11 @@ def test_reads_every_rate() -> None:
 
 def test_rejects_a_non_usd_base() -> None:
     with pytest.raises(EconomicParseError, match="base"):
-        parse_fx_openexchangerates(oxr(base="EUR"), DAY)
+        parse_openexchangerates(oxr(base="EUR"), DAY)
 
 
 def test_drops_a_zero_rate_with_a_problem() -> None:
-    parsed = parse_fx_openexchangerates(oxr(rates={"USD": 1, "VEF": 0}), DAY)
+    parsed = parse_openexchangerates(oxr(rates={"USD": 1, "VEF": 0}), DAY)
 
     assert [r.currency for r in parsed.rates] == ["USD"]
     assert parsed.problems[0].value == "VEF=0"
@@ -67,7 +67,7 @@ def test_drops_a_zero_rate_with_a_problem() -> None:
     ],
 )
 def test_drops_each_bad_rate(rates: dict[str, object]) -> None:
-    parsed = parse_fx_openexchangerates(oxr(rates=rates), DAY)
+    parsed = parse_openexchangerates(oxr(rates=rates), DAY)
 
     assert [r.currency for r in parsed.rates] == ["USD"]
     assert len(parsed.problems) == 1
@@ -83,7 +83,7 @@ def test_not_available_is_a_gap() -> None:
         }
     )
 
-    parsed = parse_fx_openexchangerates(body, DAY)
+    parsed = parse_openexchangerates(body, DAY)
 
     assert parsed.gap == "not_available"
     assert parsed.rates == ()
@@ -105,4 +105,4 @@ def test_not_available_is_a_gap() -> None:
 )
 def test_rejects_what_isnt_an_answer(text: str) -> None:
     with pytest.raises(EconomicParseError):
-        parse_fx_openexchangerates(text, DAY)
+        parse_openexchangerates(text, DAY)

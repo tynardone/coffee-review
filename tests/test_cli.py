@@ -379,7 +379,7 @@ def test_fx_command_without_key_exits_1_with_the_message() -> None:
 
     assert result.exit_code == 1
     assert "fx failed:" in result.output
-    assert "COFFEE_REVIEW_FOREX_API__API_KEY" in result.output
+    assert "COFFEE_REVIEW_OPENEXCHANGERATES__API_KEY" in result.output
 
 
 @pytest.mark.parametrize("command", ["fx", "cpi"])

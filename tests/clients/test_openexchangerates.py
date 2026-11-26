@@ -1,4 +1,4 @@
-"""Tests for coffee_review.clients.forex_api."""
+"""Tests for coffee_review.clients.openexchangerates."""
 
 from __future__ import annotations
 
@@ -14,8 +14,11 @@ from coffee_review.clients.economic import (
     SourceRefusedError,
     SourceUnavailableError,
 )
-from coffee_review.clients.forex_api import ForexApiClient, MissingApiKeyError
-from coffee_review.config import ForexApiSettings
+from coffee_review.clients.openexchangerates import (
+    MissingApiKeyError,
+    OpenExchangeRatesClient,
+)
+from coffee_review.config import OpenExchangeRatesSettings
 
 KEY = "test-key"
 
@@ -33,14 +36,18 @@ def capture_requests(
     return httpx.MockTransport(handler), seen
 
 
-def settings_with_key(key: str | None = KEY) -> ForexApiSettings:
-    return ForexApiSettings(api_key=SecretStr(key) if key is not None else None)
+def settings_with_key(key: str | None = KEY) -> OpenExchangeRatesSettings:
+    return OpenExchangeRatesSettings(
+        api_key=SecretStr(key) if key is not None else None
+    )
 
 
 async def test_key_sent_in_authorization_header() -> None:
     transport, seen = capture_requests()
 
-    async with ForexApiClient(settings_with_key(), transport=transport) as client:
+    async with OpenExchangeRatesClient(
+        settings_with_key(), transport=transport
+    ) as client:
         await client.request("GET", "historical/2020-01-01.json")
 
     assert seen[0].headers["Authorization"] == f"Token {KEY}"
@@ -50,7 +57,9 @@ async def test_key_not_in_url() -> None:
     # URLs end up in logs and error messages; the key must never be in one.
     transport, seen = capture_requests()
 
-    async with ForexApiClient(settings_with_key(), transport=transport) as client:
+    async with OpenExchangeRatesClient(
+        settings_with_key(), transport=transport
+    ) as client:
         await client.request("GET", "historical/2020-01-01.json")
 
     assert KEY not in str(seen[0].url)
@@ -59,7 +68,9 @@ async def test_key_not_in_url() -> None:
 async def test_key_not_in_error_message() -> None:
     transport, _ = capture_requests(status=401)
 
-    async with ForexApiClient(settings_with_key(), transport=transport) as client:
+    async with OpenExchangeRatesClient(
+        settings_with_key(), transport=transport
+    ) as client:
         with pytest.raises(httpx.HTTPStatusError) as excinfo:
             await client.request("GET", "latest.json")
 
@@ -69,7 +80,9 @@ async def test_key_not_in_error_message() -> None:
 async def test_caller_params_are_sent() -> None:
     transport, seen = capture_requests()
 
-    async with ForexApiClient(settings_with_key(), transport=transport) as client:
+    async with OpenExchangeRatesClient(
+        settings_with_key(), transport=transport
+    ) as client:
         await client.request(
             "GET", "historical/2020-01-01.json", params={"base": "USD"}
         )
@@ -79,14 +92,14 @@ async def test_caller_params_are_sent() -> None:
 
 def test_missing_key_raises() -> None:
     with pytest.raises(MissingApiKeyError):
-        ForexApiClient(settings_with_key(None))
+        OpenExchangeRatesClient(settings_with_key(None))
 
 
 # --- fetch_day: an answer comes back as text; anything else is a typed error
 
 
-def fast_settings() -> ForexApiSettings:
-    return ForexApiSettings(
+def fast_settings() -> OpenExchangeRatesSettings:
+    return OpenExchangeRatesSettings(
         api_key=SecretStr(KEY),
         rate_per_sec=1000,
         max_retries=1,
@@ -110,7 +123,7 @@ def answering(
 async def test_fetch_day_requests_the_historical_path() -> None:
     transport, seen = answering(200, {"base": "USD", "rates": {}})
 
-    async with ForexApiClient(fast_settings(), transport=transport) as client:
+    async with OpenExchangeRatesClient(fast_settings(), transport=transport) as client:
         text = await client.fetch_day(date(2020, 3, 1))
 
     assert seen[0].method == "GET"
@@ -122,7 +135,7 @@ async def test_fetch_day_returns_a_400_body() -> None:
     body = {"error": True, "status": 400, "message": "not_available"}
     transport, _ = answering(400, body)
 
-    async with ForexApiClient(fast_settings(), transport=transport) as client:
+    async with OpenExchangeRatesClient(fast_settings(), transport=transport) as client:
         text = await client.fetch_day(date(1990, 1, 1))
 
     assert json.loads(text) == body
@@ -131,7 +144,7 @@ async def test_fetch_day_returns_a_400_body() -> None:
 async def test_401_is_auth_error_without_the_key() -> None:
     transport, _ = answering(401, {"error": True, "message": "invalid_app_id"})
 
-    async with ForexApiClient(fast_settings(), transport=transport) as client:
+    async with OpenExchangeRatesClient(fast_settings(), transport=transport) as client:
         with pytest.raises(SourceAuthError) as excinfo:
             await client.fetch_day(date(2020, 1, 1))
 
@@ -143,7 +156,7 @@ async def test_401_is_auth_error_without_the_key() -> None:
 async def test_refused_and_not_retried(status: int) -> None:
     transport, seen = answering(status, {"error": True, "message": "not_allowed"})
 
-    async with ForexApiClient(fast_settings(), transport=transport) as client:
+    async with OpenExchangeRatesClient(fast_settings(), transport=transport) as client:
         with pytest.raises(SourceRefusedError):
             await client.fetch_day(date(2020, 1, 1))
 
@@ -153,7 +166,7 @@ async def test_refused_and_not_retried(status: int) -> None:
 async def test_other_4xx_is_unavailable() -> None:
     transport, _ = answering(404, {"error": True, "message": "not_found"})
 
-    async with ForexApiClient(fast_settings(), transport=transport) as client:
+    async with OpenExchangeRatesClient(fast_settings(), transport=transport) as client:
         with pytest.raises(SourceUnavailableError):
             await client.fetch_day(date(2020, 1, 1))
 
@@ -161,7 +174,7 @@ async def test_other_4xx_is_unavailable() -> None:
 async def test_exhausted_5xx_is_unavailable() -> None:
     transport, seen = answering(503, {})
 
-    async with ForexApiClient(fast_settings(), transport=transport) as client:
+    async with OpenExchangeRatesClient(fast_settings(), transport=transport) as client:
         with pytest.raises(SourceUnavailableError):
             await client.fetch_day(date(2020, 1, 1))
 

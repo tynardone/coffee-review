@@ -11,7 +11,7 @@ stops cleanly:
 - ``SourceUnavailableError``: no usable answer after retries (5xx, timeouts,
   network), or a status that isn't an answer.
 
-Shared by ``forex_api.py`` and ``bls_api.py``.
+Shared by ``openexchangerates.py`` and ``bls.py``.
 """
 
 from __future__ import annotations

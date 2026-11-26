@@ -189,7 +189,7 @@ flowchart TD
     saved[("data/raw/fx/openexchangerates/&lt;day&gt;.json<br>data/raw/cpi/bls/&lt;series&gt;/&lt;request&gt;.json")] -->|EconomicStore| parse["parse every saved response"]
     parse --> plan["what's missing?<br>transforms/economic.py<br>(today in UTC, passed in)"]
     plan -->|nothing| rebuild
-    plan -->|"missing days / years"| fetch["fetch<br>clients/forex_api.py · bls_api.py"]
+    plan -->|"missing days / years"| fetch["fetch<br>clients/openexchangerates.py · bls.py"]
     fetch -->|"answered (data or 'no data')"| save["save the response as received"]
     save --> rebuild["rebuild fx / cpi<br>(newest response wins)"]
     fetch -->|"refused, bad key, down"| stop(["stop cleanly, exit 3<br>saved files kept"])

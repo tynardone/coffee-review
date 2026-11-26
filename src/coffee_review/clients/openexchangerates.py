@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 
     import httpx
 
-    from coffee_review.config import ForexApiSettings
+    from coffee_review.config import OpenExchangeRatesSettings
 
 
 class MissingApiKeyError(Exception):
@@ -20,19 +20,19 @@ class MissingApiKeyError(Exception):
 
     def __init__(self) -> None:
         super().__init__(
-            "No OpenExchangeRates key set. Add COFFEE_REVIEW_FOREX_API__API_KEY "
-            "to your environment or .env file."
+            "No OpenExchangeRates key set. Add "
+            "COFFEE_REVIEW_OPENEXCHANGERATES__API_KEY to your environment or .env file."
         )
 
 
-class ForexApiClient(BaseHttpClient):
+class OpenExchangeRatesClient(BaseHttpClient):
     """OpenExchangeRates: one day's rates per request."""
 
     retryable_status = ECONOMIC_RETRYABLE_STATUS
 
     def __init__(
         self,
-        settings: ForexApiSettings,
+        settings: OpenExchangeRatesSettings,
         *,
         transport: httpx.AsyncBaseTransport | None = None,
     ) -> None:

@@ -236,7 +236,7 @@ def roasters_apply_command() -> None:
 def fx_command() -> None:
     """Bring exchange rates in data/economic up to date (responses in data/raw).
 
-    Asks only for days not saved yet. Needs COFFEE_REVIEW_FOREX_API__API_KEY.
+    Asks only for days not saved yet. Needs COFFEE_REVIEW_OPENEXCHANGERATES__API_KEY.
     Exit codes: 0 finished, 1 error, 3 stopped by the source (refused, bad key,
     or not answering); a rerun carries on.
     """

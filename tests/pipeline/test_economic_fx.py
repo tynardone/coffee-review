@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 import httpx
 import pytest
 
-from coffee_review.clients.forex_api import MissingApiKeyError
+from coffee_review.clients.openexchangerates import MissingApiKeyError
 from coffee_review.config import Settings
 from coffee_review.pipeline.economic import EconomicRunResult, fx, run_fx
 from coffee_review.storage.economic_store import EconomicStore

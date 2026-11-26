@@ -14,9 +14,9 @@ from typing import TYPE_CHECKING
 import httpx
 from pydantic import SecretStr
 
-from coffee_review.clients.bls_api import BlsApiClient
-from coffee_review.clients.forex_api import ForexApiClient
-from coffee_review.config import BLSApiSettings, ForexApiSettings
+from coffee_review.clients.bls import BlsClient
+from coffee_review.clients.openexchangerates import OpenExchangeRatesClient
+from coffee_review.config import BlsSettings, OpenExchangeRatesSettings
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable
@@ -85,8 +85,8 @@ def _response(reply: Reply) -> httpx.Response:
 
 def fx_client(
     answer: Callable[[date], Reply],
-) -> tuple[ForexApiClient, list[date]]:
-    """A real ForexApiClient whose requests are answered by ``answer(day)``;
+) -> tuple[OpenExchangeRatesClient, list[date]]:
+    """A real OpenExchangeRatesClient whose requests are answered by ``answer(day)``;
     the list records every day asked for."""
     asked: list[date] = []
 
@@ -97,14 +97,16 @@ def fx_client(
         asked.append(day)
         return _response(answer(day))
 
-    settings = ForexApiSettings(api_key=SecretStr("test-key"), **FAST)
-    return ForexApiClient(settings, transport=httpx.MockTransport(handler)), asked
+    settings = OpenExchangeRatesSettings(api_key=SecretStr("test-key"), **FAST)
+    return OpenExchangeRatesClient(
+        settings, transport=httpx.MockTransport(handler)
+    ), asked
 
 
 def bls_client(
     answer: Callable[[int, int], Reply],
-) -> tuple[BlsApiClient, list[tuple[int, int]]]:
-    """A real BlsApiClient whose requests are answered by
+) -> tuple[BlsClient, list[tuple[int, int]]]:
+    """A real BlsClient whose requests are answered by
     ``answer(start_year, end_year)``; the list records every request."""
     asked: list[tuple[int, int]] = []
 
@@ -114,8 +116,8 @@ def bls_client(
         asked.append(years)
         return _response(answer(*years))
 
-    settings = BLSApiSettings(**FAST)
-    return BlsApiClient(settings, transport=httpx.MockTransport(handler)), asked
+    settings = BlsSettings(**FAST)
+    return BlsClient(settings, transport=httpx.MockTransport(handler)), asked
 
 
 def published_through(

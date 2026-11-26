@@ -140,7 +140,7 @@ Polars and how it fits the later dbt layers.
 
 ```bash
 uv run coffee-review cpi   # US CPI-U from the BLS; no key needed
-uv run coffee-review fx    # exchange rates; needs COFFEE_REVIEW_FOREX_API__API_KEY
+uv run coffee-review fx    # exchange rates; needs COFFEE_REVIEW_OPENEXCHANGERATES__API_KEY
 ```
 
 The two tables the enrich stage needs to convert prices to US dollars
