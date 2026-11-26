@@ -126,8 +126,8 @@ flowchart LR
 
 The scraper is incremental: it fetches only what's new, failed, changed, or
 due its one re-fetch the day after it appeared. The speed controls (`--rate`,
-`--concurrency`) and why are in [ADR 0005](decisions/0005-scrape-speed.md); the
-fetch loop is explained step by step in
+`--concurrency`) and why are in [ADR 0005](decisions/0005-scrape-speed.md); how a run
+works, and when it stops, is in
 [explainers/scrape-pipeline.md](explainers/scrape-pipeline.md).
 
 ### Parse

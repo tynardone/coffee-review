@@ -179,3 +179,7 @@ uv run pre-commit run --all-files
 - [Roadmap](docs/roadmap.md): milestones and progress
 - [Conventions](docs/conventions.md): structure, naming and test rules
 - [Decisions](docs/decisions/): why things are the way they are
+- Explainers: [how a scrape run works](docs/explainers/scrape-pipeline.md) and
+  [how roaster names are grouped](docs/explainers/roaster-names.md)
+- [Reading a review](docs/reading-a-review.md): what the scores and Agtron
+  readings mean
