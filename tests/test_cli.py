@@ -243,14 +243,6 @@ def test_parse_command_error_exits_1(parse_spy: ParseSpy) -> None:
     assert "manifest schema version 99" in result.output
 
 
-def test_help_lists_both_commands() -> None:
-    output = runner.invoke(app, ["--help"]).output
-
-    # Command rows, not the words in the app's description.
-    assert re.search(r"^\W*scrape\s", output, re.MULTILINE)
-    assert re.search(r"^\W*parse\s", output, re.MULTILINE)
-
-
 class CleanSpy:
     """Stands in for pipeline.clean: records the call, returns a canned result."""
 
@@ -311,12 +303,6 @@ def test_clean_contract_failure(clean_spy: CleanSpy) -> None:
 
     assert result.exit_code == 1
     assert "rating: less_than_or_equal_to(100)" in result.output
-
-
-def test_clean_in_help() -> None:
-    output = runner.invoke(app, ["--help"]).output
-
-    assert re.search(r"^\W*clean\s", output, re.MULTILINE)
 
 
 @pytest.mark.parametrize("command", ["parse", "clean"])
@@ -382,10 +368,13 @@ def test_fx_command_without_key_exits_1_with_the_message() -> None:
     assert "COFFEE_REVIEW_OPENEXCHANGERATES__API_KEY" in result.output
 
 
-@pytest.mark.parametrize("command", ["fx", "cpi"])
-def test_economic_commands_in_help(command: str) -> None:
+@pytest.mark.parametrize(
+    "command", ["scrape", "parse", "clean", "fx", "cpi", "roasters"]
+)
+def test_every_command_in_help(command: str) -> None:
     output = runner.invoke(app, ["--help"]).output
 
+    # A command row, not the word in the app's description.
     assert re.search(rf"^\W*{command}\s", output, re.MULTILINE)
 
 

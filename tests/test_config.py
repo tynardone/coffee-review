@@ -55,24 +55,20 @@ def test_concurrency_worked_out_from_rate(rate: float, concurrency: int) -> None
     assert CoffeeSiteSettings(rate_per_sec=rate).max_concurrency == concurrency
 
 
-def test_rate_above_ceiling_rejected() -> None:
-    with pytest.raises(ValidationError, match="10"):
-        CoffeeSiteSettings(rate_per_sec=10.5)
-
-
-def test_zero_rate_rejected() -> None:
-    with pytest.raises(ValidationError):
-        CoffeeSiteSettings(rate_per_sec=0)
-
-
-def test_concurrency_too_low_rejected() -> None:
-    with pytest.raises(ValidationError, match="at least 5"):
-        CoffeeSiteSettings(rate_per_sec=5, max_concurrency=2)
-
-
-def test_concurrency_too_high_rejected() -> None:
-    with pytest.raises(ValidationError, match="at most 4"):
-        CoffeeSiteSettings(rate_per_sec=2, max_concurrency=5)
+@pytest.mark.parametrize(
+    ("rate", "concurrency", "message"),
+    [
+        (10.5, None, "10"),  # above the ceiling
+        (0, None, "greater than 0"),
+        (5, 2, "at least 5"),  # too few workers to reach the rate
+        (2, 5, "at most 4"),  # more workers than the rate needs
+    ],
+)
+def test_unreachable_speed_rejected(
+    rate: float, concurrency: int | None, message: str
+) -> None:
+    with pytest.raises(ValidationError, match=message):
+        CoffeeSiteSettings(rate_per_sec=rate, max_concurrency=concurrency)
 
 
 def test_concurrency_in_range_accepted() -> None:
@@ -83,12 +79,6 @@ def test_speed_from_env_follows_same_rules(monkeypatch: pytest.MonkeyPatch) -> N
     monkeypatch.setenv("COFFEE_REVIEW_COFFEE_SITE__RATE_PER_SEC", "3")
 
     assert load_settings().coffee_site.max_concurrency == 3
-
-
-def test_nested_env_override(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("COFFEE_REVIEW_COFFEE_SITE__RATE_PER_SEC", "0.25")
-
-    assert load_settings().coffee_site.rate_per_sec == 0.25
 
 
 def test_api_key_read_from_env_and_hidden(monkeypatch: pytest.MonkeyPatch) -> None:
