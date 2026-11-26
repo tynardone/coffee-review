@@ -21,6 +21,7 @@ from tests.transforms.helpers import run
 if TYPE_CHECKING:
     from coffee_review.models.clean import CleanRule
 
+
 PLACES = load_places()
 
 
@@ -30,6 +31,9 @@ def origin(text: str) -> OriginResult:
 
 def roaster(text: str) -> RoasterResult:
     return place_roaster(text, PLACES)
+
+
+# --- Origins ----------------------------------------------------------------------
 
 
 @pytest.mark.parametrize(
@@ -101,60 +105,6 @@ def test_origin_unplaced() -> None:
 
 
 @pytest.mark.parametrize(
-    ("text", "expected"),
-    [
-        ("Bentonville, Arkansas", ("Bentonville", "Arkansas", "United States")),
-        ("Toronto, Ontario, Canada", ("Toronto", "Ontario", "Canada")),
-        ("Chia-Yi, Taiwan", ("Chia-Yi", None, "Taiwan")),
-        ("Taiwan", (None, None, "Taiwan")),
-        ("Holualoa, Hawai’i Island, Hawai’i", ("Holualoa", "Hawaii", "United States")),
-        ("Kailua-Kona, Hawaii", ("Kailua-Kona", "Hawaii", "United States")),
-        ("Minneapolis, MInnesota", ("Minneapolis", "Minnesota", "United States")),
-        ("Helena, Montana.", ("Helena", "Montana", "United States")),
-    ],
-)
-def test_roaster_locations(
-    text: str, expected: tuple[str | None, str | None, str | None]
-) -> None:
-    city, region, country = expected
-
-    assert roaster(text) == RoasterResult(city, region, country, ())
-
-
-def test_roaster_unplaced() -> None:
-    assert roaster("Atlantis") == RoasterResult("Atlantis", None, None, ("unplaced",))
-
-
-def test_clean_origin_joins_back() -> None:
-    values = ["Antigua, Guatemala", "Antigua, Guatemala", "Not disclosed", None]
-
-    result = run(lambda f: clean_origin(f, PLACES), "coffee_origin", values)
-
-    assert result.height == 4
-    assert result["origin_country"].to_list() == ["Guatemala", "Guatemala", None, None]
-    assert result["origin_region"].to_list() == ["Antigua", "Antigua", None, None]
-    assert result["_rule_coffee_origin"].to_list() == [[], [], ["not_disclosed"], []]
-    assert result["slug"].to_list() == ["s0", "s1", "s2", "s3"]  # order kept
-
-
-def test_clean_roaster_location_columns() -> None:
-    result = run(
-        lambda f: clean_roaster_location(f, PLACES),
-        "roaster_location",
-        ["Toronto, Ontario, Canada", "Atlantis"],
-    )
-
-    assert result.select(
-        "roaster_city", "roaster_region", "roaster_country"
-    ).rows() == [
-        ("Toronto", "Ontario", "Canada"),
-        ("Atlantis", None, None),
-    ]
-    assert result["_rule_roaster_location"].to_list() == [[], ["unplaced"]]
-    assert result.schema["_rule_roaster_location"] == pl.List(pl.String)
-
-
-@pytest.mark.parametrize(
     ("text", "country"),
     [("Columbia", "Colombia"), ("Thika growing region, Kenia", "Kenya")],
 )
@@ -162,21 +112,6 @@ def test_origin_close_spelling(text: str, country: str) -> None:
     result = origin(text)
 
     assert (result.country, result.rules) == (country, ("close_spelling",))
-
-
-@pytest.mark.parametrize(
-    ("text", "region"),
-    [
-        ("Sacramento, Califonria", "California"),
-        ("Seattle, Washingtn", "Washington"),
-        ("Vancouver, British Colunbia", "British Columbia"),
-    ],
-)
-def test_roaster_close_spelling(text: str, region: str) -> None:
-    result = roaster(text)
-
-    assert result.region == region
-    assert result.rules == ("close_spelling",)
 
 
 def test_exact_match_beats_close_spelling() -> None:
@@ -203,12 +138,6 @@ def test_country_inside_a_part(text: str, country: str, region: str) -> None:
     assert origin(text) == OriginResult(country, region, ())
 
 
-def test_roaster_without_comma() -> None:
-    assert roaster("Scottsdale Arizona") == RoasterResult(
-        "Scottsdale", "Arizona", "United States", ()
-    )
-
-
 def test_percentages_ignored() -> None:
     assert origin("Kenya 40%, Colombia 30%, Costa Rica 30%") == OriginResult(
         "Multiple", None, ("multiple_origins",)
@@ -229,46 +158,6 @@ def test_country_first_in_a_part() -> None:
 def test_democratic_republic_of_congo_without_the() -> None:
     assert origin("Lake Kivu, Democratic Republic of Congo") == OriginResult(
         "Democratic Republic of the Congo", "Lake Kivu", ()
-    )
-
-
-@pytest.mark.parametrize(
-    ("text", "rule"),
-    [
-        ("Not disclosed", "not_disclosed"),
-        ("Not Disclosed.", "not_disclosed"),
-        ("NA", "unknown_marker"),
-        ("n/a", "unknown_marker"),
-    ],
-)
-def test_roaster_markers(text: str, rule: CleanRule) -> None:
-    assert roaster(text) == RoasterResult(None, None, None, (rule,))
-
-
-@pytest.mark.parametrize(
-    ("text", "expected"),
-    [
-        ("Chicago, IL", ("Chicago", "Illinois", "United States")),
-        ("Soquel, CA", ("Soquel", "California", "United States")),
-        ("Washington, DC", ("Washington", "District of Columbia", "United States")),
-    ],
-)
-def test_roaster_state_codes(
-    text: str, expected: tuple[str | None, str | None, str | None]
-) -> None:
-    city, region, country = expected
-
-    assert roaster(text) == RoasterResult(city, region, country, ())
-
-
-def test_state_codes_match_whole_parts_only() -> None:
-    # "in" inside a part must not become Indiana.
-    assert roaster("Roasted and packed in Colombia").region is None
-
-
-def test_text_before_a_country_is_not_a_city() -> None:
-    assert roaster("Roasted and packed in Colombia") == RoasterResult(
-        None, None, "Colombia", ()
     )
 
 
@@ -309,13 +198,6 @@ def test_slash_separates_origin_parts() -> None:
 
 def test_misspelt_not_disclosed() -> None:
     assert origin("Not discolosed") == OriginResult(None, None, ("not_disclosed",))
-
-
-def test_reviewed_spellings_are_exact() -> None:
-    # Confirmed from the first real clean's report: no longer close spellings.
-    assert roaster("Sacramento, Calfornia") == RoasterResult(
-        "Sacramento", "California", "United States", ()
-    )
 
 
 @pytest.mark.parametrize(
@@ -373,30 +255,6 @@ def test_region_keeps_its_direction_words(text: str, region: str) -> None:
     assert origin(text).region == region
 
 
-# --- final review fixes ----------------------------------------------------------
-
-
-@pytest.mark.parametrize(
-    ("text", "expected"),
-    [
-        ("Hong Kong, China", (None, None, "Hong Kong")),
-        ("Kowloon, Hong Kong, China", ("Kowloon", None, "Hong Kong")),
-        ("Macao, China", (None, None, "Macao")),
-        ("Vancouver, BC", ("Vancouver", "British Columbia", "Canada")),
-        (
-            "Burnaby, British Colombia, Canada",
-            ("Burnaby", "British Columbia", "Canada"),
-        ),
-    ],
-)
-def test_roaster_middle_part(
-    text: str, expected: tuple[str | None, str | None, str | None]
-) -> None:
-    city, region, country = expected
-
-    assert roaster(text) == RoasterResult(city, region, country, ())
-
-
 @pytest.mark.parametrize(
     ("text", "country", "region"),
     [
@@ -435,10 +293,6 @@ def test_one_country_with_an_area_is_that_country(
 )
 def test_directions_and_of_never_switch_country(text: str, country: str) -> None:
     assert origin(text).country == country
-
-
-def test_roaster_west_virginia() -> None:
-    assert roaster("Morgantown West Virginia").region == "West Virginia"
 
 
 @pytest.mark.parametrize(
@@ -495,13 +349,6 @@ def test_named_region_inside_a_part(text: str, country: str) -> None:
     assert origin(text).country == country
 
 
-def test_city_named_like_a_country_is_not_the_country() -> None:
-    # Armenia is a city in Colombia's coffee region.
-    assert roaster("Armenia, Colombia") == RoasterResult(
-        "Armenia", None, "Colombia", ()
-    )
-
-
 def test_directions_before_of_stay_with_the_text_before() -> None:
     assert (
         origin(
@@ -535,3 +382,163 @@ def test_country_outside_the_area_is_a_blend(text: str) -> None:
     # An area is only context for a country inside it; otherwise, or with a
     # blend word ("other"), the coffee comes from more than one place.
     assert origin(text).country == "Multiple"
+
+
+# --- Roaster locations ------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("Bentonville, Arkansas", ("Bentonville", "Arkansas", "United States")),
+        ("Toronto, Ontario, Canada", ("Toronto", "Ontario", "Canada")),
+        ("Chia-Yi, Taiwan", ("Chia-Yi", None, "Taiwan")),
+        ("Taiwan", (None, None, "Taiwan")),
+        ("Holualoa, Hawai’i Island, Hawai’i", ("Holualoa", "Hawaii", "United States")),
+        ("Kailua-Kona, Hawaii", ("Kailua-Kona", "Hawaii", "United States")),
+        ("Minneapolis, MInnesota", ("Minneapolis", "Minnesota", "United States")),
+        ("Helena, Montana.", ("Helena", "Montana", "United States")),
+    ],
+)
+def test_roaster_locations(
+    text: str, expected: tuple[str | None, str | None, str | None]
+) -> None:
+    city, region, country = expected
+
+    assert roaster(text) == RoasterResult(city, region, country, ())
+
+
+def test_roaster_unplaced() -> None:
+    assert roaster("Atlantis") == RoasterResult("Atlantis", None, None, ("unplaced",))
+
+
+@pytest.mark.parametrize(
+    ("text", "region"),
+    [
+        ("Sacramento, Califonria", "California"),
+        ("Seattle, Washingtn", "Washington"),
+        ("Vancouver, British Colunbia", "British Columbia"),
+    ],
+)
+def test_roaster_close_spelling(text: str, region: str) -> None:
+    result = roaster(text)
+
+    assert result.region == region
+    assert result.rules == ("close_spelling",)
+
+
+def test_roaster_without_comma() -> None:
+    assert roaster("Scottsdale Arizona") == RoasterResult(
+        "Scottsdale", "Arizona", "United States", ()
+    )
+
+
+@pytest.mark.parametrize(
+    ("text", "rule"),
+    [
+        ("Not disclosed", "not_disclosed"),
+        ("Not Disclosed.", "not_disclosed"),
+        ("NA", "unknown_marker"),
+        ("n/a", "unknown_marker"),
+    ],
+)
+def test_roaster_markers(text: str, rule: CleanRule) -> None:
+    assert roaster(text) == RoasterResult(None, None, None, (rule,))
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("Chicago, IL", ("Chicago", "Illinois", "United States")),
+        ("Soquel, CA", ("Soquel", "California", "United States")),
+        ("Washington, DC", ("Washington", "District of Columbia", "United States")),
+    ],
+)
+def test_roaster_state_codes(
+    text: str, expected: tuple[str | None, str | None, str | None]
+) -> None:
+    city, region, country = expected
+
+    assert roaster(text) == RoasterResult(city, region, country, ())
+
+
+def test_state_codes_match_whole_parts_only() -> None:
+    # "in" inside a part must not become Indiana.
+    assert roaster("Roasted and packed in Colombia").region is None
+
+
+def test_text_before_a_country_is_not_a_city() -> None:
+    assert roaster("Roasted and packed in Colombia") == RoasterResult(
+        None, None, "Colombia", ()
+    )
+
+
+def test_reviewed_spellings_are_exact() -> None:
+    # Confirmed from the first real clean's report: no longer close spellings.
+    assert roaster("Sacramento, Calfornia") == RoasterResult(
+        "Sacramento", "California", "United States", ()
+    )
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("Hong Kong, China", (None, None, "Hong Kong")),
+        ("Kowloon, Hong Kong, China", ("Kowloon", None, "Hong Kong")),
+        ("Macao, China", (None, None, "Macao")),
+        ("Vancouver, BC", ("Vancouver", "British Columbia", "Canada")),
+        (
+            "Burnaby, British Colombia, Canada",
+            ("Burnaby", "British Columbia", "Canada"),
+        ),
+    ],
+)
+def test_roaster_middle_part(
+    text: str, expected: tuple[str | None, str | None, str | None]
+) -> None:
+    city, region, country = expected
+
+    assert roaster(text) == RoasterResult(city, region, country, ())
+
+
+def test_roaster_west_virginia() -> None:
+    assert roaster("Morgantown West Virginia").region == "West Virginia"
+
+
+def test_city_named_like_a_country_is_not_the_country() -> None:
+    # Armenia is a city in Colombia's coffee region.
+    assert roaster("Armenia, Colombia") == RoasterResult(
+        "Armenia", None, "Colombia", ()
+    )
+
+
+# --- On the tables ----------------------------------------------------------------
+
+
+def test_clean_origin_joins_back() -> None:
+    values = ["Antigua, Guatemala", "Antigua, Guatemala", "Not disclosed", None]
+
+    result = run(lambda f: clean_origin(f, PLACES), "coffee_origin", values)
+
+    assert result.height == 4
+    assert result["origin_country"].to_list() == ["Guatemala", "Guatemala", None, None]
+    assert result["origin_region"].to_list() == ["Antigua", "Antigua", None, None]
+    assert result["_rule_coffee_origin"].to_list() == [[], [], ["not_disclosed"], []]
+    assert result["slug"].to_list() == ["s0", "s1", "s2", "s3"]  # order kept
+
+
+def test_clean_roaster_location_columns() -> None:
+    result = run(
+        lambda f: clean_roaster_location(f, PLACES),
+        "roaster_location",
+        ["Toronto, Ontario, Canada", "Atlantis"],
+    )
+
+    assert result.select(
+        "roaster_city", "roaster_region", "roaster_country"
+    ).rows() == [
+        ("Toronto", "Ontario", "Canada"),
+        ("Atlantis", None, None),
+    ]
+    assert result["_rule_roaster_location"].to_list() == [[], ["unplaced"]]
+    assert result.schema["_rule_roaster_location"] == pl.List(pl.String)

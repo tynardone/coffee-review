@@ -360,9 +360,6 @@ def test_result_describes_what_it_added() -> None:
     )
 
 
-# --- Review fixes ------------------------------------------------------------------
-
-
 def test_a_new_name_covers_both_sides() -> None:
     row = ("possible_match", "Kafe Alpha", "Kafe Alpa", "same", "Alpa Brand")
     listed, _ = decisions_from_sheet(decided(row))
