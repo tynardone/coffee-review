@@ -16,6 +16,7 @@ Brazil,Carmo de Minas,Minas Gerais
 Brazil,Cerrado,Minas Gerais
 Brazil,Cerrado Mineiro,Minas Gerais
 Brazil,Coromandel,Minas Gerais
+Brazil,Ipanema,Minas Gerais
 Brazil,Mantiqeiras de Minas,Minas Gerais
 Brazil,Mantiqueira,Minas Gerais
 Brazil,Mantiqueira de Minas,Minas Gerais
@@ -42,7 +43,6 @@ Brazil,Sao Sebastiao de Grama,São Paulo
 Brazil,São Paulo,São Paulo
 Colombia,Antioquia,Antioquia
 Colombia,Fredonia,Antioquia
-Colombia,Jardin,Antioquia
 Colombia,Medellin,Antioquia
 Colombia,Santa Barbara,Antioquia
 Colombia,Urrao,Antioquia
@@ -89,7 +89,6 @@ Colombia,Rioblanco,Tolima
 Colombia,Tolima,Tolima
 Colombia,Tolimas,Tolima
 Colombia,Caicedonia,Valle del Cauca
-Colombia,Sevilla,Valle del Cauca
 Colombia,Trujillo,Valle del Cauca
 Colombia,Valle de Cauca,Valle del Cauca
 Colombia,Valle del Cauca,Valle del Cauca
@@ -155,6 +154,7 @@ El Salvador,La Libertad,El Bálsamo-Quetzaltepec
 El Salvador,Quetzaltepec,El Bálsamo-Quetzaltepec
 El Salvador,Volcan de San Salvador,El Bálsamo-Quetzaltepec
 El Salvador,Berlin,Tecapa-Chinameca
+El Salvador,Cerro El Tigre,Tecapa-Chinameca
 El Salvador,Chinameca,Tecapa-Chinameca
 El Salvador,Tecapa,Tecapa-Chinameca
 El Salvador,Tecapa-Chinameca,Tecapa-Chinameca
@@ -193,6 +193,8 @@ Ethiopia,Bita Genet,Kaffa
 Ethiopia,Kafa,Kaffa
 Ethiopia,Kaffa,Kaffa
 Ethiopia,Keffa,Kaffa
+Ethiopia,Djimma Limu,Limu
+Ethiopia,Jimma Limu,Limu
 Ethiopia,Limu,Limu
 Ethiopia,Aleta Wondo,Sidama
 Ethiopia,Arbegona,Sidama
@@ -202,6 +204,7 @@ Ethiopia,Bona Zuria,Sidama
 Ethiopia,Shantawene,Sidama
 Ethiopia,Sidama,Sidama
 Ethiopia,Sidamo,Sidama
+Ethiopia,idamo,Sidama
 Ethiopia,Gimbi,Wollega
 Ethiopia,Lekempti,Wollega
 Ethiopia,Nekemte,Wollega
@@ -249,6 +252,7 @@ Guatemala,Jalapa,Nuevo Oriente
 Guatemala,Jutiapa,Nuevo Oriente
 Guatemala,New Oriente,Nuevo Oriente
 Guatemala,Nuevo Oriente,Nuevo Oriente
+Guatemala,Suchitan,Nuevo Oriente
 Guatemala,Zacapa,Nuevo Oriente
 Guatemala,El Quiche,Quiché
 Guatemala,Quiche,Quiché
@@ -375,6 +379,7 @@ Kenya,Rift Valley,
 Mexico,Chamula,Chiapas
 Mexico,Chiapas,Chiapas
 Mexico,La Concordia,Chiapas
+Mexico,Montecristo de Guerrero,Chiapas
 Mexico,Siltepec,Chiapas
 Mexico,Tapachula,Chiapas
 Mexico,Colima,Colima
@@ -398,6 +403,7 @@ Nicaragua,Estelí,Estelí
 Nicaragua,Jinotega,Jinotega
 Nicaragua,San Rafael del Norte,Jinotega
 Nicaragua,Las Sabanas,Madriz
+Nicaragua,Madrid,Madriz
 Nicaragua,Madriz,Madriz
 Nicaragua,Mardriz,Madriz
 Nicaragua,San Juan de Rio Coco,Madriz
@@ -430,8 +436,10 @@ Panama,Paso Ancho,Volcán
 Panama,Tierras Altas,Volcán
 Panama,Volcan,Volcán
 Panama,Volcán,Volcán
+Panama,Baru,
 Panama,Chiriqui,
 Panama,Chiriquí,
+Panama,Volcan Baru,
 Peru,Amazonas,Amazonas
 Peru,Lonya Grande,Amazonas
 Peru,Rodriguez de Mendoza,Amazonas
@@ -452,7 +460,6 @@ Peru,Junin,Junín
 Peru,Junín,Junín
 Peru,Satipo,Junín
 Peru,Chiclayo,Lambayeque
-Peru,Incahuasi,Lambayeque
 Peru,Lambayeque,Lambayeque
 Peru,Oxapampa,Pasco
 Peru,Pasco,Pasco
@@ -467,7 +474,6 @@ Rwanda,East,Eastern Province
 Rwanda,Eastern,Eastern Province
 Rwanda,Eastern Province,Eastern Province
 Rwanda,Kayonza,Eastern Province
-Rwanda,Ngoma,Eastern Province
 Rwanda,Burera,Northern Province
 Rwanda,Gakenke,Northern Province
 Rwanda,Gicumbi,Northern Province
@@ -476,6 +482,7 @@ Rwanda,North,Northern Province
 Rwanda,Northern,Northern Province
 Rwanda,Northern Province,Northern Province
 Rwanda,Rulindo,Northern Province
+Rwanda,Butare,Southern Province
 Rwanda,Gikongoro,Southern Province
 Rwanda,Huye,Southern Province
 Rwanda,Maraba,Southern Province
