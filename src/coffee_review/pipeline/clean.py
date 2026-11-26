@@ -29,6 +29,7 @@ from coffee_review.transforms.dates import clean_harvest, clean_review_month
 from coffee_review.transforms.lookup_tables import (
     load_currencies,
     load_distinct_roasters,
+    load_growing_regions,
     load_listed_roasters,
     load_places,
     load_roaster_currencies,
@@ -188,7 +189,9 @@ def _clean_roasted(frame: pl.LazyFrame) -> pl.LazyFrame:
     frame = clean_review_month(frame)
     frame = clean_scores(clean_rating(frame), ROASTED_SCORES)
     frame = clean_roast_level(clean_agtron(frame))  # Agtron needs review_month
-    frame = clean_origin(clean_roaster_location(frame, places), places)
+    frame = clean_origin(
+        clean_roaster_location(frame, places), places, load_growing_regions()
+    )
     frame = clean_price(  # price needs roaster_country
         frame, load_currencies(), load_roaster_currencies(), load_units()
     )
@@ -199,7 +202,7 @@ def _clean_green(frame: pl.LazyFrame) -> pl.LazyFrame:
     # Green reviews have no roaster location: price reads a null roaster country.
     frame = frame.with_columns(pl.lit(None, dtype=pl.String).alias("roaster_country"))
     frame = clean_rating(clean_review_month(frame))
-    frame = clean_origin(frame, load_places())
+    frame = clean_origin(frame, load_places(), load_growing_regions())
     frame = clean_price(
         frame, load_currencies(), load_roaster_currencies(), load_units()
     )

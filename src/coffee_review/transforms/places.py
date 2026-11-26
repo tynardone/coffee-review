@@ -7,7 +7,10 @@ compared by country and growing region:
 - an island names its country and stays as detail: ``Sumatra`` → Indonesia,
   region ``Sumatra``; Hawaiʻi and Puerto Rico are their own countries;
 - more than one country, or a broad area or blend → ``"Multiple"``;
-- ``Not disclosed`` and ``NA`` → nothing, logged (for roasters too).
+- ``Not disclosed`` and ``NA`` → nothing, logged (for roasters too);
+- the region text also gets a standard growing region,
+  ``origin_growing_region``, for the 15 biggest origins
+  (``transforms/growing_regions.py``).
 
 New spellings in future scrapes are handled three ways: the country list is
 complete (``countries.csv``); a country written as the last word of a part is
@@ -30,6 +33,7 @@ from typing import TYPE_CHECKING
 
 import polars as pl
 
+from coffee_review.transforms.growing_regions import name_growing_region
 from coffee_review.transforms.lookup_tables import (
     MULTIPLE,
     load_area_countries,
@@ -41,6 +45,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
 
     from coffee_review.models.clean import CleanRule
+    from coffee_review.transforms.growing_regions import GrowingRegions
     from coffee_review.transforms.lookup_tables import Place
 
 _SPLIT_ORIGIN = re.compile(r"\s*[,;&/]\s*(?:and\s+)?|\s+and\s+", re.IGNORECASE)
@@ -234,12 +239,19 @@ def place_roaster(text: str, places: Mapping[str, Place]) -> RoasterResult:
     return RoasterResult(city, region, last.roaster_country, rules)
 
 
-def clean_origin(frame: pl.LazyFrame, places: Mapping[str, Place]) -> pl.LazyFrame:
-    """Turn ``raw_coffee_origin`` into ``origin_country`` and ``origin_region``.
+def clean_origin(
+    frame: pl.LazyFrame, places: Mapping[str, Place], regions: GrowingRegions
+) -> pl.LazyFrame:
+    """Turn ``raw_coffee_origin`` into the origin country and region columns.
+
+    The columns are ``origin_country``, ``origin_region`` (the region text) and
+    ``origin_growing_region`` (its standard name, from
+    ``transforms/growing_regions.py``).
 
     Args:
         frame: A table with ``raw_coffee_origin``.
         places: The place lookup table.
+        regions: The growing-region lookup table.
 
     Returns:
         The frame with the origin columns and their rule column added.
@@ -247,8 +259,12 @@ def clean_origin(frame: pl.LazyFrame, places: Mapping[str, Place]) -> pl.LazyFra
     return _join_results(
         frame,
         "coffee_origin",
-        lambda text: _origin_row(place_origin(text, places)),
-        {"origin_country": pl.String(), "origin_region": pl.String()},
+        lambda text: _origin_row(place_origin(text, places), regions),
+        {
+            "origin_country": pl.String(),
+            "origin_region": pl.String(),
+            "origin_growing_region": pl.String(),
+        },
     )
 
 
@@ -454,11 +470,13 @@ def _tidy_region(part: str) -> str:
     return _FILLER.sub("", _tidy(part))
 
 
-def _origin_row(result: OriginResult) -> dict[str, object]:
+def _origin_row(result: OriginResult, regions: GrowingRegions) -> dict[str, object]:
+    growing = name_growing_region(result.country, result.region, regions)
     return {
         "origin_country": result.country,
         "origin_region": result.region,
-        "rules": list(result.rules),
+        "origin_growing_region": growing.region,
+        "rules": [*result.rules, *growing.rules],
     }
 
 

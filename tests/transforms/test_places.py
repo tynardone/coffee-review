@@ -7,7 +7,8 @@ from typing import TYPE_CHECKING
 import polars as pl
 import pytest
 
-from coffee_review.transforms.lookup_tables import load_places
+from coffee_review.transforms.growing_regions import build_growing_regions
+from coffee_review.transforms.lookup_tables import load_growing_regions, load_places
 from coffee_review.transforms.places import (
     OriginResult,
     RoasterResult,
@@ -518,13 +519,32 @@ def test_city_named_like_a_country_is_not_the_country() -> None:
 def test_clean_origin_joins_back() -> None:
     values = ["Antigua, Guatemala", "Antigua, Guatemala", "Not disclosed", None]
 
-    result = run(lambda f: clean_origin(f, PLACES), "coffee_origin", values)
+    result = run(
+        lambda f: clean_origin(f, PLACES, load_growing_regions()),
+        "coffee_origin",
+        values,
+    )
 
     assert result.height == 4
     assert result["origin_country"].to_list() == ["Guatemala", "Guatemala", None, None]
     assert result["origin_region"].to_list() == ["Antigua", "Antigua", None, None]
     assert result["_rule_coffee_origin"].to_list() == [[], [], ["not_disclosed"], []]
     assert result["slug"].to_list() == ["s0", "s1", "s2", "s3"]  # order kept
+
+
+def test_clean_origin_adds_growing_region() -> None:
+    regions = build_growing_regions(
+        [
+            ("Ethiopia", "Gedeb", "Yirgacheffe"),
+            ("Ethiopia", "Yirgacheffe", "Yirgacheffe"),
+        ]
+    )
+    values = ["Gedeb, Gedeo, Ethiopia", "Kayanza, Burundi", None]
+
+    result = run(lambda f: clean_origin(f, PLACES, regions), "coffee_origin", values)
+
+    assert result["origin_growing_region"].to_list() == ["Yirgacheffe", None, None]
+    assert result["_rule_coffee_origin"].to_list() == [["growing_region"], [], []]
 
 
 def test_clean_roaster_location_columns() -> None:

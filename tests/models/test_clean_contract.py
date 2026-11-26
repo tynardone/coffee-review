@@ -36,6 +36,7 @@ ROASTED_ROW: dict[str, object] = {
     "roaster_country": "United States",
     "origin_country": "Ethiopia",
     "origin_region": "Guji, Oromia",
+    "origin_growing_region": "Guji",
     "roast_level": "Medium-Light",
     "agtron_whole": 58,
     "agtron_ground": 77,
@@ -71,6 +72,7 @@ GREEN_ROW: dict[str, object] = {
     "rating": 94,
     "origin_country": "Taiwan",
     "origin_region": "Alishan",
+    "origin_growing_region": None,
     "price_amount": 700.0,
     "price_currency": "TWD",
     "price_currency_inferred": False,
@@ -155,7 +157,7 @@ def test_failure_lists_every_check() -> None:
 def test_clean_rules_listed() -> None:
     assert "swapped_2002_2003" in CLEAN_RULES
     assert "typo_corrected" in CLEAN_RULES
-    assert len(CLEAN_RULES) == 25
+    assert len(CLEAN_RULES) == 29
 
 
 def test_every_rule_is_described() -> None:

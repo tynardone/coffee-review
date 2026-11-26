@@ -48,6 +48,10 @@ type CleanRule = Literal[
     "not_disclosed",
     "unplaced",
     "multiple_origins",
+    "growing_region",
+    "multiple_regions",
+    "broad_region",
+    "unknown_region",
     "close_spelling",
     "spelling_variant",
     "listed_name",
@@ -94,6 +98,22 @@ RULE_DESCRIPTIONS: Mapping[str, str] = MappingProxyType(
         ),
         "multiple_origins": (
             'More than one country, or a blend: origin_country is "Multiple".'
+        ),
+        "growing_region": (
+            "The standard growing region the origin's region text names (Gedeb, "
+            "Gedeo → Yirgacheffe)."
+        ),
+        "multiple_regions": (
+            "More than one growing region in one country: origin_growing_region is "
+            '"Multiple".'
+        ),
+        "broad_region": (
+            "The region text names only an area broader than a growing region "
+            "(Oromia). The growing region is empty."
+        ),
+        "unknown_region": (
+            "No known growing region in the region text, in a country "
+            "origin_regions.csv covers. Listed in the report to review."
         ),
         "close_spelling": (
             "Matched by a close spelling of a known place or unit (Calfornia → "
@@ -217,6 +237,11 @@ class CleanRoastedFrame(pa.DataFrameModel):
         "The growing region(s), comma-separated, without filler words; direction "
         'words kept ("Guji, Oromia", "North Sumatra").'
     )
+    origin_growing_region: str = _optional(
+        "The standard growing region, for the 15 countries with the most reviews "
+        '(Yirgacheffe, Huila, Minas Gerais); "Multiple" when the text names more '
+        "than one. Empty otherwise."
+    )
     roast_level: pl.Enum = pa.Field(
         description=(
             "Roast level, ordered light to dark: Light, Medium-Light, Medium, "
@@ -334,6 +359,11 @@ class CleanGreenFrame(pa.DataFrameModel):
     origin_region: str = _optional(
         "The growing region(s), comma-separated, without filler words; direction "
         'words kept ("Guji, Oromia", "North Sumatra").'
+    )
+    origin_growing_region: str = _optional(
+        "The standard growing region, for the 15 countries with the most reviews "
+        '(Yirgacheffe, Huila, Minas Gerais); "Multiple" when the text names more '
+        "than one. Empty otherwise."
     )
     price_amount: float = _positive("The price in its own currency (not converted).")
     price_currency: str = pa.Field(

@@ -147,6 +147,7 @@ One row per roasted review (espresso included).
 | `roaster_country` | String | yes | – | The roaster's country (Hawaiʻi roasters: United States). |
 | `origin_country` | String | yes | – | Where the coffee was grown: one country (Hawaiʻi and Puerto Rico count as their own), "Multiple" for a blend, empty if not disclosed. |
 | `origin_region` | String | yes | – | The growing region(s), comma-separated, without filler words; direction words kept ("Guji, Oromia", "North Sumatra"). |
+| `origin_growing_region` | String | yes | – | The standard growing region, for the 15 countries with the most reviews (Yirgacheffe, Huila, Minas Gerais); "Multiple" when the text names more than one. Empty otherwise. |
 | `roast_level` | Enum (6 roast levels) | yes | – | Roast level, ordered light to dark: Light, Medium-Light, Medium, Medium-Dark, Dark, Very Dark. |
 | `agtron_whole` | Int16 | yes | > 0, ≤ 7000 | Agtron reading of the whole bean: higher is lighter. |
 | `agtron_ground` | Int16 | yes | > 0, ≤ 7000 | Agtron reading of the ground coffee: higher is lighter. |
@@ -187,6 +188,7 @@ One row per green review.
 | `rating` | Int16 | yes | ≥ 50, ≤ 100 | Overall score, 50–100. Empty when not rated (NR). |
 | `origin_country` | String | yes | – | Where the coffee was grown: one country (Hawaiʻi and Puerto Rico count as their own), "Multiple" for a blend, empty if not disclosed. |
 | `origin_region` | String | yes | – | The growing region(s), comma-separated, without filler words; direction words kept ("Guji, Oromia", "North Sumatra"). |
+| `origin_growing_region` | String | yes | – | The standard growing region, for the 15 countries with the most reviews (Yirgacheffe, Huila, Minas Gerais); "Multiple" when the text names more than one. Empty otherwise. |
 | `price_amount` | Float64 | yes | > 0 | The price in its own currency (not converted). |
 | `price_currency` | String | yes | matches `^[A-Z]{3}$` | ISO 4217 currency code (USD, TWD, CAD…). |
 | `price_currency_inferred` | Boolean | no | – | True when the currency was read from the roaster's country ($ outside the US, ¥, E, pesos), not written plainly. |
@@ -238,6 +240,10 @@ The values of `cleaning_log.rule`: every change the clean stage makes.
 | `not_disclosed` | "Not disclosed": the site doesn't say. The value is empty. |
 | `unplaced` | No known place found. The value is empty; listed in the report to review. |
 | `multiple_origins` | More than one country, or a blend: origin_country is "Multiple". |
+| `growing_region` | The standard growing region the origin's region text names (Gedeb, Gedeo → Yirgacheffe). |
+| `multiple_regions` | More than one growing region in one country: origin_growing_region is "Multiple". |
+| `broad_region` | The region text names only an area broader than a growing region (Oromia). The growing region is empty. |
+| `unknown_region` | No known growing region in the region text, in a country origin_regions.csv covers. Listed in the report to review. |
 | `close_spelling` | Matched by a close spelling of a known place or unit (Calfornia → California), or merged into a very close roaster name (Lamill → La Mill); listed in the report to review. |
 | `spelling_variant` | Another spelling of the same roaster name (case, accents, punctuation, words like Coffee Roasters). The kept spelling replaces it. |
 | `listed_name` | A roaster name set by hand in roasters.csv. |

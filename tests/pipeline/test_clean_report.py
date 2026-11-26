@@ -69,6 +69,25 @@ def test_to_review_marks_new_values() -> None:
     assert report.new_to_review == {"unplaced": 1}
 
 
+def test_unknown_region_listed_for_review() -> None:
+    entries = log(
+        ("a", "roasted", "coffee_origin", "unknown_region", "Nowhere Known, Ethiopia")
+    )
+
+    report = build_clean_report(roasted("a"), NO_GREEN, entries, NO_LOG)
+
+    assert report.to_review == [
+        ReviewItem(
+            "coffee_origin",
+            "unknown_region",
+            "Nowhere Known, Ethiopia",
+            1,
+            None,
+            new=True,
+        )
+    ]
+
+
 def test_close_spellings_show_what_they_matched() -> None:
     clean = roasted("a", roaster_region="California", roaster_country="United States")
     entries = log(

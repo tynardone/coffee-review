@@ -108,7 +108,8 @@ Reads the parsed layer and writes the clean (silver) layer in about a second:
 - `data/clean/roasted/` and `data/clean/green/`: a typed `reviews.parquet`
   each: `review_month` (always the 1st), numeric scores, Agtron as whole-bean
   and ground readings, price as amount, currency, quantity, unit and grams,
-  origin as country and growing region, roaster as city, region and country,
+  origin as country and growing region (with a standard region name for the
+  15 biggest origins), roaster as city, region and country,
   and one name per roaster (spellings merged; see `transforms/roasters.py`);
 - `data/clean/cleaning_log.parquet`: one row for every rule applied to a value,
   with the original text;

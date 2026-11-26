@@ -30,6 +30,7 @@ if TYPE_CHECKING:
 # understood by a close spelling that might be wrong.
 REVIEW_RULES = (
     "unplaced",
+    "unknown_region",
     "unparsed",
     "unknown_currency",
     "ambiguous_currency",

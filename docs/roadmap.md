@@ -121,6 +121,30 @@ Part of the clean stage. How it works: [explainers/roaster-names.md](explainers/
 threshold with no location conflict, or a row in `roasters.csv`; the review
 list is worked through; and the rules have tests.
 
+## Origin growing regions
+
+Why: the region text below the country is the page's own (1,357 different
+values), too scattered to compare reviews or use in the models. Part of the
+clean stage. How it works: `transforms/growing_regions.py`.
+
+- [x] Design written and approved (2026-11-26)
+- [x] `origin_growing_region` in both clean tables: one standard region from
+  `origin_regions.csv`, for the 15 countries with 100+ reviews, one level per
+  country (Ethiopia's trade regions, Colombia's departments, Brazil's states,
+  Guatemala's and Costa Rica's official coffee regions…)
+- [x] Two regions in one text are `Multiple`; region text naming nothing
+  known is listed in the report to review
+- [x] First real clean (2026-11-26): 5,762 of 9,464 reviews got a region (113
+  regions, plus 128 `Multiple`); in every covered country 90–100% of the
+  reviews with region text. 83 reviews are left to review: farm and village
+  names, text that isn't a place, and places whose region isn't certain
+  (San Martín Jilotepeque, Kersa, Tobosi)
+- [x] A broader name beside a word the table doesn't know (`Djimmah, Oromia`)
+  is listed for review, so new spellings aren't hidden
+
+**Done when:** every covered country with 150+ reviews names a region for at
+least 85% of its reviews with region text, and the rules have tests.
+
 ## M6. Enrich and final table
 
 Starting input: `data/clean/`, with `price_currency` as ISO codes and
