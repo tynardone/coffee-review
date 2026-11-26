@@ -80,10 +80,6 @@ def test_empty_tables_round_trip(store: CleanStore) -> None:
     assert store.read_table("green").schema == no_green.schema
 
 
-def test_report_location(store: CleanStore) -> None:
-    assert store.report_location()
-
-
 def sheet(**overrides: str) -> pl.DataFrame:
     row = dict.fromkeys(REVIEW_SHEET_COLUMNS, "") | {
         "kind": "possible_match",
@@ -109,7 +105,3 @@ def test_no_review_sheet_reads_empty(store: CleanStore) -> None:
 
     assert empty.columns == list(REVIEW_SHEET_COLUMNS)
     assert empty.height == 0
-
-
-def test_review_sheet_location(store: CleanStore) -> None:
-    assert store.roaster_review_location()

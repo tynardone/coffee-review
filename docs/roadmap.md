@@ -90,13 +90,13 @@ Why: [ADR 0009](decisions/0009-keep-raw-economic-responses.md).
 - [x] FX: the 1st of every month from 2010 (first non-USD price 2010-03), USD base, once each UTC day is over
 - [x] CPI-U `CUUR0000SA0` from 1997, keyless BLS v1 (10 years a request), M13 dropped; months the source marks unavailable not asked again
 - [x] `coffee-review fx`, `coffee-review cpi` (exit 3 when the source refuses or is down)
-- [x] Simplified (2026-11-23): a source registry, Protocols, in-memory fakes and gap tables removed as more than two fixed APIs need
-- [x] First real runs (2026-11-23 UTC): CPI 3 requests, 357 months 1997-01 to 2026-10, October 2025 a gap (BLS: no data collected in the 2025 lapse in appropriations); FX 203 requests, 33,925 rows; both reruns 0 requests
+- [x] Simplified (2026-11-23): with only two fixed sources, the source registry, Protocols, fakes and gap tables went
+- [x] First real runs (2026-11-23): CPI took 3 requests for 357 months, 1997-01 to 2026-10, with October 2025 missing (the BLS collected no data during the 2025 government shutdown); FX took 203 requests for 33,925 rows; both reruns took none
 
 **Done when:** both are up to date and a rerun costs zero requests.
 
-For M6: one priced review (2009-02, USD) predates the FX table, which is fine for
-USD; reviews dated October 2025 have no CPI month (a gap).
+Notes for M6: the one priced review from before the FX table (2009-02) is in
+USD, so it needs no rate; reviews dated October 2025 have no CPI month.
 
 ## M5. Roaster names
 
@@ -106,16 +106,16 @@ dashboard and the models. The first clean has 1,621 roaster spellings across
 9,350 roasted reviews. In scope: the same name written differently. Out of
 scope: renamed, merged or sold roasters.
 
-Part of the clean stage, after the roaster location is cleaned.
+Part of the clean stage. How it works: [explainers/roaster-names.md](explainers/roaster-names.md).
 
 - [x] Design written and approved (2026-11-23)
-- [x] Matching key: case, accents, `&`, punctuation and words like *Coffee Roasters* ignored; spellings that share a key become one name, unless their countries don't overlap (then listed for review)
-- [x] Close spellings scored with rapidfuzz: at or above `merge_at` (0.90), merged and flagged, unless the roasters are in different countries; from `review_at` (0.85), or `review_same_city_at` (0.80) in the same city, listed in the report's *To review*
-- [x] Roasters in different countries never merged automatically, even through a chain of merges; city names compared loosely (`Taoyuan City` and `Taoyuan`)
-- [x] `roasters.csv` (a spelling is that roaster) and `distinct_roasters.csv` (two spellings are different roasters): a person's decisions, never asked again
-- [x] The most common spelling is kept; the original stays in the cleaning log; the three thresholds in settings (`COFFEE_REVIEW_CLEAN__ROASTER_*`)
-- [x] First real clean (2026-11-25): 1,696 spellings → 1,550 roasters; 409 shared-key and 32 close-spelling merges; 17 possible matches worked through (6 same roaster, 11 different, plus 1 kept-name fix) → 1,544 roasters, 0 left to review
-- [x] Review sheet (2026-11-25): `data/clean/roaster_review.csv` with both sides' evidence and a `decision` column; `coffee-review roasters apply` writes the rows
+- [x] Spellings that differ only in case, accents, punctuation or words like *Coffee Roasters* become one name, unless their roasters are in different countries (then they're listed for review)
+- [x] Close spellings (rapidfuzz) merge at a score of 0.90 or more; from 0.85, or 0.80 in the same city, they're listed for review
+- [x] Roasters in different countries are never merged automatically, even through a chain of merges
+- [x] A person's decisions are kept in `roasters.csv` (same roaster) and `distinct_roasters.csv` (different roasters), and never asked again
+- [x] The most common spelling is kept, the original stays in the cleaning log, and the thresholds are settings
+- [x] First real clean (2026-11-25): 1,696 spellings became 1,550 roasters; the 17 pairs listed for review were decided (6 the same roaster, 11 different) and one kept name fixed, leaving 1,544 roasters
+- [x] Review sheet (2026-11-25): pairs are decided in `data/clean/roaster_review.csv` and written by `coffee-review roasters apply`
 
 **Done when:** every merge is a shared key, a close spelling above the
 threshold with no location conflict, or a row in `roasters.csv`; the review
@@ -144,6 +144,5 @@ Designed when reached.
 
 ## Backlog
 
-- ~~M1: is capping a 429 `Retry-After` at `backoff_max_seconds` polite enough?~~ Resolved: the scraper never retries a 429; it stops the run.
 - Measure the right `--rate` from real runs and record it (ADR 0005 allows up to 10/s).
 - Prices in review text: before 2009 the price field is `NA`, but 78 of 1,738 older pages give a dollar price in the review itself (`Twelve-ounce can $3.29, or $4.39 per pound`). Extracting them is parse/clean work, often with two prices per page. CPI already covers 1997 onwards.

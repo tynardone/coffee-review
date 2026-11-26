@@ -15,9 +15,10 @@ contents vary:
 - values come in many formats (`$34.00/12 ounces`, `NT $399/227 grams`,
   `NA`; Agtron `58/77`, `0/0`, `/`; 1997 scores like `6.3`).
 
-Tyler knew from v1 that pages vary, and wanted the parser ready for variation
-it hadn't seen yet. M3 will turn these values into numbers, dates and units,
-and the rules for that will keep changing as odd formats turn up.
+The first version of this project showed that pages vary, so the parser
+should be ready for variation it hasn't seen yet. The clean stage turns these
+values into numbers, dates and units, and its rules keep changing as odd
+formats turn up.
 
 ## Decision
 

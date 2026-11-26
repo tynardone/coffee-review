@@ -13,11 +13,11 @@ for each review:
 
 The manifest is **mutable pipeline state**. Its rows are written one at a time
 during a run of about 30 minutes, and it must survive a run that's interrupted
-or stopped by pushback. Tyler also wants to look at progress while a scrape is
+or stopped by pushback, and progress should be visible while a scrape is
 running.
 
-Tyler also asked that the scraper know nothing about how raw data is stored,
-so that the storage can be swapped in one place.
+The scraper should also know nothing about how raw data is stored, so that
+the storage can be swapped in one place.
 
 ## Decision
 

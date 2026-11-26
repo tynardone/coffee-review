@@ -28,7 +28,8 @@ from tests.transforms.helpers import run
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
 
-# --- The matching key ----------------------------------------------------------
+
+# --- The matching key -------------------------------------------------------------
 
 
 @pytest.mark.parametrize(
@@ -79,16 +80,56 @@ def test_new_rules_have_descriptions() -> None:
         assert RULE_DESCRIPTIONS[rule]
 
 
-# --- The name map ----------------------------------------------------------------
+def test_non_latin_names_keep_distinct_keys() -> None:
+    assert roaster_key("黑貓咖啡") != roaster_key("山頂咖啡")
+    assert roaster_key("黑貓咖啡") != roaster_key("---")
+    assert roaster_key("黑貓咖啡")
+
+
+@pytest.mark.parametrize(
+    ("a", "b"),
+    [
+        ("Großmann Kaffee", "Grossmann Kaffee"),
+        ("Østerbro Kaffe", "Osterbro Kaffe"),
+        ("Łódź Roasters", "Lodz Roasters"),
+        ("Kaffæ", "Kaffae"),
+    ],
+)
+def test_latin_letters_without_accents_are_spelled_out(a: str, b: str) -> None:
+    assert roaster_key(a) == roaster_key(b)
+
+
+def test_key_of_styled_letters_is_stable() -> None:  # NFKD turns 𝑨 into A
+    assert roaster_key(roaster_key(":𝑨")) == roaster_key(":𝑨") == "a"
+
+
+# --- The name map -----------------------------------------------------------------
+
 
 PDX = frozenset({("portland", "United States")})
+
+
 SEATTLE = frozenset({("seattle", "United States")})
+
+
 LA = frozenset({("los angeles", "United States")})
+
+
 MADISON = frozenset({("madison", "United States")})
+
+
 US = frozenset({("", "United States")})
+
+
 AU = frozenset({("melbourne", "Australia")})
+
+
 KE = frozenset({("nairobi", "Kenya")})
+
+
 TOKYO = frozenset({("tokyo", "Japan")})
+
+
 TAIPEI = frozenset({("taipei", "Taiwan")})
 
 
@@ -263,69 +304,6 @@ def test_a_score_exactly_at_a_threshold_counts() -> None:  # abcd / abcdef: 0.8
     assert d["Abcd"].rules == ("possible_match",)
 
 
-# --- From the tables, and back ---------------------------------------------------
-
-
-def test_spellings_count_reviews_and_places() -> None:
-    roasted = pl.DataFrame(
-        {
-            "raw_roaster": ["JBC", "JBC", "Temple"],
-            "roaster_city": ["Madison", "Madison City", None],
-            "roaster_country": ["United States", "United States", None],
-        }
-    )
-    green = pl.DataFrame({"raw_roaster": ["JBC"]})
-    found = {s.name: s for s in roaster_spellings(roasted, green)}
-    assert found["JBC"] == Spelling("JBC", 3, frozenset({("madison", "United States")}))
-    assert found["Temple"] == Spelling("Temple", 1)
-
-
-def test_spellings_skip_blank_names() -> None:
-    frame = pl.DataFrame({"raw_roaster": [None, "", "  "]})
-    assert roaster_spellings(frame) == []
-
-
-NAMES = NameMap(
-    {
-        "JBC": NameDecision("JBC Coffee Roasters", ("spelling_variant",)),
-        "JBC Coffee Roasters": NameDecision("JBC Coffee Roasters", ()),
-    },
-    (),
-)
-
-
-def test_clean_roaster_applies_decisions() -> None:
-    out = run(
-        lambda f: clean_roaster(f, NAMES), "roaster", ["JBC", "JBC Coffee Roasters"]
-    )
-    assert out["roaster"].to_list() == ["JBC Coffee Roasters", "JBC Coffee Roasters"]
-    assert out["_rule_roaster"].to_list() == [["spelling_variant"], []]
-
-
-def test_unknown_spelling_is_kept() -> None:
-    out = run(lambda f: clean_roaster(f, NAMES), "roaster", ["Temple"])
-    assert out["roaster"].to_list() == ["Temple"]
-    assert out["_rule_roaster"].to_list() == [[]]
-
-
-def test_null_roaster_is_left_alone() -> None:
-    out = run(lambda f: clean_roaster(f, NAMES), "roaster", [None, ""])
-    assert out["roaster"].to_list() == [None, ""]
-    assert out["_rule_roaster"].to_list() == [[], []]
-
-
-def test_clean_roaster_keeps_row_order() -> None:
-    names = ["JBC Coffee Roasters", "Temple", "JBC", None]
-    out = run(lambda f: clean_roaster(f, NAMES), "roaster", names)
-    assert out["slug"].to_list() == ["s0", "s1", "s2", "s3"]
-
-
-def test_non_latin_names_keep_distinct_keys() -> None:
-    assert roaster_key("黑貓咖啡") != roaster_key("山頂咖啡")
-    assert roaster_key("黑貓咖啡") != roaster_key("---")
-    assert roaster_key("黑貓咖啡")
-
-
 def test_non_latin_names_are_not_merged() -> None:
     d = decide(S("黑貓咖啡", 5, TAIPEI), S("山頂咖啡", 1))
     assert d["山頂咖啡"] == NameDecision("山頂咖啡", ())
@@ -409,27 +387,6 @@ def test_groups_listed_under_different_names_stay_apart() -> None:  # 0.923
     assert d["Lamill"] == NameDecision("Lamill Roasters", ("listed_name",))
 
 
-@pytest.mark.parametrize(
-    ("a", "b"),
-    [
-        ("Großmann Kaffee", "Grossmann Kaffee"),
-        ("Østerbro Kaffe", "Osterbro Kaffe"),
-        ("Łódź Roasters", "Lodz Roasters"),
-        ("Kaffæ", "Kaffae"),
-    ],
-)
-def test_latin_letters_without_accents_are_spelled_out(a: str, b: str) -> None:
-    assert roaster_key(a) == roaster_key(b)
-
-
-def test_spellings_from_no_frames_is_empty() -> None:
-    assert roaster_spellings() == []
-
-
-def test_key_of_styled_letters_is_stable() -> None:  # NFKD turns 𝑨 into A
-    assert roaster_key(roaster_key(":𝑨")) == roaster_key(":𝑨") == "a"
-
-
 def test_rows_giving_one_new_name_join_their_groups() -> None:
     d = decide(
         S("Kafe Alpha", 2, AU),
@@ -438,3 +395,64 @@ def test_rows_giving_one_new_name_join_their_groups() -> None:
     )
     assert d["Kafe Alpha"] == NameDecision("Alpa Brand", ("listed_name",))
     assert d["Kafe Alpa"] == NameDecision("Alpa Brand", ("listed_name",))
+
+
+# --- From the tables, and back ----------------------------------------------------
+
+
+def test_spellings_count_reviews_and_places() -> None:
+    roasted = pl.DataFrame(
+        {
+            "raw_roaster": ["JBC", "JBC", "Temple"],
+            "roaster_city": ["Madison", "Madison City", None],
+            "roaster_country": ["United States", "United States", None],
+        }
+    )
+    green = pl.DataFrame({"raw_roaster": ["JBC"]})
+    found = {s.name: s for s in roaster_spellings(roasted, green)}
+    assert found["JBC"] == Spelling("JBC", 3, frozenset({("madison", "United States")}))
+    assert found["Temple"] == Spelling("Temple", 1)
+
+
+def test_spellings_skip_blank_names() -> None:
+    frame = pl.DataFrame({"raw_roaster": [None, "", "  "]})
+    assert roaster_spellings(frame) == []
+
+
+NAMES = NameMap(
+    {
+        "JBC": NameDecision("JBC Coffee Roasters", ("spelling_variant",)),
+        "JBC Coffee Roasters": NameDecision("JBC Coffee Roasters", ()),
+    },
+    (),
+)
+
+
+def test_clean_roaster_applies_decisions() -> None:
+    out = run(
+        lambda f: clean_roaster(f, NAMES), "roaster", ["JBC", "JBC Coffee Roasters"]
+    )
+    assert out["roaster"].to_list() == ["JBC Coffee Roasters", "JBC Coffee Roasters"]
+    assert out["_rule_roaster"].to_list() == [["spelling_variant"], []]
+
+
+def test_unknown_spelling_is_kept() -> None:
+    out = run(lambda f: clean_roaster(f, NAMES), "roaster", ["Temple"])
+    assert out["roaster"].to_list() == ["Temple"]
+    assert out["_rule_roaster"].to_list() == [[]]
+
+
+def test_null_roaster_is_left_alone() -> None:
+    out = run(lambda f: clean_roaster(f, NAMES), "roaster", [None, ""])
+    assert out["roaster"].to_list() == [None, ""]
+    assert out["_rule_roaster"].to_list() == [[], []]
+
+
+def test_clean_roaster_keeps_row_order() -> None:
+    names = ["JBC Coffee Roasters", "Temple", "JBC", None]
+    out = run(lambda f: clean_roaster(f, NAMES), "roaster", names)
+    assert out["slug"].to_list() == ["s0", "s1", "s2", "s3"]
+
+
+def test_spellings_from_no_frames_is_empty() -> None:
+    assert roaster_spellings() == []
