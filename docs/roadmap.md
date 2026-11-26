@@ -134,10 +134,13 @@ clean stage. How it works: `transforms/growing_regions.py`.
   Guatemala's and Costa Rica's official coffee regions…)
 - [x] Two regions in one text are `Multiple`; region text naming nothing
   known is listed in the report to review
-- [x] First real clean (2026-11-26): 5,691 of 9,464 reviews got a region (111
-  regions, plus 126 `Multiple`); in every covered country 85–100% of the
-  reviews with region text. 82 reviews (74 values) are left to review: mostly
-  farm names, text that isn't a place, and single misspellings
+- [x] First real clean (2026-11-26): 5,762 of 9,464 reviews got a region (113
+  regions, plus 128 `Multiple`); in every covered country 90–100% of the
+  reviews with region text. 83 reviews are left to review: farm and village
+  names, text that isn't a place, and places whose region isn't certain
+  (San Martín Jilotepeque, Kersa, Tobosi)
+- [x] A broader name beside a word the table doesn't know (`Djimmah, Oromia`)
+  is listed for review, so new spellings aren't hidden
 
 **Done when:** every covered country with 150+ reviews names a region for at
 least 85% of its reviews with region text, and the rules have tests.

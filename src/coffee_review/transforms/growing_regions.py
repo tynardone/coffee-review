@@ -11,7 +11,8 @@ region: ``Yirgacheffe``, ``Minas Gerais``.
   Indonesia's islands, and so on. Other countries get no growing region.
 - Each row is a spelling (``alias``) and the region it means. A row with no
   region marks a name broader than a region (``Oromia``): on its own it names
-  nothing.
+  nothing. Beside a word the table doesn't know (``Djimmah, Oromia``), the
+  text is listed for review like any unknown text.
 - Aliases match as whole words, ignoring case, accents and apostrophes, longest
   first: ``Valle del Cauca`` is one region, not also Cauca.
 - Text naming two regions is ``"Multiple"``. Text naming nothing known, in a
@@ -40,6 +41,42 @@ type GrowingRegions = Mapping[str, tuple[tuple[str, str | None], ...]]
 _APOSTROPHES = str.maketrans(dict.fromkeys("'’‘ʻ`´", ""))
 _NOT_WORD = re.compile(r"[^a-z0-9]+")
 _MATCHED = " | "  # replaces a match, so a shorter alias can't match inside it
+# Words that say nothing about where: text left with only these beside a broader
+# name ("southern Oromia region") is broad; any other word is an unknown spelling.
+_FILLER_WORDS = frozenset(
+    [
+        "north",
+        "south",
+        "east",
+        "west",
+        "northern",
+        "southern",
+        "eastern",
+        "western",
+        "central",
+        "northeastern",
+        "northwestern",
+        "southeastern",
+        "southwestern",
+        "far",
+        "upper",
+        "lower",
+        "region",
+        "regions",
+        "province",
+        "department",
+        "district",
+        "zone",
+        "state",
+        "county",
+        "area",
+        "growing",
+        "the",
+        "of",
+        "and",
+        "or",
+    ]
+)
 
 
 @dataclass(frozen=True)
@@ -127,4 +164,7 @@ def name_growing_region(
     if named:
         (name,) = named
         return RegionResult(name, () if name == region else ("growing_region",))
-    return RegionResult(None, ("broad_region",) if found else ("unknown_region",))
+    leftover = set(text.split()) - {_MATCHED.strip()} - _FILLER_WORDS
+    if found and not leftover:
+        return RegionResult(None, ("broad_region",))
+    return RegionResult(None, ("unknown_region",))

@@ -95,6 +95,18 @@ def test_broad_name_alone() -> None:
     assert region("Ethiopia", "Oromia") == RegionResult(None, ("broad_region",))
 
 
+def test_broad_name_with_only_filler_words() -> None:
+    assert region("Ethiopia", "southern Oromia region") == RegionResult(
+        None, ("broad_region",)
+    )
+
+
+def test_unknown_words_beside_a_broad_name_are_listed() -> None:
+    assert region("Ethiopia", "Djimmah, Oromia") == RegionResult(
+        None, ("unknown_region",)
+    )
+
+
 def test_broad_name_beside_a_region() -> None:
     assert region("Ethiopia", "Guji, Oromia") == RegionResult(
         "Guji", ("growing_region",)

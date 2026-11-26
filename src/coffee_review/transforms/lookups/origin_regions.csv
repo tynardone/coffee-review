@@ -42,11 +42,13 @@ Brazil,Sao Sebastiao da Grama,São Paulo
 Brazil,Sao Sebastiao de Grama,São Paulo
 Brazil,São Paulo,São Paulo
 Colombia,Antioquia,Antioquia
+Colombia,Antoquia,Antioquia
 Colombia,Fredonia,Antioquia
 Colombia,Medellin,Antioquia
 Colombia,Santa Barbara,Antioquia
 Colombia,Urrao,Antioquia
 Colombia,Boyacá,Boyacá
+Colombia,Lengupa,Boyacá
 Colombia,Caldas,Caldas
 Colombia,Manizales,Caldas
 Colombia,Caquetá,Caquetá
@@ -73,6 +75,7 @@ Colombia,Magdalena,Magdalena
 Colombia,Meta,Meta
 Colombia,Buesaco,Nariño
 Colombia,La Union,Nariño
+Colombia,Nari?o,Nariño
 Colombia,Nariño,Nariño
 Colombia,Pasto,Nariño
 Colombia,Norte de Santander,Norte de Santander
@@ -80,6 +83,7 @@ Colombia,Putumayo,Putumayo
 Colombia,Quindío,Quindío
 Colombia,Risaralda,Risaralda
 Colombia,Santuario,Risaralda
+Colombia,Bucaramanga,Santander
 Colombia,Santander,Santander
 Colombia,Ataco,Tolima
 Colombia,Chaparral,Tolima
@@ -97,31 +101,40 @@ Colombia,Sierra Nevada de Santa Marta,
 Costa Rica,Biollet,Brunca
 Costa Rica,Biolley,Brunca
 Costa Rica,Brunca,Brunca
+Costa Rica,Buenos Aires de Puntarenas,Brunca
 Costa Rica,Chirripo,Brunca
 Costa Rica,Coto Brus,Brunca
+Costa Rica,Perez Zeldon,Brunca
 Costa Rica,Perez Zeledon,Brunca
 Costa Rica,Rivas,Brunca
+Costa Rica,San Vito,Brunca
 Costa Rica,Barva,Central Valley
+Costa Rica,Carrizal de Alajuela,Central Valley
 Costa Rica,Central Valley,Central Valley
 Costa Rica,Heredia,Central Valley
 Costa Rica,Poas,Central Valley
+Costa Rica,Sabanilla de Alajuela,Central Valley
 Costa Rica,Guanacaste,Guanacaste
 Costa Rica,Orosi,Orosi
+Costa Rica,Copey,Tarrazú
 Costa Rica,Dota,Tarrazú
 Costa Rica,Leon Cortes,Tarrazú
 Costa Rica,Tarrazu,Tarrazú
 Costa Rica,Tarrazú,Tarrazú
 Costa Rica,Tres Rios,Tres Ríos
 Costa Rica,Tres Ríos,Tres Ríos
+Costa Rica,Aquiares,Turrialba
 Costa Rica,Turrialba,Turrialba
 Costa Rica,Atenas,West Valley
 Costa Rica,Grecia,West Valley
+Costa Rica,Narajo,West Valley
 Costa Rica,Naranjo,West Valley
 Costa Rica,Palmares,West Valley
 Costa Rica,San Ramon,West Valley
 Costa Rica,Sarchi,West Valley
 Costa Rica,West Valley,West Valley
 Costa Rica,Western Valley,West Valley
+Costa Rica,Zarcero,West Valley
 Costa Rica,Alajuela,
 Costa Rica,Cartago,
 Costa Rica,Puntarenas,
@@ -132,6 +145,8 @@ El Salvador,Chalatenango,Alotepec-Metapán
 El Salvador,Chaltenango,Alotepec-Metapán
 El Salvador,Citala,Alotepec-Metapán
 El Salvador,Metapan,Alotepec-Metapán
+El Salvador,Trifinio,Alotepec-Metapán
+El Salvador,Ahauchapan,Apaneca-Ilamatepec
 El Salvador,Ahuachapan,Apaneca-Ilamatepec
 El Salvador,Apaneca,Apaneca-Ilamatepec
 El Salvador,Apaneca-Ilamatepec,Apaneca-Ilamatepec
@@ -139,10 +154,12 @@ El Salvador,Ataco,Apaneca-Ilamatepec
 El Salvador,Coatepeque,Apaneca-Ilamatepec
 El Salvador,Ilamatepec,Apaneca-Ilamatepec
 El Salvador,Juayua,Apaneca-Ilamatepec
+El Salvador,Llamatepec,Apaneca-Ilamatepec
 El Salvador,Santa Ana,Apaneca-Ilamatepec
 El Salvador,Sonsonate,Apaneca-Ilamatepec
 El Salvador,Cacahuatique,Cacahuatique
 El Salvador,Morazan,Cacahuatique
+El Salvador,Chichontepec,Chinchontepec
 El Salvador,Chinchontepec,Chinchontepec
 El Salvador,San Vicente,Chinchontepec
 El Salvador,Balsamo,El Bálsamo-Quetzaltepec
@@ -151,7 +168,9 @@ El Salvador,El Balsamo,El Bálsamo-Quetzaltepec
 El Salvador,El Boqueron,El Bálsamo-Quetzaltepec
 El Salvador,El Bálsamo-Quetzaltepec,El Bálsamo-Quetzaltepec
 El Salvador,La Libertad,El Bálsamo-Quetzaltepec
+El Salvador,Nejapa,El Bálsamo-Quetzaltepec
 El Salvador,Quetzaltepec,El Bálsamo-Quetzaltepec
+El Salvador,San Salvador Volcano,El Bálsamo-Quetzaltepec
 El Salvador,Volcan de San Salvador,El Bálsamo-Quetzaltepec
 El Salvador,Berlin,Tecapa-Chinameca
 El Salvador,Cerro El Tigre,Tecapa-Chinameca
@@ -186,15 +205,20 @@ Ethiopia,Illubabor,Illubabor
 Ethiopia,Ilubabor,Illubabor
 Ethiopia,Agaro,Jimma
 Ethiopia,Djimma,Jimma
+Ethiopia,Djimmah,Jimma
 Ethiopia,Gera,Jimma
 Ethiopia,Gomma,Jimma
 Ethiopia,Jimma,Jimma
 Ethiopia,Bita Genet,Kaffa
+Ethiopia,Bonga,Kaffa
 Ethiopia,Kafa,Kaffa
 Ethiopia,Kaffa,Kaffa
+Ethiopia,Kefa,Kaffa
 Ethiopia,Keffa,Kaffa
+Ethiopia,Keficho,Kaffa
 Ethiopia,Djimma Limu,Limu
 Ethiopia,Jimma Limu,Limu
+Ethiopia,Limmu,Limu
 Ethiopia,Limu,Limu
 Ethiopia,Aleta Wondo,Sidama
 Ethiopia,Arbegona,Sidama
@@ -207,8 +231,10 @@ Ethiopia,Sidamo,Sidama
 Ethiopia,idamo,Sidama
 Ethiopia,Gimbi,Wollega
 Ethiopia,Lekempti,Wollega
+Ethiopia,Nekempte,Wollega
 Ethiopia,Nekemte,Wollega
 Ethiopia,Welega,Wollega
+Ethiopia,Wellega,Wollega
 Ethiopia,Wollega,Wollega
 Ethiopia,Aricha,Yirgacheffe
 Ethiopia,Banko,Yirgacheffe
@@ -221,12 +247,15 @@ Ethiopia,Konga,Yirgacheffe
 Ethiopia,Worka,Yirgacheffe
 Ethiopia,Yirgachefe,Yirgacheffe
 Ethiopia,Yirgacheffe,Yirgacheffe
+Ethiopia,Yirgachefffe,Yirgacheffe
+Ethiopia,Amhara,
 Ethiopia,Oromia,
 Ethiopia,SNNP,
 Ethiopia,SNNPR,
 Ethiopia,South Ethiopia,
 Ethiopia,Southern Nations,
 Guatemala,Acatenango,Acatenango
+Guatemala,Volcan Fuego,Acatenango
 Guatemala,Alotenango,Antigua
 Guatemala,Antigua,Antigua
 Guatemala,Antigua Valley,Antigua
@@ -234,16 +263,19 @@ Guatemala,Sacatepequez,Antigua
 Guatemala,Atitlan,Atitlán
 Guatemala,Atitlán,Atitlán
 Guatemala,Lake Atitlan,Atitlán
+Guatemala,San Antonio Palopo,Atitlán
 Guatemala,Solola,Atitlán
 Guatemala,Alta Verapaz,Cobán
 Guatemala,Baja Verapaz,Cobán
 Guatemala,Coban,Cobán
 Guatemala,Cobán,Cobán
+Guatemala,Cubulco,Cobán
 Guatemala,Rabinal,Cobán
 Guatemala,Fraijanes,Fraijanes
 Guatemala,Palencia,Fraijanes
 Guatemala,Huehue,Huehuetenango
 Guatemala,Huehuetenango,Huehuetenango
+Guatemala,Huehuetenengo,Huehuetenango
 Guatemala,La Democracia,Huehuetenango
 Guatemala,La Libertad,Huehuetenango
 Guatemala,Todos Santos,Huehuetenango
@@ -306,6 +338,7 @@ Honduras,Montecillos,La Paz
 Honduras,Lempira,Lempira
 Honduras,Ocatepeque,Ocotepeque
 Honduras,Ocotepeque,Ocotepeque
+Honduras,Octopeque,Ocotepeque
 Honduras,Agalta,Olancho
 Honduras,Olancho,Olancho
 Honduras,Santa Barbara,Santa Bárbara
@@ -325,6 +358,7 @@ Indonesia,Kalosi,Sulawesi
 Indonesia,Sulawesi,Sulawesi
 Indonesia,Toraja,Sulawesi
 Indonesia,Aceh,Sumatra
+Indonesia,Bengkulu,Sumatra
 Indonesia,Gayo,Sumatra
 Indonesia,Lake Tawar,Sumatra
 Indonesia,Lake Toba,Sumatra
@@ -346,9 +380,11 @@ Kenya,Kakamega,Kakamega
 Kenya,Kericho,Kericho
 Kenya,Gatundu,Kiambu
 Kenya,Kamwangi,Kiambu
+Kenya,Kiambi,Kiambu
 Kenya,Kiambu,Kiambu
 Kenya,Ruiru,Kiambu
 Kenya,Thika,Kiambu
+Kenya,iambu,Kiambu
 Kenya,Gichugu,Kirinyaga
 Kenya,Kerugoya,Kirinyaga
 Kenya,Kirinyaga,Kirinyaga
@@ -363,12 +399,14 @@ Kenya,Nakura,Nakuru
 Kenya,Nakuru,Nakuru
 Kenya,Karatina,Nyeri
 Kenya,Mathira,Nyeri
+Kenya,Mukurweini,Nyeri
 Kenya,Nyeri,Nyeri
 Kenya,Othaya,Nyeri
 Kenya,Tetu,Nyeri
 Kenya,Yeri,Nyeri
 Kenya,Tharaka Nithi,Tharaka Nithi
 Kenya,Trans Nzoia,Trans Nzoia
+Kenya,Aberdare Mountains,
 Kenya,Central,
 Kenya,Central Highlands,
 Kenya,Central Province,
@@ -387,6 +425,7 @@ Mexico,Guerrero,Guerrero
 Mexico,Hidalgo,Hidalgo
 Mexico,Jalisco,Jalisco
 Mexico,Nayarit,Nayarit
+Mexico,Nyarita,Nayarit
 Mexico,Mixteca,Oaxaca
 Mexico,Oaxaca,Oaxaca
 Mexico,Pluma,Oaxaca
@@ -424,6 +463,8 @@ Nicaragua,Segovia,Nueva Segovia
 Panama,Alto Quiel,Boquete
 Panama,Boquete,Boquete
 Panama,Bouquete,Boquete
+Panama,Eastern slopes of Volcan Baru,Boquete
+Panama,Horcheta,Boquete
 Panama,Jaramillo,Boquete
 Panama,Piedra Candela,Renacimiento
 Panama,Piedra de Candela,Renacimiento
@@ -432,12 +473,14 @@ Panama,Santa Clara,Renacimiento
 Panama,Bambito,Volcán
 Panama,Candela,Volcán
 Panama,Cerro Punta,Volcán
+Panama,Nueva Suiza,Volcán
 Panama,Paso Ancho,Volcán
 Panama,Tierras Altas,Volcán
 Panama,Volcan,Volcán
 Panama,Volcán,Volcán
 Panama,Baru,
 Panama,Chiriqui,
+Panama,Chiriqui Highlands,
 Panama,Chiriquí,
 Panama,Volcan Baru,
 Peru,Amazonas,Amazonas
@@ -492,8 +535,10 @@ Rwanda,Nyamagabe,Southern Province
 Rwanda,Nyanza,Southern Province
 Rwanda,Nyaruguru,Southern Province
 Rwanda,South,Southern Province
+Rwanda,Souther,Southern Province
 Rwanda,Southern,Southern Province
 Rwanda,Southern Province,Southern Province
+Rwanda,Boneza,Western Province
 Rwanda,Karongi,Western Province
 Rwanda,Kirambo,Western Province
 Rwanda,Lake Kiva,Western Province
