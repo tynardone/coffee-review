@@ -185,6 +185,19 @@ def test_new_values_logged_as_warning(caplog: pytest.LogCaptureFixture) -> None:
     assert not [r for r in caplog.records if r.levelname == "WARNING"]
 
 
+def test_green_reviews_get_a_growing_region() -> None:
+    clean = InMemoryCleanStore()
+
+    run_clean(
+        parsed=parsed_with(green("g", coffee_origin="Yirgacheffe, Ethiopia")),
+        clean=clean,
+    )
+
+    assert clean.read_table("green")["origin_growing_region"].to_list() == [
+        "Yirgacheffe"
+    ]
+
+
 def test_end_to_end_snapshot() -> None:
     clean = InMemoryCleanStore()
 
@@ -212,6 +225,7 @@ def test_end_to_end_snapshot() -> None:
             "roaster_country": "Taiwan",
             "origin_country": "Ethiopia",
             "origin_region": "Guji, Oromia",
+            "origin_growing_region": "Guji",
             "roast_level": "Medium",
             "agtron_whole": 58,
             "agtron_ground": 77,

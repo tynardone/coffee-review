@@ -52,7 +52,7 @@ CLEANED_FIELDS: Mapping[str, tuple[str, ...]] = {
         "price_grams",
         "price_note",
     ),
-    "coffee_origin": ("origin_country", "origin_region"),
+    "coffee_origin": ("origin_country", "origin_region", "origin_growing_region"),
     "roaster_location": ("roaster_city", "roaster_region", "roaster_country"),
     "roaster": ("roaster",),
     "harvested": ("harvest_year", "harvest_text"),

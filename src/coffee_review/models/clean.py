@@ -237,6 +237,11 @@ class CleanRoastedFrame(pa.DataFrameModel):
         "The growing region(s), comma-separated, without filler words; direction "
         'words kept ("Guji, Oromia", "North Sumatra").'
     )
+    origin_growing_region: str = _optional(
+        "The standard growing region, for the 15 countries with the most reviews "
+        '(Yirgacheffe, Huila, Minas Gerais); "Multiple" when the text names more '
+        "than one. Empty otherwise."
+    )
     roast_level: pl.Enum = pa.Field(
         description=(
             "Roast level, ordered light to dark: Light, Medium-Light, Medium, "
@@ -354,6 +359,11 @@ class CleanGreenFrame(pa.DataFrameModel):
     origin_region: str = _optional(
         "The growing region(s), comma-separated, without filler words; direction "
         'words kept ("Guji, Oromia", "North Sumatra").'
+    )
+    origin_growing_region: str = _optional(
+        "The standard growing region, for the 15 countries with the most reviews "
+        '(Yirgacheffe, Huila, Minas Gerais); "Multiple" when the text names more '
+        "than one. Empty otherwise."
     )
     price_amount: float = _positive("The price in its own currency (not converted).")
     price_currency: str = pa.Field(

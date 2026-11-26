@@ -147,6 +147,7 @@ One row per roasted review (espresso included).
 | `roaster_country` | String | yes | – | The roaster's country (Hawaiʻi roasters: United States). |
 | `origin_country` | String | yes | – | Where the coffee was grown: one country (Hawaiʻi and Puerto Rico count as their own), "Multiple" for a blend, empty if not disclosed. |
 | `origin_region` | String | yes | – | The growing region(s), comma-separated, without filler words; direction words kept ("Guji, Oromia", "North Sumatra"). |
+| `origin_growing_region` | String | yes | – | The standard growing region, for the 15 countries with the most reviews (Yirgacheffe, Huila, Minas Gerais); "Multiple" when the text names more than one. Empty otherwise. |
 | `roast_level` | Enum (6 roast levels) | yes | – | Roast level, ordered light to dark: Light, Medium-Light, Medium, Medium-Dark, Dark, Very Dark. |
 | `agtron_whole` | Int16 | yes | > 0, ≤ 7000 | Agtron reading of the whole bean: higher is lighter. |
 | `agtron_ground` | Int16 | yes | > 0, ≤ 7000 | Agtron reading of the ground coffee: higher is lighter. |
@@ -187,6 +188,7 @@ One row per green review.
 | `rating` | Int16 | yes | ≥ 50, ≤ 100 | Overall score, 50–100. Empty when not rated (NR). |
 | `origin_country` | String | yes | – | Where the coffee was grown: one country (Hawaiʻi and Puerto Rico count as their own), "Multiple" for a blend, empty if not disclosed. |
 | `origin_region` | String | yes | – | The growing region(s), comma-separated, without filler words; direction words kept ("Guji, Oromia", "North Sumatra"). |
+| `origin_growing_region` | String | yes | – | The standard growing region, for the 15 countries with the most reviews (Yirgacheffe, Huila, Minas Gerais); "Multiple" when the text names more than one. Empty otherwise. |
 | `price_amount` | Float64 | yes | > 0 | The price in its own currency (not converted). |
 | `price_currency` | String | yes | matches `^[A-Z]{3}$` | ISO 4217 currency code (USD, TWD, CAD…). |
 | `price_currency_inferred` | Boolean | no | – | True when the currency was read from the roaster's country ($ outside the US, ¥, E, pesos), not written plainly. |
