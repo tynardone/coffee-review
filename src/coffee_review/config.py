@@ -113,14 +113,14 @@ class CoffeeSiteSettings(HttpClientSettings):
         return self
 
 
-class ForexApiSettings(HttpClientSettings):
+class OpenExchangeRatesSettings(HttpClientSettings):
     """OpenExchangeRates. The key is only needed by the FX stage."""
 
     base_url: HttpUrl = HttpUrl("https://openexchangerates.org/api/")
     api_key: SecretStr | None = None
 
 
-class BLSApiSettings(HttpClientSettings):
+class BlsSettings(HttpClientSettings):
     """Bureau of Labor Statistics public API.
 
     No key: keyless requests use v1 (25 a day, 10 years each).
@@ -191,8 +191,10 @@ class Settings(BaseSettings):
     )
 
     coffee_site: CoffeeSiteSettings = Field(default_factory=CoffeeSiteSettings)
-    forex_api: ForexApiSettings = Field(default_factory=ForexApiSettings)
-    bls_api: BLSApiSettings = Field(default_factory=BLSApiSettings)
+    openexchangerates: OpenExchangeRatesSettings = Field(
+        default_factory=OpenExchangeRatesSettings
+    )
+    bls: BlsSettings = Field(default_factory=BlsSettings)
     economic: EconomicSettings = Field(default_factory=EconomicSettings)
     clean: CleanSettings = Field(default_factory=CleanSettings)
 

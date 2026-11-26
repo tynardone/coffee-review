@@ -18,7 +18,7 @@ src/coffee_review/
     parsed.py          Parsed review records and parse issues.
     clean.py           The clean-table contract (pandera) and cleaning-rule names.
     economic.py        Exchange-rate and CPI rows and the economic-table contracts.
-    frames.py          Checks shared by the pandera contracts.
+    contract_checks.py Checks shared by the pandera contracts.
   clients/             Talk to the outside world over HTTP. Return raw text/JSON.
     economic.py        Telling an economic-data source's answer from a refusal.
   storage/             Read and write each data layer on disk. Know paths and formats.
@@ -56,7 +56,11 @@ through `pipeline/progress.py`'s Protocol and logs with `logging`, never
 knowing how either is shown.
 `parsers` and `transforms` import no I/O at all (no `httpx`, no file access),
 except that `transforms/lookup_tables.py` reads its own CSVs with
-`importlib.resources`: they're code, not pipeline data.
+`importlib.resources`: they're code, not pipeline data. They're versioned and
+reviewed like code, including the two roaster CSVs, which
+`coffee-review roasters apply` appends to through `storage/roaster_lookups.py`
+(the one writer). That only works from a source checkout (`uv sync` installs
+the package editable); the rows it adds are a change to commit.
 That's what lets them be tested with plain inputs, and what stops one stage
 reaching into another.
 
@@ -106,7 +110,7 @@ way in paths, module names and CLI commands.
 
 ## Naming
 
-- **Modules are nouns** for what they hold: `review_store.py`, `forex_api.py`.
+- **Modules are nouns** for what they hold: `raw_store.py`, `coffee_site.py`.
 - **Functions are verbs** for what they do: `fetch_sitemap`, `parse_review`,
   `normalize_price`.
 - **One name per concept**, everywhere: *review*, *slug*, *lastmod*, *delisted*.

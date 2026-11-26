@@ -28,7 +28,7 @@ def load_settings() -> Settings:
 def test_settings_load_with_empty_environment() -> None:
     settings = load_settings()
 
-    assert settings.forex_api.api_key is None
+    assert settings.openexchangerates.api_key is None
 
 
 def test_coffee_site_sitemap_url() -> None:
@@ -92,12 +92,12 @@ def test_nested_env_override(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_api_key_read_from_env_and_hidden(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("COFFEE_REVIEW_FOREX_API__API_KEY", "abc")
+    monkeypatch.setenv("COFFEE_REVIEW_OPENEXCHANGERATES__API_KEY", "abc")
 
     settings = load_settings()
 
-    assert settings.forex_api.api_key is not None
-    assert settings.forex_api.api_key.get_secret_value() == "abc"
+    assert settings.openexchangerates.api_key is not None
+    assert settings.openexchangerates.api_key.get_secret_value() == "abc"
     assert "abc" not in repr(settings)
 
 
@@ -111,7 +111,7 @@ def test_invalid_value_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_get_settings_ignores_local_env_file() -> None:
     # Tests run from an empty temp directory (tests/conftest.py), so a real
     # .env in the checkout is never read, even through the cached get_settings().
-    assert get_settings().forex_api.api_key is None
+    assert get_settings().openexchangerates.api_key is None
 
 
 def test_data_dir_default() -> None:
@@ -136,7 +136,7 @@ def test_economic_defaults() -> None:
 
 
 def test_bls_is_keyless_v1() -> None:
-    assert str(load_settings().bls_api.base_url) == "https://api.bls.gov/publicAPI/v1/"
+    assert str(load_settings().bls.base_url) == "https://api.bls.gov/publicAPI/v1/"
 
 
 @pytest.mark.parametrize("field", ["FX_START", "CPI_START"])

@@ -31,7 +31,7 @@ MONTH_PERIOD = re.compile(r"^M(0[1-9]|1[0-2])$")
 UNAVAILABLE = "X"
 
 
-def parse_cpi_bls(text: str, series: str) -> CpiParsed:
+def parse_bls(text: str, series: str) -> CpiParsed:
     """Parse one BLS response.
 
     Args:

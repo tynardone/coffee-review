@@ -19,7 +19,7 @@ import polars as pl
 from pandera.errors import SchemaErrors
 
 from coffee_review.models.common import FrozenModel, UtcDatetime
-from coffee_review.models.frames import first_of_month
+from coffee_review.models.contract_checks import first_of_month
 
 if TYPE_CHECKING:
     from collections.abc import Mapping

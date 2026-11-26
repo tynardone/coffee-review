@@ -24,20 +24,20 @@ from datetime import UTC, date, datetime
 from pathlib import PurePath
 from typing import TYPE_CHECKING, Literal
 
-from coffee_review.clients.bls_api import BlsApiClient
+from coffee_review.clients.bls import BlsClient
 from coffee_review.clients.economic import (
     SourceAuthError,
     SourceRefusedError,
     SourceUnavailableError,
 )
-from coffee_review.clients.forex_api import ForexApiClient
+from coffee_review.clients.openexchangerates import OpenExchangeRatesClient
 from coffee_review.models.economic import (
     CpiFile,
     EconomicParseError,
     validate_economic,
 )
-from coffee_review.parsers.cpi_bls import parse_cpi_bls
-from coffee_review.parsers.fx_openexchangerates import parse_fx_openexchangerates
+from coffee_review.parsers.bls import parse_bls
+from coffee_review.parsers.openexchangerates import parse_openexchangerates
 from coffee_review.storage.economic_store import open_economic_store
 from coffee_review.transforms.economic import (
     build_cpi,
@@ -156,7 +156,7 @@ def fx(settings: Settings, *, today: date | None = None) -> EconomicRunResult:
     Raises:
         MissingApiKeyError: If no OpenExchangeRates key is set.
     """
-    client = ForexApiClient(settings.forex_api)
+    client = OpenExchangeRatesClient(settings.openexchangerates)
     return asyncio.run(
         run_fx(
             client=client,
@@ -168,7 +168,7 @@ def fx(settings: Settings, *, today: date | None = None) -> EconomicRunResult:
 
 
 async def run_fx(
-    *, client: ForexApiClient, store: EconomicStore, start: date, today: date
+    *, client: OpenExchangeRatesClient, store: EconomicStore, start: date, today: date
 ) -> EconomicRunResult:
     """Fetch the missing days, then rebuild the FX table.
 
@@ -187,7 +187,7 @@ async def run_fx(
     parsed: dict[date, FxParsed] = {}
     for day in store.fx_days():
         try:
-            parsed[day] = parse_fx_openexchangerates(store.read_fx(day), day)
+            parsed[day] = parse_openexchangerates(store.read_fx(day), day)
         except EconomicParseError as exc:
             logger.warning(
                 "fx %s: saved file won't parse, fetching again: %s", day, exc
@@ -204,7 +204,7 @@ async def run_fx(
                 tally.stop(str(exc))
                 break
             try:
-                response = parse_fx_openexchangerates(text, day)
+                response = parse_openexchangerates(text, day)
             except EconomicParseError as exc:
                 if tally.unparsable_answer(str(day), exc):
                     break
@@ -235,7 +235,7 @@ def cpi(settings: Settings, *, now: datetime | None = None) -> EconomicRunResult
     """
     return asyncio.run(
         run_cpi(
-            client=BlsApiClient(settings.bls_api),
+            client=BlsClient(settings.bls),
             store=open_economic_store(settings),
             series=settings.economic.cpi_series,
             start=settings.economic.cpi_start,
@@ -246,7 +246,7 @@ def cpi(settings: Settings, *, now: datetime | None = None) -> EconomicRunResult
 
 async def run_cpi(
     *,
-    client: BlsApiClient,
+    client: BlsClient,
     store: EconomicStore,
     series: str,
     start: date,
@@ -273,7 +273,7 @@ async def run_cpi(
     saved: list[tuple[CpiFile, CpiParsed]] = []
     for file in store.cpi_files(series):
         try:
-            saved.append((file, parse_cpi_bls(store.read_cpi(series, file), series)))
+            saved.append((file, parse_bls(store.read_cpi(series, file), series)))
         except EconomicParseError as exc:
             logger.warning(
                 "cpi %s (%s-%s): saved file won't parse; its years count as"
@@ -304,7 +304,7 @@ async def run_cpi(
                 tally.stop(str(exc))
                 break
             try:
-                response = parse_cpi_bls(text, series)
+                response = parse_bls(text, series)
             except EconomicParseError as exc:
                 if tally.unparsable_answer(years, exc):
                     break

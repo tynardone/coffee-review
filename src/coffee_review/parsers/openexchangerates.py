@@ -27,7 +27,7 @@ CURRENCY_CODE = re.compile(r"^[A-Z]{3}$")
 GAP_MESSAGES = frozenset({"not_available"})
 
 
-def parse_fx_openexchangerates(text: str, day: date) -> FxParsed:
+def parse_openexchangerates(text: str, day: date) -> FxParsed:
     """Parse one day's OpenExchangeRates response.
 
     Args:

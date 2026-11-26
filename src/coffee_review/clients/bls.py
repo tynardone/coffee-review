@@ -21,13 +21,13 @@ from coffee_review.clients.http import BaseHttpClient
 if TYPE_CHECKING:
     import httpx
 
-    from coffee_review.config import BLSApiSettings
+    from coffee_review.config import BlsSettings
 
 SOURCE = "bls"
 NOT_PROCESSED = "REQUEST_NOT_PROCESSED"
 
 
-class BlsApiClient(BaseHttpClient):
+class BlsClient(BaseHttpClient):
     """The BLS Public Data API, keyless: one CPI series for a range of years.
 
     Args:
@@ -39,7 +39,7 @@ class BlsApiClient(BaseHttpClient):
 
     def __init__(
         self,
-        settings: BLSApiSettings,
+        settings: BlsSettings,
         *,
         transport: httpx.AsyncBaseTransport | None = None,
     ) -> None:
