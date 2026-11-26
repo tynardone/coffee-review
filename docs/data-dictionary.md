@@ -238,6 +238,10 @@ The values of `cleaning_log.rule`: every change the clean stage makes.
 | `not_disclosed` | "Not disclosed": the site doesn't say. The value is empty. |
 | `unplaced` | No known place found. The value is empty; listed in the report to review. |
 | `multiple_origins` | More than one country, or a blend: origin_country is "Multiple". |
+| `growing_region` | The standard growing region the origin's region text names (Gedeb, Gedeo → Yirgacheffe). |
+| `multiple_regions` | More than one growing region in one country: origin_growing_region is "Multiple". |
+| `broad_region` | The region text names only an area broader than a growing region (Oromia). The growing region is empty. |
+| `unknown_region` | No known growing region in the region text, in a country origin_regions.csv covers. Listed in the report to review. |
 | `close_spelling` | Matched by a close spelling of a known place or unit (Calfornia → California), or merged into a very close roaster name (Lamill → La Mill); listed in the report to review. |
 | `spelling_variant` | Another spelling of the same roaster name (case, accents, punctuation, words like Coffee Roasters). The kept spelling replaces it. |
 | `listed_name` | A roaster name set by hand in roasters.csv. |

@@ -26,6 +26,9 @@ that only ``storage/`` knows data formats.
   the clean report's roaster items (see ``transforms/roasters.py``);
 - ``distinct_roasters.csv``: hand-kept: pairs of spellings that are different
   roasters, so they're never merged or listed again.
+- ``origin_regions.csv``: hand-kept: for the 15 biggest origin countries, each
+  spelling of a growing region and the region it means, or nothing for a name
+  broader than a region (see ``transforms/growing_regions.py``).
 
 ``scripts/generate_lookup_tables.py`` writes the two generated tables.
 """
@@ -42,6 +45,8 @@ from typing import TYPE_CHECKING, Literal, cast
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
+
+    from coffee_review.transforms.growing_regions import GrowingRegions
 
 type PlaceKind = Literal["country", "state", "province", "island", "region", "area"]
 type UnitKind = Literal["weight", "volume", "count"]
@@ -180,6 +185,18 @@ def load_distinct_roasters() -> tuple[tuple[str, str], ...]:
     """``distinct_roasters.csv``: pairs of spellings that are different roasters."""
     return tuple(
         (row["spelling"], row["other"]) for row in _read_csv("distinct_roasters.csv")
+    )
+
+
+@cache
+def load_growing_regions() -> GrowingRegions:
+    """``origin_regions.csv``: the growing region each spelling means, by country."""
+    # Imported here: growing_regions imports MULTIPLE from this module.
+    from coffee_review.transforms.growing_regions import build_growing_regions
+
+    return build_growing_regions(
+        (row["country"], row["alias"], row["region"] or None)
+        for row in _read_csv("origin_regions.csv")
     )
 
 

@@ -1,0 +1,502 @@
+country,alias,region
+Brazil,Bahia,Bahia
+Brazil,Cerrado Baiano,Bahia
+Brazil,Chapada,Bahia
+Brazil,Chapada Diamantina,Bahia
+Brazil,Oeste Baiano,Bahia
+Brazil,Piata,Bahia
+Brazil,Vitoria da Conquista,Bahia
+Brazil,Espirito Santo,Espírito Santo
+Brazil,Espírito Santo,Espírito Santo
+Brazil,Goias,Goiás
+Brazil,Goiás,Goiás
+Brazil,Campos Alto,Minas Gerais
+Brazil,Campos Altos,Minas Gerais
+Brazil,Carmo de Minas,Minas Gerais
+Brazil,Cerrado,Minas Gerais
+Brazil,Cerrado Mineiro,Minas Gerais
+Brazil,Coromandel,Minas Gerais
+Brazil,Mantiqeiras de Minas,Minas Gerais
+Brazil,Mantiqueira,Minas Gerais
+Brazil,Mantiqueira de Minas,Minas Gerais
+Brazil,Matas de Minas,Minas Gerais
+Brazil,Minas,Minas Gerais
+Brazil,Minas Gerais,Minas Gerais
+Brazil,Patrocinio,Minas Gerais
+Brazil,Pocos de Caldas,Minas Gerais
+Brazil,Santo Antonio do Amparo,Minas Gerais
+Brazil,Southern Minas,Minas Gerais
+Brazil,Sul de Minas,Minas Gerais
+Brazil,Norte Pioneiro,Paraná
+Brazil,Parana,Paraná
+Brazil,Paraná,Paraná
+Brazil,Ribeirao do Pinhal,Paraná
+Brazil,Rondonia,Rondônia
+Brazil,Rondônia,Rondônia
+Brazil,Alta Mogiana,São Paulo
+Brazil,Garca,São Paulo
+Brazil,Mogiana,São Paulo
+Brazil,Sao Paulo,São Paulo
+Brazil,Sao Sebastiao da Grama,São Paulo
+Brazil,Sao Sebastiao de Grama,São Paulo
+Brazil,São Paulo,São Paulo
+Colombia,Antioquia,Antioquia
+Colombia,Fredonia,Antioquia
+Colombia,Jardin,Antioquia
+Colombia,Medellin,Antioquia
+Colombia,Santa Barbara,Antioquia
+Colombia,Urrao,Antioquia
+Colombia,Boyacá,Boyacá
+Colombia,Caldas,Caldas
+Colombia,Manizales,Caldas
+Colombia,Caquetá,Caquetá
+Colombia,Casanare,Casanare
+Colombia,Caldono,Cauca
+Colombia,Cauca,Cauca
+Colombia,El Tambo,Cauca
+Colombia,Inza,Cauca
+Colombia,Morales,Cauca
+Colombia,Piendamo,Cauca
+Colombia,Popayan,Cauca
+Colombia,Cesar,Cesar
+Colombia,Cundinamarca,Cundinamarca
+Colombia,Acevedo,Huila
+Colombia,Garzon,Huila
+Colombia,Gigante,Huila
+Colombia,Huila,Huila
+Colombia,La Plata,Huila
+Colombia,Palestina,Huila
+Colombia,Pitalito,Huila
+Colombia,San Adolfo,Huila
+Colombia,San Agustin,Huila
+Colombia,Magdalena,Magdalena
+Colombia,Meta,Meta
+Colombia,Buesaco,Nariño
+Colombia,La Union,Nariño
+Colombia,Nariño,Nariño
+Colombia,Pasto,Nariño
+Colombia,Norte de Santander,Norte de Santander
+Colombia,Putumayo,Putumayo
+Colombia,Quindío,Quindío
+Colombia,Risaralda,Risaralda
+Colombia,Santuario,Risaralda
+Colombia,Santander,Santander
+Colombia,Ataco,Tolima
+Colombia,Chaparral,Tolima
+Colombia,Libano,Tolima
+Colombia,Planadas,Tolima
+Colombia,Rioblanco,Tolima
+Colombia,Tolima,Tolima
+Colombia,Tolimas,Tolima
+Colombia,Caicedonia,Valle del Cauca
+Colombia,Sevilla,Valle del Cauca
+Colombia,Trujillo,Valle del Cauca
+Colombia,Valle de Cauca,Valle del Cauca
+Colombia,Valle del Cauca,Valle del Cauca
+Colombia,Sierra Nevada,
+Colombia,Sierra Nevada de Santa Marta,
+Costa Rica,Biollet,Brunca
+Costa Rica,Biolley,Brunca
+Costa Rica,Brunca,Brunca
+Costa Rica,Chirripo,Brunca
+Costa Rica,Coto Brus,Brunca
+Costa Rica,Perez Zeledon,Brunca
+Costa Rica,Rivas,Brunca
+Costa Rica,Barva,Central Valley
+Costa Rica,Central Valley,Central Valley
+Costa Rica,Heredia,Central Valley
+Costa Rica,Poas,Central Valley
+Costa Rica,Guanacaste,Guanacaste
+Costa Rica,Orosi,Orosi
+Costa Rica,Dota,Tarrazú
+Costa Rica,Leon Cortes,Tarrazú
+Costa Rica,Tarrazu,Tarrazú
+Costa Rica,Tarrazú,Tarrazú
+Costa Rica,Tres Rios,Tres Ríos
+Costa Rica,Tres Ríos,Tres Ríos
+Costa Rica,Turrialba,Turrialba
+Costa Rica,Atenas,West Valley
+Costa Rica,Grecia,West Valley
+Costa Rica,Naranjo,West Valley
+Costa Rica,Palmares,West Valley
+Costa Rica,San Ramon,West Valley
+Costa Rica,Sarchi,West Valley
+Costa Rica,West Valley,West Valley
+Costa Rica,Western Valley,West Valley
+Costa Rica,Alajuela,
+Costa Rica,Cartago,
+Costa Rica,Puntarenas,
+Costa Rica,San Jose,
+El Salvador,Alotepec,Alotepec-Metapán
+El Salvador,Alotepec-Metapán,Alotepec-Metapán
+El Salvador,Chalatenango,Alotepec-Metapán
+El Salvador,Chaltenango,Alotepec-Metapán
+El Salvador,Citala,Alotepec-Metapán
+El Salvador,Metapan,Alotepec-Metapán
+El Salvador,Ahuachapan,Apaneca-Ilamatepec
+El Salvador,Apaneca,Apaneca-Ilamatepec
+El Salvador,Apaneca-Ilamatepec,Apaneca-Ilamatepec
+El Salvador,Ataco,Apaneca-Ilamatepec
+El Salvador,Coatepeque,Apaneca-Ilamatepec
+El Salvador,Ilamatepec,Apaneca-Ilamatepec
+El Salvador,Juayua,Apaneca-Ilamatepec
+El Salvador,Santa Ana,Apaneca-Ilamatepec
+El Salvador,Sonsonate,Apaneca-Ilamatepec
+El Salvador,Cacahuatique,Cacahuatique
+El Salvador,Morazan,Cacahuatique
+El Salvador,Chinchontepec,Chinchontepec
+El Salvador,San Vicente,Chinchontepec
+El Salvador,Balsamo,El Bálsamo-Quetzaltepec
+El Salvador,Boqueron,El Bálsamo-Quetzaltepec
+El Salvador,El Balsamo,El Bálsamo-Quetzaltepec
+El Salvador,El Boqueron,El Bálsamo-Quetzaltepec
+El Salvador,El Bálsamo-Quetzaltepec,El Bálsamo-Quetzaltepec
+El Salvador,La Libertad,El Bálsamo-Quetzaltepec
+El Salvador,Quetzaltepec,El Bálsamo-Quetzaltepec
+El Salvador,Volcan de San Salvador,El Bálsamo-Quetzaltepec
+El Salvador,Berlin,Tecapa-Chinameca
+El Salvador,Chinameca,Tecapa-Chinameca
+El Salvador,Tecapa,Tecapa-Chinameca
+El Salvador,Tecapa-Chinameca,Tecapa-Chinameca
+El Salvador,Usulutan,Tecapa-Chinameca
+El Salvador,San Miguel,
+El Salvador,San Salvador,
+Ethiopia,Amaro,Amaro
+Ethiopia,Amaro Gayo,Amaro
+Ethiopia,Arsi,Arsi
+Ethiopia,Nensebo,Arsi
+Ethiopia,West Arsi,Arsi
+Ethiopia,Bench,Bench Maji
+Ethiopia,Bench Maji,Bench Maji
+Ethiopia,Bench Sheko,Bench Maji
+Ethiopia,Maji,Bench Maji
+Ethiopia,Gamo,Gamo Gofa
+Ethiopia,Gamo Gofa,Gamo Gofa
+Ethiopia,Ana Sora,Guji
+Ethiopia,Guji,Guji
+Ethiopia,Hambela,Guji
+Ethiopia,Hanbela,Guji
+Ethiopia,Kercha,Guji
+Ethiopia,Shakiso,Guji
+Ethiopia,Uraga,Guji
+Ethiopia,Harar,Harrar
+Ethiopia,Hararghe,Harrar
+Ethiopia,Harrar,Harrar
+Ethiopia,Illubabor,Illubabor
+Ethiopia,Ilubabor,Illubabor
+Ethiopia,Agaro,Jimma
+Ethiopia,Djimma,Jimma
+Ethiopia,Gera,Jimma
+Ethiopia,Gomma,Jimma
+Ethiopia,Jimma,Jimma
+Ethiopia,Bita Genet,Kaffa
+Ethiopia,Kafa,Kaffa
+Ethiopia,Kaffa,Kaffa
+Ethiopia,Keffa,Kaffa
+Ethiopia,Limu,Limu
+Ethiopia,Aleta Wondo,Sidama
+Ethiopia,Arbegona,Sidama
+Ethiopia,Aroresa,Sidama
+Ethiopia,Bensa,Sidama
+Ethiopia,Bona Zuria,Sidama
+Ethiopia,Shantawene,Sidama
+Ethiopia,Sidama,Sidama
+Ethiopia,Sidamo,Sidama
+Ethiopia,Gimbi,Wollega
+Ethiopia,Lekempti,Wollega
+Ethiopia,Nekemte,Wollega
+Ethiopia,Welega,Wollega
+Ethiopia,Wollega,Wollega
+Ethiopia,Aricha,Yirgacheffe
+Ethiopia,Banko,Yirgacheffe
+Ethiopia,Chelelektu,Yirgacheffe
+Ethiopia,Gedeb,Yirgacheffe
+Ethiopia,Gedeo,Yirgacheffe
+Ethiopia,Idido,Yirgacheffe
+Ethiopia,Kochere,Yirgacheffe
+Ethiopia,Konga,Yirgacheffe
+Ethiopia,Worka,Yirgacheffe
+Ethiopia,Yirgachefe,Yirgacheffe
+Ethiopia,Yirgacheffe,Yirgacheffe
+Ethiopia,Oromia,
+Ethiopia,SNNP,
+Ethiopia,SNNPR,
+Ethiopia,South Ethiopia,
+Ethiopia,Southern Nations,
+Guatemala,Acatenango,Acatenango
+Guatemala,Alotenango,Antigua
+Guatemala,Antigua,Antigua
+Guatemala,Antigua Valley,Antigua
+Guatemala,Sacatepequez,Antigua
+Guatemala,Atitlan,Atitlán
+Guatemala,Atitlán,Atitlán
+Guatemala,Lake Atitlan,Atitlán
+Guatemala,Solola,Atitlán
+Guatemala,Alta Verapaz,Cobán
+Guatemala,Baja Verapaz,Cobán
+Guatemala,Coban,Cobán
+Guatemala,Cobán,Cobán
+Guatemala,Rabinal,Cobán
+Guatemala,Fraijanes,Fraijanes
+Guatemala,Palencia,Fraijanes
+Guatemala,Huehue,Huehuetenango
+Guatemala,Huehuetenango,Huehuetenango
+Guatemala,La Democracia,Huehuetenango
+Guatemala,La Libertad,Huehuetenango
+Guatemala,Todos Santos,Huehuetenango
+Guatemala,Chiquimula,Nuevo Oriente
+Guatemala,Jalapa,Nuevo Oriente
+Guatemala,Jutiapa,Nuevo Oriente
+Guatemala,New Oriente,Nuevo Oriente
+Guatemala,Nuevo Oriente,Nuevo Oriente
+Guatemala,Zacapa,Nuevo Oriente
+Guatemala,El Quiche,Quiché
+Guatemala,Quiche,Quiché
+Guatemala,Quiché,Quiché
+Guatemala,Quetzaltenango,San Marcos
+Guatemala,San Marcos,San Marcos
+Guatemala,Chimaltenango,
+Guatemala,El Progreso,
+Guatemala,El Progresso,
+Guatemala,Santa Rosa,
+Hawaii,Hamakua,Hamakua
+Hawaii,Hāmākua,Hamakua
+Hawaii,Kauai,Kauaʻi
+Hawaii,Kauaʻi,Kauaʻi
+Hawaii,Kau,Kaʻū
+Hawaii,Kaʻū,Kaʻū
+Hawaii,Naalehu,Kaʻū
+Hawaii,Pahala,Kaʻū
+Hawaii,Captain Cook,Kona
+Hawaii,Holualoa,Kona
+Hawaii,Honaunau,Kona
+Hawaii,Kealakekua,Kona
+Hawaii,Kona,Kona
+Hawaii,Kipahulu,Maui
+Hawaii,Kula,Maui
+Hawaii,Maui,Maui
+Hawaii,Molokai,Molokaʻi
+Hawaii,Molokaʻi,Molokaʻi
+Hawaii,Oahu,Oʻahu
+Hawaii,Oʻahu,Oʻahu
+Hawaii,Waialua,Oʻahu
+Hawaii,Puna,Puna
+Hawaii,Big Island,
+Hawaii,Hawaii Island,
+Honduras,Comayagua,Comayagua
+Honduras,Siguatepeque,Comayagua
+Honduras,Copan,Copán
+Honduras,Copán,Copán
+Honduras,Corquin,Copán
+Honduras,Las Capucas,Copán
+Honduras,El Paraiso,El Paraíso
+Honduras,El Paraíso,El Paraíso
+Honduras,Francisco Morazan,Francisco Morazán
+Honduras,Francisco Morazán,Francisco Morazán
+Honduras,Intibuca,Intibucá
+Honduras,Intibucá,Intibucá
+Honduras,Masaguara,Intibucá
+Honduras,La Paz,La Paz
+Honduras,Marcala,La Paz
+Honduras,Montecillos,La Paz
+Honduras,Lempira,Lempira
+Honduras,Ocatepeque,Ocotepeque
+Honduras,Ocotepeque,Ocotepeque
+Honduras,Agalta,Olancho
+Honduras,Olancho,Olancho
+Honduras,Santa Barbara,Santa Bárbara
+Honduras,Santa Bárbara,Santa Bárbara
+Indonesia,Bali,Bali
+Indonesia,Kintamani,Bali
+Indonesia,Bajawa,Flores
+Indonesia,Flores,Flores
+Indonesia,Ijen,Java
+Indonesia,Java,Java
+Indonesia,Baliem,Papua
+Indonesia,Papua,Papua
+Indonesia,Wamena,Papua
+Indonesia,Celebes,Sulawesi
+Indonesia,Enrekang,Sulawesi
+Indonesia,Kalosi,Sulawesi
+Indonesia,Sulawesi,Sulawesi
+Indonesia,Toraja,Sulawesi
+Indonesia,Aceh,Sumatra
+Indonesia,Gayo,Sumatra
+Indonesia,Lake Tawar,Sumatra
+Indonesia,Lake Toba,Sumatra
+Indonesia,Lintong,Sumatra
+Indonesia,Mandailing,Sumatra
+Indonesia,Mandheling,Sumatra
+Indonesia,Pegasing,Sumatra
+Indonesia,Sidikalang,Sumatra
+Indonesia,Sumatra,Sumatra
+Indonesia,Takengon,Sumatra
+Indonesia,Toba,Sumatra
+Indonesia,Timor,Timor
+Kenya,Baringo,Baringo
+Kenya,Bungoma,Bungoma
+Kenya,Mount Elgon,Bungoma
+Kenya,Mt Elgon,Bungoma
+Kenya,Embu,Embu
+Kenya,Kakamega,Kakamega
+Kenya,Kericho,Kericho
+Kenya,Gatundu,Kiambu
+Kenya,Kamwangi,Kiambu
+Kenya,Kiambu,Kiambu
+Kenya,Ruiru,Kiambu
+Kenya,Thika,Kiambu
+Kenya,Gichugu,Kirinyaga
+Kenya,Kerugoya,Kirinyaga
+Kenya,Kirinyaga,Kirinyaga
+Kenya,Ndia,Kirinyaga
+Kenya,Kisii,Kisii
+Kenya,Machakos,Machakos
+Kenya,Meru,Meru
+Kenya,Murang'a,Murang'a
+Kenya,Muranga,Murang'a
+Kenya,Muranga'a,Murang'a
+Kenya,Nakura,Nakuru
+Kenya,Nakuru,Nakuru
+Kenya,Karatina,Nyeri
+Kenya,Mathira,Nyeri
+Kenya,Nyeri,Nyeri
+Kenya,Othaya,Nyeri
+Kenya,Tetu,Nyeri
+Kenya,Yeri,Nyeri
+Kenya,Tharaka Nithi,Tharaka Nithi
+Kenya,Trans Nzoia,Trans Nzoia
+Kenya,Central,
+Kenya,Central Highlands,
+Kenya,Central Province,
+Kenya,Eastern,
+Kenya,Mount Kenya,
+Kenya,Mt Kenya,
+Kenya,Rift Valley,
+Mexico,Chamula,Chiapas
+Mexico,Chiapas,Chiapas
+Mexico,La Concordia,Chiapas
+Mexico,Siltepec,Chiapas
+Mexico,Tapachula,Chiapas
+Mexico,Colima,Colima
+Mexico,Guerrero,Guerrero
+Mexico,Hidalgo,Hidalgo
+Mexico,Jalisco,Jalisco
+Mexico,Nayarit,Nayarit
+Mexico,Mixteca,Oaxaca
+Mexico,Oaxaca,Oaxaca
+Mexico,Pluma,Oaxaca
+Mexico,Pluma Hidalgo,Oaxaca
+Mexico,Puebla,Puebla
+Mexico,San Luis Potosi,San Luis Potosí
+Mexico,San Luis Potosí,San Luis Potosí
+Mexico,Coatepec,Veracruz
+Mexico,Huatusco,Veracruz
+Mexico,Vera Cruz,Veracruz
+Mexico,Veracruz,Veracruz
+Nicaragua,Esteli,Estelí
+Nicaragua,Estelí,Estelí
+Nicaragua,Jinotega,Jinotega
+Nicaragua,San Rafael del Norte,Jinotega
+Nicaragua,Las Sabanas,Madriz
+Nicaragua,Madriz,Madriz
+Nicaragua,Mardriz,Madriz
+Nicaragua,San Juan de Rio Coco,Madriz
+Nicaragua,San Juan del Rio Coco,Madriz
+Nicaragua,La Dalia,Matagalpa
+Nicaragua,Matagalpa,Matagalpa
+Nicaragua,Dipilito,Nueva Segovia
+Nicaragua,Dipilto,Nueva Segovia
+Nicaragua,Diplito,Nueva Segovia
+Nicaragua,Jalapa,Nueva Segovia
+Nicaragua,Mozonte,Nueva Segovia
+Nicaragua,Neuva Segovia,Nueva Segovia
+Nicaragua,Nueva Segovia,Nueva Segovia
+Nicaragua,Nuevo Segovia,Nueva Segovia
+Nicaragua,Ocatal,Nueva Segovia
+Nicaragua,Ocotal,Nueva Segovia
+Nicaragua,Segovia,Nueva Segovia
+Panama,Alto Quiel,Boquete
+Panama,Boquete,Boquete
+Panama,Bouquete,Boquete
+Panama,Jaramillo,Boquete
+Panama,Piedra Candela,Renacimiento
+Panama,Piedra de Candela,Renacimiento
+Panama,Renacimiento,Renacimiento
+Panama,Santa Clara,Renacimiento
+Panama,Bambito,Volcán
+Panama,Candela,Volcán
+Panama,Cerro Punta,Volcán
+Panama,Paso Ancho,Volcán
+Panama,Tierras Altas,Volcán
+Panama,Volcan,Volcán
+Panama,Volcán,Volcán
+Panama,Chiriqui,
+Panama,Chiriquí,
+Peru,Amazonas,Amazonas
+Peru,Lonya Grande,Amazonas
+Peru,Rodriguez de Mendoza,Amazonas
+Peru,Utcubamba,Amazonas
+Peru,Cajamarca,Cajamarca
+Peru,Chirinos,Cajamarca
+Peru,Jaen,Cajamarca
+Peru,La Coipa,Cajamarca
+Peru,San Ignacio,Cajamarca
+Peru,Tabaconas,Cajamarca
+Peru,Amaybamba,Cusco
+Peru,Cusco,Cusco
+Peru,Cuzco,Cusco
+Peru,La Convencion,Cusco
+Peru,Quillabamba,Cusco
+Peru,Chanchamayo,Junín
+Peru,Junin,Junín
+Peru,Junín,Junín
+Peru,Satipo,Junín
+Peru,Chiclayo,Lambayeque
+Peru,Incahuasi,Lambayeque
+Peru,Lambayeque,Lambayeque
+Peru,Oxapampa,Pasco
+Peru,Pasco,Pasco
+Peru,Villa Rica,Pasco
+Peru,Piura,Piura
+Peru,Puno,Puno
+Peru,Sandia,Puno
+Peru,Moyobamba,San Martín
+Peru,San Martin,San Martín
+Peru,San Martín,San Martín
+Rwanda,East,Eastern Province
+Rwanda,Eastern,Eastern Province
+Rwanda,Eastern Province,Eastern Province
+Rwanda,Kayonza,Eastern Province
+Rwanda,Ngoma,Eastern Province
+Rwanda,Burera,Northern Province
+Rwanda,Gakenke,Northern Province
+Rwanda,Gicumbi,Northern Province
+Rwanda,Musanze,Northern Province
+Rwanda,North,Northern Province
+Rwanda,Northern,Northern Province
+Rwanda,Northern Province,Northern Province
+Rwanda,Rulindo,Northern Province
+Rwanda,Gikongoro,Southern Province
+Rwanda,Huye,Southern Province
+Rwanda,Maraba,Southern Province
+Rwanda,Muhanaga,Southern Province
+Rwanda,Muhanga,Southern Province
+Rwanda,Nyamagabe,Southern Province
+Rwanda,Nyanza,Southern Province
+Rwanda,Nyaruguru,Southern Province
+Rwanda,South,Southern Province
+Rwanda,Southern,Southern Province
+Rwanda,Southern Province,Southern Province
+Rwanda,Karongi,Western Province
+Rwanda,Kirambo,Western Province
+Rwanda,Lake Kiva,Western Province
+Rwanda,Lake Kivu,Western Province
+Rwanda,Nyamasheke,Western Province
+Rwanda,Nyamyumba,Western Province
+Rwanda,Rubavu,Western Province
+Rwanda,Rusizi,Western Province
+Rwanda,Rustiro,Western Province
+Rwanda,Rutsiro,Western Province
+Rwanda,West,Western Province
+Rwanda,Western,Western Province
+Rwanda,Western Province,Western Province
