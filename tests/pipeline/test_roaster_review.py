@@ -3,12 +3,26 @@
 from __future__ import annotations
 
 from datetime import date
+from typing import TYPE_CHECKING
 
 import polars as pl
+import pytest
 
 from coffee_review.models.clean import REVIEW_SHEET_COLUMNS, REVIEW_SHEET_SCHEMA
-from coffee_review.pipeline.roaster_review import build_review_sheet
+from coffee_review.pipeline.roaster_review import (
+    ApplyResult,
+    InvalidReviewSheetError,
+    ReviewSheetMissingError,
+    build_review_sheet,
+    decisions_from_sheet,
+    run_apply,
+)
+from coffee_review.storage.roaster_lookups import RoasterLookups
 from coffee_review.transforms.roasters import NameDecision, NameMap
+from tests.fakes import InMemoryCleanStore
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 HOLUALOA = ("Holualoa", "United States")
 
@@ -198,3 +212,141 @@ def test_nothing_to_review_is_an_empty_sheet() -> None:
 
     assert sheet.height == 0
     assert sheet.schema == pl.Schema(REVIEW_SHEET_SCHEMA)
+
+
+# --- Applying the sheet ------------------------------------------------------------
+
+
+def decided(*rows: tuple[str, str, str, str, str]) -> pl.DataFrame:
+    """Sheet rows as (kind, spelling, candidate, decision, name)."""
+    full = [
+        dict.fromkeys(REVIEW_SHEET_COLUMNS, "")
+        | dict(
+            zip(("kind", "spelling", "candidate", "decision", "name"), r, strict=True)
+        )
+        for r in rows
+    ]
+    return pl.DataFrame(full, schema=REVIEW_SHEET_SCHEMA)
+
+
+HULA_ROW = ("possible_match", "Hula Daddy", "Hula Daddy Kona Coffee")
+
+
+def test_same_writes_a_roasters_row() -> None:
+    assert decisions_from_sheet(decided((*HULA_ROW, "same", ""))) == (
+        [("Hula Daddy", "Hula Daddy Kona Coffee")],
+        [],
+    )
+
+
+def test_same_uses_name_when_given() -> None:
+    listed, _ = decisions_from_sheet(decided((*HULA_ROW, "same", "Hula Daddy Kona")))
+    assert listed == [("Hula Daddy", "Hula Daddy Kona")]
+
+
+def test_same_uses_candidate_when_name_blank() -> None:
+    row = ("possible_match", "Jbc", "JBC Coffee", "same", " ")
+    assert decisions_from_sheet(decided(row))[0] == [("Jbc", "JBC Coffee")]
+
+
+def test_different_writes_a_distinct_row() -> None:
+    row = ("possible_match", "Ben's Beans", "Dean's Beans", "different", "")
+    assert decisions_from_sheet(decided(row)) == ([], [("Ben's Beans", "Dean's Beans")])
+
+
+def test_blank_decision_is_skipped() -> None:
+    assert decisions_from_sheet(decided((*HULA_ROW, "", ""))) == ([], [])
+
+
+def test_decisions_ignore_case_and_spaces() -> None:
+    listed, _ = decisions_from_sheet(decided((*HULA_ROW, " Same ", "")))
+    assert listed == [("Hula Daddy", "Hula Daddy Kona Coffee")]
+
+
+def test_unknown_decision_is_invalid() -> None:
+    with pytest.raises(InvalidReviewSheetError, match="Hula Daddy.*maybe"):
+        decisions_from_sheet(decided((*HULA_ROW, "maybe", "")))
+
+
+def test_blank_spelling_is_invalid() -> None:
+    with pytest.raises(InvalidReviewSheetError, match="blank"):
+        decisions_from_sheet(decided(("merged", "", "La Mill", "same", "")))
+
+
+def test_two_names_for_one_spelling_is_invalid() -> None:
+    sheet = decided(
+        ("possible_match", "A", "B", "same", ""),
+        ("possible_match", "A", "C", "same", ""),
+    )
+    with pytest.raises(InvalidReviewSheetError, match="two names"):
+        decisions_from_sheet(sheet)
+
+
+def test_every_bad_row_is_named() -> None:
+    sheet = decided(
+        ("possible_match", "A", "B", "maybe", ""),
+        ("possible_match", "C", "D", "perhaps", ""),
+    )
+    with pytest.raises(InvalidReviewSheetError, match=r"(?s)maybe.*perhaps"):
+        decisions_from_sheet(sheet)
+
+
+def lookups(tmp_path: Path) -> RoasterLookups:
+    (tmp_path / "roasters.csv").write_text("spelling,roaster\n", "utf-8")
+    (tmp_path / "distinct_roasters.csv").write_text("spelling,other\n", "utf-8")
+    return RoasterLookups(tmp_path)
+
+
+def store_with(sheet: pl.DataFrame) -> InMemoryCleanStore:
+    store = InMemoryCleanStore()
+    store.roaster_review = sheet
+    return store
+
+
+def test_apply_writes_both_files(tmp_path: Path) -> None:
+    sheet = decided(
+        (*HULA_ROW, "same", ""),
+        ("possible_match", "Ben's Beans", "Dean's Beans", "different", ""),
+        ("merged", "Lamill", "La Mill", "", ""),
+    )
+    files = lookups(tmp_path)
+
+    result = run_apply(clean=store_with(sheet), lookups=files)
+
+    assert result == ApplyResult(
+        listed_added=(("Hula Daddy", "Hula Daddy Kona Coffee"),),
+        distinct_added=(("Ben's Beans", "Dean's Beans"),),
+        undecided=1,
+    )
+    assert files.listed_rows() == [("Hula Daddy", "Hula Daddy Kona Coffee")]
+
+
+def test_invalid_sheet_writes_nothing(tmp_path: Path) -> None:
+    sheet = decided((*HULA_ROW, "same", ""), ("merged", "Lamill", "La Mill", "x", ""))
+    files = lookups(tmp_path)
+
+    with pytest.raises(InvalidReviewSheetError):
+        run_apply(clean=store_with(sheet), lookups=files)
+    assert files.listed_rows() == []
+
+
+def test_apply_twice_adds_nothing(tmp_path: Path) -> None:
+    store, files = store_with(decided((*HULA_ROW, "same", ""))), lookups(tmp_path)
+    run_apply(clean=store, lookups=files)
+
+    again = run_apply(clean=store, lookups=files)
+
+    assert (again.listed_added, again.distinct_added) == ((), ())
+
+
+def test_apply_without_a_sheet(tmp_path: Path) -> None:
+    with pytest.raises(ReviewSheetMissingError, match="coffee-review clean"):
+        run_apply(clean=InMemoryCleanStore(), lookups=lookups(tmp_path))
+
+
+def test_result_describes_what_it_added() -> None:
+    result = ApplyResult((("A", "B"),), (), undecided=3)
+    assert result.describe() == (
+        "added 1 row to roasters.csv and 0 to distinct_roasters.csv;"
+        " 3 rows still undecided. Run `coffee-review clean` to use them."
+    )

@@ -18,13 +18,19 @@ How roaster names are grouped in the first place:
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import polars as pl
 
 from coffee_review.models.clean import REVIEW_SHEET_COLUMNS, REVIEW_SHEET_SCHEMA
+from coffee_review.storage.clean_store import open_clean_store
+from coffee_review.storage.roaster_lookups import open_roaster_lookups
 
 if TYPE_CHECKING:
+    from coffee_review.config import Settings
+    from coffee_review.storage.clean_store import CleanStore
+    from coffee_review.storage.roaster_lookups import RoasterLookups, Row
     from coffee_review.transforms.roasters import NameMap
 
 _KEY = ("kind", "spelling", "candidate")
@@ -130,3 +136,131 @@ def _stats(rows: pl.DataFrame, by: str, *, prefix: str) -> pl.DataFrame:
         month.min().dt.strftime("%Y-%m").alias(f"{prefix}first"),
         month.max().dt.strftime("%Y-%m").alias(f"{prefix}last"),
     )
+
+
+# --- Applying the sheet ------------------------------------------------------------
+
+
+class InvalidReviewSheetError(ValueError):
+    """The review sheet has rows ``apply`` can't use: fix them and run it again."""
+
+
+class ReviewSheetMissingError(Exception):
+    """There's no review sheet, or it has no rows: run ``coffee-review clean``."""
+
+
+@dataclass(frozen=True)
+class ApplyResult:
+    """What ``coffee-review roasters apply`` wrote.
+
+    Attributes:
+        listed_added: Rows added to ``roasters.csv``.
+        distinct_added: Rows added to ``distinct_roasters.csv``.
+        undecided: Sheet rows with no decision yet.
+    """
+
+    listed_added: tuple[Row, ...]
+    distinct_added: tuple[Row, ...]
+    undecided: int
+
+    def describe(self) -> str:
+        """One line for the terminal."""
+        listed = len(self.listed_added)
+        return (
+            f"added {listed} row{'' if listed == 1 else 's'} to roasters.csv and"
+            f" {len(self.distinct_added)} to distinct_roasters.csv;"
+            f" {self.undecided} rows still undecided."
+            " Run `coffee-review clean` to use them."
+        )
+
+
+def decisions_from_sheet(sheet: pl.DataFrame) -> tuple[list[Row], list[Row]]:
+    """The ``roasters.csv`` and ``distinct_roasters.csv`` rows a sheet asks for.
+
+    ``same`` and ``different`` are read whatever their case or spacing; a blank
+    decision is skipped.
+
+    Args:
+        sheet: The review sheet, as ``CleanStore.read_roaster_review`` gives it.
+
+    Returns:
+        Rows for ``roasters.csv`` (spelling, name) and for
+        ``distinct_roasters.csv`` (spelling, candidate).
+
+    Raises:
+        InvalidReviewSheetError: Naming every row with an unknown decision, a
+            blank spelling or candidate, or a spelling given two names.
+    """
+    listed: list[Row] = []
+    distinct: list[Row] = []
+    problems: list[str] = []
+    names: dict[str, str] = {}
+    for number, row in enumerate(sheet.iter_rows(named=True), start=2):  # 1 = header
+        decision = row["decision"].strip().lower()
+        spelling, candidate = row["spelling"].strip(), row["candidate"].strip()
+        where = f"row {number} ({spelling or '?'})"
+        if not decision:
+            continue
+        if decision not in ("same", "different"):
+            problems.append(
+                f"{where}: decision {row['decision']!r} isn't same or different"
+            )
+            continue
+        if not spelling or not candidate:
+            problems.append(f"{where}: spelling and candidate can't be blank")
+            continue
+        if decision == "different":
+            distinct.append((spelling, candidate))
+            continue
+        name = row["name"].strip() or candidate
+        if names.setdefault(spelling, name) != name:
+            problems.append(
+                f"{where}: two names for one spelling ({names[spelling]!r}, {name!r})"
+            )
+            continue
+        listed.append((spelling, name))
+    if problems:
+        raise InvalidReviewSheetError(
+            "the review sheet has rows apply can't use; nothing was written:\n  "
+            + "\n  ".join(problems)
+        )
+    return listed, distinct
+
+
+def apply_roaster_review(settings: Settings) -> ApplyResult:
+    """Apply the review sheet with the real stores."""
+    clean = open_clean_store(settings)
+    try:
+        return run_apply(clean=clean, lookups=open_roaster_lookups())
+    finally:
+        clean.close()
+
+
+def run_apply(*, clean: CleanStore, lookups: RoasterLookups) -> ApplyResult:
+    """Turn the review sheet's decisions into rows of the two roaster CSVs.
+
+    Every row is checked before anything is written; rows the CSVs already have
+    are skipped, so running it twice changes nothing.
+
+    Args:
+        clean: Where the review sheet is.
+        lookups: The two roaster CSVs.
+
+    Returns:
+        The rows added, and how many sheet rows are still undecided.
+
+    Raises:
+        ReviewSheetMissingError: If there's no review sheet yet.
+        InvalidReviewSheetError: If any row can't be used.
+    """
+    sheet = clean.read_roaster_review()
+    if sheet.is_empty():
+        msg = (
+            f"the roaster review sheet at {clean.roaster_review_location()} is"
+            " missing or has no rows: run coffee-review clean first"
+        )
+        raise ReviewSheetMissingError(msg)
+    listed, distinct = decisions_from_sheet(sheet)
+    listed_added, distinct_added = lookups.add(listed, distinct)
+    undecided = sheet.filter(pl.col("decision").str.strip_chars() == "").height
+    return ApplyResult(tuple(listed_added), tuple(distinct_added), undecided)

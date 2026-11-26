@@ -21,6 +21,11 @@ from coffee_review.logging_setup import FILE_ONLY, configure_logging, run_log_pa
 from coffee_review.pipeline.clean import clean
 from coffee_review.pipeline.economic import cpi, fx
 from coffee_review.pipeline.parse import parse
+from coffee_review.pipeline.roaster_review import (
+    InvalidReviewSheetError,
+    ReviewSheetMissingError,
+    apply_roaster_review,
+)
 from coffee_review.pipeline.scrape import scrape
 from coffee_review.progress_display import RichRunProgress
 
@@ -195,6 +200,30 @@ def clean_command() -> None:
         typer.echo(f"clean failed: {exc}", err=True)  # the terminal's one copy
         raise typer.Exit(EXIT_ERROR) from None
     typer.echo(f"report: {result.report_location}")
+
+
+roasters = typer.Typer(
+    help="Settle roaster names a person decides (data/clean/roaster_review.csv).",
+    no_args_is_help=True,
+)
+app.add_typer(roasters, name="roasters")
+
+
+@roasters.command("apply")
+def roasters_apply_command() -> None:
+    """Turn decisions in data/clean/roaster_review.csv into hand-kept rows.
+
+    Type same or different in the sheet's decision column (and, for same, an
+    optional name to keep), then run this. It adds rows to roasters.csv and
+    distinct_roasters.csv; run coffee-review clean afterwards. Nothing is written
+    if any row is invalid. Exit codes: 0 finished, 1 error.
+    """
+    try:
+        result = apply_roaster_review(get_settings())
+    except (InvalidReviewSheetError, ReviewSheetMissingError, OSError) as exc:
+        typer.echo(f"roasters apply failed: {exc}", err=True)
+        raise typer.Exit(EXIT_ERROR) from None
+    typer.echo(result.describe())
 
 
 @app.command("fx")

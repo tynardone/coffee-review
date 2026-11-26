@@ -24,6 +24,7 @@ from coffee_review.pipeline.clean_report import build_clean_report
 from coffee_review.pipeline.economic import EconomicRunResult
 from coffee_review.pipeline.parse import ParseRunResult
 from coffee_review.pipeline.parse_report import build_parse_report
+from coffee_review.pipeline.roaster_review import ApplyResult, InvalidReviewSheetError
 from coffee_review.progress_display import RichRunProgress
 from coffee_review.storage.parsed_store import ParsedLayerMissingError
 from coffee_review.storage.raw_store import ManifestSchemaError
@@ -398,3 +399,33 @@ def test_bad_start_setting_is_one_clear_line(
     assert result.exit_code == 1
     assert f"{command} failed: fx_start must be the 1st of a month" in result.output
     assert "Traceback" not in result.output
+
+
+class ApplySpy:
+    def __init__(self, error: Exception | None = None) -> None:
+        self.error = error
+
+    def __call__(self, settings: Settings) -> ApplyResult:
+        if self.error is not None:
+            raise self.error
+        return ApplyResult((("Hula Daddy", "Hula Daddy Kona Coffee"),), (), 2)
+
+
+def test_roasters_apply_prints_what_it_added(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(cli, "apply_roaster_review", ApplySpy())
+
+    result = runner.invoke(app, ["roasters", "apply"])
+
+    assert result.exit_code == 0
+    assert "added 1 row to roasters.csv" in result.output
+    assert "coffee-review clean" in result.output
+
+
+def test_roasters_apply_error_exits_1(monkeypatch: pytest.MonkeyPatch) -> None:
+    error = InvalidReviewSheetError("row 2 (Lamill): decision 'x'")
+    monkeypatch.setattr(cli, "apply_roaster_review", ApplySpy(error))
+
+    result = runner.invoke(app, ["roasters", "apply"])
+
+    assert result.exit_code == 1
+    assert "decision 'x'" in result.output
