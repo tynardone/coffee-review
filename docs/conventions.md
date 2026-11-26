@@ -22,6 +22,7 @@ src/coffee_review/
   clients/             Talk to the outside world over HTTP. Return raw text/JSON.
     economic.py        Telling an economic-data source's answer from a refusal.
   storage/             Read and write each data layer on disk. Know paths and formats.
+    roaster_lookups.py The one writer of the hand-kept roaster CSVs (roasters apply).
   parsers/             Pure functions: raw HTML/XML/JSON in, models out. No I/O.
   transforms/          Pure functions on tables: clean, convert, adjust.
     rules.py           raw_<field> / _rule_<field> columns, the cleaning log.

@@ -194,6 +194,29 @@ Automatic `close_spelling` merges are listed too, so a person can check them.
 
 ### Settling an item
 
+The easy way is the **review sheet**, `data/clean/roaster_review.csv`, which
+every clean writes. It has one row per pair, with both sides' evidence side by
+side, so it opens well in a spreadsheet:
+
+| Column | Example |
+|---|---|
+| `kind` | `possible_match` (not merged) or `merged` (an automatic merge, to check) |
+| `spelling`, `reviews`, `places`, `first`, `last` | `Hula Daddy`, 20, `Holualoa, United States`, 2005-10, 2016-11 |
+| `candidate`, `candidate_reviews`, … | `Hula Daddy Kona Coffee`, 47, … |
+| `decision` | yours to fill in: `same` or `different` (blank = later) |
+| `name` | optional, for `same`: the name to keep (blank = the candidate) |
+
+1. Type `same` or `different` in `decision` for the rows you've decided.
+2. Run `coffee-review roasters apply`. It turns each decision into a row of
+   the CSVs below, after checking every row (one bad row and nothing is
+   written), and skips rows they already have.
+3. Run `coffee-review clean`. Decided pairs leave the list.
+
+A decision typed but not yet applied survives a rerun of clean. `same` on a
+`merged` row confirms the merge; `different` undoes it.
+
+By hand, the rows `apply` writes are:
+
 | Decision | Row |
 |---|---|
 | Same roaster | `roasters.csv`: `Hula Daddy,Hula Daddy Kona Coffee` |
@@ -201,7 +224,7 @@ Automatic `close_spelling` merges are listed too, so a person can check them.
 | An automatic merge was wrong | `distinct_roasters.csv`: the two spellings |
 | The kept name is misspelled | `roasters.csv`: `Jampot Poorock Abbey,Jampot Poorrock Abbey` |
 
-Then run `coffee-review clean` again. A distinct row usually keeps two
+Either way, run `coffee-review clean` afterwards. A distinct row usually keeps two
 **keys** apart, so it covers every spelling of each. When both sides share a
 key (`Alchemy`, `Coffee Alchemy`), it's about those two spellings only, so a
 third `Alchemy` from yet another country is still listed.

@@ -16,7 +16,7 @@ flowchart LR
     apis(["OpenExchangeRates<br>BLS"])
     raw[("data/raw/<br>manifest.sqlite<br>reviews/*.html.gz")]
     parsed[("data/parsed/<br>roasted, green<br>reviews.parquet")]
-    clean[("data/clean/<br>roasted, green<br>reviews.parquet<br>cleaning_log.parquet")]
+    clean[("data/clean/<br>roasted, green<br>reviews.parquet<br>cleaning_log.parquet<br>roaster_review.csv")]
     lookups[["transforms/lookups/*.csv<br>places, currencies, units"]]
     rawref[("data/raw/<br>fx/, cpi/<br>JSON responses")]
     economic[("data/economic/<br>fx, cpi")]
