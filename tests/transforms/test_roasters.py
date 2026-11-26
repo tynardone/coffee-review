@@ -386,3 +386,24 @@ def test_generic_names_are_reviewed_not_merged() -> None:
     assert d["The Coffee Roasters"] == NameDecision(
         "The Coffee Roasters", ("possible_match",), ("The Coffee Roaster",)
     )
+
+
+def test_close_spelling_joins_a_listed_group_under_its_listed_name() -> None:
+    d = decide(
+        S("Bold Bea", 5),  # most reviews, but joins by close spelling
+        S("Bold Bean", 1),
+        S("BB Roasters", 1),
+        listed={"BB Roasters": "Bold Bean Co"},
+    )
+    assert d["Bold Bea"] == NameDecision("Bold Bean Co", ("close_spelling",))
+    assert d["Bold Bean"] == NameDecision("Bold Bean Co", ("listed_name",))
+
+
+def test_groups_listed_under_different_names_stay_apart() -> None:  # 0.923
+    d = decide(
+        S("La Mill", 2, LA),
+        S("Lamill", 1, LA),
+        listed={"La Mill": "La Mill Coffee", "Lamill": "Lamill Roasters"},
+    )
+    assert d["La Mill"] == NameDecision("La Mill Coffee", ("listed_name",))
+    assert d["Lamill"] == NameDecision("Lamill Roasters", ("listed_name",))

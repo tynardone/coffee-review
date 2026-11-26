@@ -17,7 +17,6 @@ from coffee_review.clients.http import (
     BaseHttpClient,
     RequestAbandonedError,
     RetriesExhaustedError,
-    _make_limiter,
     _parse_retry_after,
 )
 from coffee_review.config import HttpClientSettings
@@ -94,16 +93,6 @@ def test_parse_retry_after_http_date_in_past_is_zero() -> None:
     assert _parse_retry_after(http_date(-60)) == 0.0
 
 
-# --- _make_limiter -----------------------------------------------------------
-
-
-def test_make_limiter_below_one_per_second() -> None:
-    limiter = _make_limiter(0.5)
-
-    assert limiter.max_rate == 1.0
-    assert limiter.time_period == 2.0
-
-
 # --- BaseHttpClient.request --------------------------------------------------
 
 
@@ -177,6 +166,19 @@ async def test_retry_after_is_capped(recorded_sleeps: list[float]) -> None:
         await client.request("GET", "page")
 
     assert recorded_sleeps[0] == BACKOFF_MAX
+
+
+async def test_rate_below_one_per_second_still_sends() -> None:
+    # A limiter's capacity can't be below one request, or the first request
+    # could never be let through (ADR 0005 allows rates such as 0.5/s).
+    server = ScriptedServer(httpx.Response(200, text="ok"))
+    slow = fast_settings().model_copy(update={"rate_per_sec": 0.5})
+    transport = httpx.MockTransport(server.handler)
+
+    async with BaseHttpClient(slow, transport=transport) as client:
+        response = await client.request("GET", "page")
+
+    assert response.text == "ok"
 
 
 async def test_request_before_open_raises() -> None:
