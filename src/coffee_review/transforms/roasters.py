@@ -16,6 +16,8 @@ A person's decisions are kept in two lookups: ``roasters.csv`` (this spelling
 is that roaster, ``listed_name``) and ``distinct_roasters.csv`` (these two are
 different roasters). The kept spelling of a group is the listed name, else the
 one with the most reviews.
+
+Step by step, with worked examples: ``docs/explainers/roaster-names.md``.
 """
 
 from __future__ import annotations
