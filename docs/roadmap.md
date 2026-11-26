@@ -114,7 +114,7 @@ Part of the clean stage, after the roaster location is cleaned.
 - [x] Roasters in different countries never merged automatically, even through a chain of merges; city names compared loosely (`Taoyuan City` and `Taoyuan`)
 - [x] `roasters.csv` (a spelling is that roaster) and `distinct_roasters.csv` (two spellings are different roasters): a person's decisions, never asked again
 - [x] The most common spelling is kept; the original stays in the cleaning log; the three thresholds in settings (`COFFEE_REVIEW_CLEAN__ROASTER_*`)
-- [ ] First real clean: spellings merged, pairs listed for review, list worked through
+- [x] First real clean (2026-11-25): 1,696 spellings → 1,550 roasters; 409 shared-key and 32 close-spelling merges; 17 possible matches worked through (6 same roaster, 11 different, plus 1 kept-name fix) → 1,544 roasters, 0 left to review
 
 **Done when:** every merge is a shared key, a close spelling above the
 threshold with no location conflict, or a row in `roasters.csv`; the review
