@@ -12,6 +12,7 @@ rendered as Markdown for ``data/clean/report.md``. It answers:
 
 from __future__ import annotations
 
+from collections import Counter
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, NamedTuple
 
@@ -96,6 +97,7 @@ class RoasterNamesSummary(NamedTuple):
     Attributes:
         spellings: Distinct roaster spellings in the parsed tables.
         roasters: Distinct roaster names after merging.
+        merged: Spellings merged into another, by the rule that merged them.
         to_review: Spellings listed as a possible match for a person to decide.
         unused_rows: Spellings in ``roasters.csv`` or ``distinct_roasters.csv``
             that no review uses.
@@ -103,6 +105,7 @@ class RoasterNamesSummary(NamedTuple):
 
     spellings: int
     roasters: int
+    merged: dict[str, int]
     to_review: int
     unused_rows: tuple[str, ...]
 
@@ -184,6 +187,11 @@ def _roaster_names(names: NameMap) -> RoasterNamesSummary:
     return RoasterNamesSummary(
         spellings=len(names.decisions),
         roasters=len({d.name for d in decisions}),
+        merged=dict(
+            Counter(
+                rule for d in decisions for rule in d.rules if rule != "possible_match"
+            )
+        ),
         to_review=sum("possible_match" in d.rules for d in decisions),
         unused_rows=names.unused_rows,
     )
@@ -235,10 +243,31 @@ def _to_review(
             raw,
             count,
             _candidates(names, raw) if rule == "possible_match" else placed_as,
-            (field, rule, raw) not in seen,
+            _is_new(field, rule, raw, seen, names),
         )
         for field, rule, raw, count, placed_as in grouped.iter_rows()
     ]
+
+
+def _is_new(
+    field: str,
+    rule: str,
+    raw: str | None,
+    seen: set[tuple[str, str, str | None]],
+    names: NameMap | None,
+) -> bool:
+    """True when the previous run didn't list this item.
+
+    A possible match also counts as seen when its pair was listed from the
+    other side last run (review counts decide which side carries it).
+    """
+    if (field, rule, raw) in seen:
+        return False
+    if rule != "possible_match" or names is None:
+        return True
+    decision = names.decisions.get(raw or "")
+    other_sides = decision.candidates if decision else ()
+    return not any((field, rule, other) in seen for other in other_sides)
 
 
 def _candidates(names: NameMap | None, spelling: str | None) -> str | None:
@@ -360,7 +389,8 @@ def _review_section(report: CleanReport) -> list[str]:
         "Fix one by adding its spelling to a lookup table in",
         "`src/coffee_review/transforms/lookups/`, then run `coffee-review clean`.",
         "A roaster's possible match is settled by a row in `roasters.csv` (the",
-        "same roaster) or `distinct_roasters.csv` (different roasters).",
+        "same roaster) or `distinct_roasters.csv` (different roasters); a wrong",
+        "roaster close spelling is undone with a `distinct_roasters.csv` row.",
         "",
     ]
     if not report.to_review:
@@ -388,6 +418,12 @@ def _roaster_names_section(report: CleanReport) -> list[str]:
         f" {names.to_review:,} possible {matches} to review."
     )
     lines = ["## Roaster names", "", summary]
+    if names.merged:
+        lines += ["", "| Merged by | Spellings |", "|---|---|"]
+        lines += [
+            f"| {rule} | {count:,} |"
+            for rule, count in sorted(names.merged.items(), key=lambda kv: -kv[1])
+        ]
     if names.unused_rows:
         lines += [
             "",

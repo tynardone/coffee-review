@@ -12,6 +12,7 @@ from hypothesis import strategies as st
 
 from coffee_review.models.clean import CLEAN_RULES, RULE_DESCRIPTIONS
 from coffee_review.transforms.roasters import (
+    ConflictingListedNamesError,
     NameDecision,
     NameMap,
     Spelling,
@@ -133,7 +134,7 @@ def test_shared_key_splits_by_country() -> None:
     assert d["Alchemy"].rules == ("possible_match",)
 
 
-def test_unknown_country_joins_largest_component() -> None:
+def test_unknown_country_joins_most_reviewed_group() -> None:
     d = decide(S("Coffee Alchemy", 5, AU), S("Alchemy", 2, US), S("ALCHEMY", 1))
     assert d["ALCHEMY"] == NameDecision("Coffee Alchemy", ("spelling_variant",))
 
@@ -317,3 +318,71 @@ def test_clean_roaster_keeps_row_order() -> None:
     names = ["JBC Coffee Roasters", "Temple", "JBC", None]
     out = run(lambda f: clean_roaster(f, NAMES), "roaster", names)
     assert out["slug"].to_list() == ["s0", "s1", "s2", "s3"]
+
+
+def test_non_latin_names_keep_distinct_keys() -> None:
+    assert roaster_key("黑貓咖啡") != roaster_key("山頂咖啡")
+    assert roaster_key("黑貓咖啡") != roaster_key("---")
+    assert roaster_key("黑貓咖啡")
+
+
+def test_non_latin_names_are_not_merged() -> None:
+    d = decide(S("黑貓咖啡", 5, TAIPEI), S("山頂咖啡", 1))
+    assert d["山頂咖啡"] == NameDecision("山頂咖啡", ())
+
+
+def test_conflicting_listed_rows_stop_the_run() -> None:
+    with pytest.raises(ConflictingListedNamesError, match="JBC Coffee Roasters"):
+        decide(
+            S("JBC", 2),
+            S("JBC Coffee", 1),
+            listed={"JBC": "JBC Coffee Roasters", "jbc coffee": "JBC Roasters"},
+        )
+
+
+def test_listed_name_that_is_another_rows_key_stops_the_run() -> None:
+    with pytest.raises(ConflictingListedNamesError):
+        decide(
+            S("Hula Daddy", 2),
+            S("Kona Daddy", 1),
+            listed={"Hula Daddy": "Hula Daddy Kona Coffee", "Kona Daddy": "Hula Daddy"},
+        )
+
+
+def test_rows_naming_the_same_roaster_agree() -> None:
+    d = decide(
+        S("Bold Bean", 2),
+        S("BB Roasters", 1),
+        S("B.B.", 1),
+        listed={"BB Roasters": "Bold Bean", "B.B.": "Bold Bean"},
+    )
+    assert {d[n].name for n in d} == {"Bold Bean"}
+
+
+def test_row_still_renaming_is_not_unused() -> None:  # its roaster's key is in the data
+    names = build_name_map([S("JBC", 1)], {"Ghost": "JBC Roasters"}, [], Thresholds())
+    assert names.decisions["JBC"].name == "JBC Roasters"
+    assert names.unused_rows == ()
+
+
+def test_distinct_row_with_one_side_gone_is_unused() -> None:
+    names = build_name_map([S("La Mill", 1)], {}, [("La Mill", "Vanished")])
+    assert names.unused_rows == ("Vanished",)
+
+
+def test_shared_key_distinct_row_settles_only_its_pair() -> None:
+    d = decide(
+        S("Coffee Alchemy", 5, AU),
+        S("Alchemy", 2, US),
+        S("Alchemy Coffee Co", 1, TOKYO),
+        distinct=[("Alchemy", "Coffee Alchemy")],
+    )
+    assert d["Alchemy"].rules == ()
+    assert d["Alchemy Coffee Co"].rules == ("possible_match",)
+
+
+def test_generic_names_are_reviewed_not_merged() -> None:
+    d = decide(S("The Coffee Roaster", 3), S("The Coffee Roasters", 1))
+    assert d["The Coffee Roasters"] == NameDecision(
+        "The Coffee Roasters", ("possible_match",), ("The Coffee Roaster",)
+    )
