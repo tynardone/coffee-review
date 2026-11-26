@@ -161,7 +161,9 @@ flowchart TD
     price --> rest["lots.py · text.py"]
     lookups[["lookups/*.csv"]] -.-> places
     lookups -.-> price
-    rest --> lost{"any value lost<br>without a rule?"}
+    rest --> roasters["roasters.py<br>one name per roaster,<br>both tables at once"]
+    lookups -.-> roasters
+    roasters --> lost{"any value lost<br>without a rule?"}
     lost -->|yes| stop1(["stop: UnloggedNullsError,<br>nothing written"])
     lost -->|no| log["extract cleaning log<br>(rules.py)"]
     log --> contract{"pandera contract<br>(models/clean.py)"}
@@ -175,7 +177,10 @@ columns, and adds `_rule_<field>`, the rules it applied to each row; those
 become `cleaning_log.parquet`. Places and prices are parsed once per *distinct*
 value in plain Python and joined back. The two checks guard the silver layer:
 nothing is written unless every lost value has a rule and both tables meet
-their contract ([ADR 0008](decisions/0008-clean-in-polars.md)).
+their contract ([ADR 0008](decisions/0008-clean-in-polars.md)). Roaster
+names need every spelling at once, so they're grouped after both tables are
+cleaned; how, step by step, is in
+[explainers/roaster-names.md](explainers/roaster-names.md).
 
 ### Economic data
 
