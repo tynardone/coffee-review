@@ -404,11 +404,16 @@ def _merge_listed(
     Raises:
         ConflictingListedNamesError: If two rows give one roaster two names.
     """
+    first_named: dict[str, str] = {}  # name → a spelling already given it
     for spelling, name in listed.items():
         keys = {roaster_key(spelling), roaster_key(name)}
         covered = [s.name for key in keys for s in by_key.get(key, [])]
         if not covered:
             continue
+        # Rows giving one name are one roaster, even when no key links them
+        # (Kafe Alpha and Kafe Alpa both → Alpa Brand).
+        covered += [first_named[name]] if name in first_named else []
+        first_named.setdefault(name, covered[0])
         other_names = {
             other
             for s in covered

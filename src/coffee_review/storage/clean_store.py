@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING, Protocol, override
 
 import polars as pl
 
-from coffee_review.models.clean import LOG_SCHEMA
+from coffee_review.models.clean import LOG_SCHEMA, REVIEW_SHEET_SCHEMA
 from coffee_review.storage.atomic import write_atomically, write_parquet
 
 if TYPE_CHECKING:
@@ -34,6 +34,7 @@ class CleanStore(Protocol):
         green: pl.DataFrame,
         log: pl.DataFrame,
         report_markdown: str,
+        roaster_review: pl.DataFrame | None = None,
     ) -> None:
         """Replace everything from the previous run.
 
@@ -42,6 +43,8 @@ class CleanStore(Protocol):
             green: The clean green table.
             log: The cleaning log.
             report_markdown: The clean report.
+            roaster_review: The roaster review sheet (``REVIEW_SHEET_COLUMNS``);
+                an empty sheet when None.
         """
         ...
 
@@ -59,8 +62,26 @@ class CleanStore(Protocol):
         """
         ...
 
+    def read_roaster_review(self) -> pl.DataFrame:
+        """The roaster review sheet as last written, and perhaps edited since.
+
+        Every column is text, in ``REVIEW_SHEET_COLUMNS`` order, whatever order
+        a person saved them in; a missing column is blank. Empty when there's
+        no sheet yet.
+
+        Raises:
+            UnreadableReviewSheetError: If the file isn't UTF-8 CSV, has ragged
+                rows, or lacks ``kind``, ``spelling``, ``candidate`` or
+                ``decision``; the message names the file.
+        """
+        ...
+
     def report_location(self) -> str:
         """Where the report can be read, for people (a path, say)."""
+        ...
+
+    def roaster_review_location(self) -> str:
+        """Where the roaster review sheet can be edited, for people."""
         ...
 
     def close(self) -> None:
@@ -72,6 +93,15 @@ class CleanLayerMissingError(Exception):
     """There's no clean data to read: clean hasn't been run here yet."""
 
 
+# Without these, a sheet's decisions can't be read: refuse it rather than
+# reading every decision as blank (a semicolon-separated save, say).
+_SHEET_KEY_COLUMNS = ("kind", "spelling", "candidate", "decision")
+
+
+class UnreadableReviewSheetError(Exception):
+    """The roaster review sheet can't be read: fix or delete the file it names."""
+
+
 def open_clean_store(settings: Settings) -> CleanStore:
     """The clean store the pipeline uses."""
     return ParquetCleanStore(settings.data_dir / "clean")
@@ -80,8 +110,8 @@ def open_clean_store(settings: Settings) -> CleanStore:
 class ParquetCleanStore(CleanStore):
     """The clean store as Parquet files and a Markdown report.
 
-    ``<root>/{roasted,green}/reviews.parquet``, ``<root>/cleaning_log.parquet``
-    and ``<root>/report.md``.
+    ``<root>/{roasted,green}/reviews.parquet``, ``<root>/cleaning_log.parquet``,
+    ``<root>/report.md`` and ``<root>/roaster_review.csv``.
     """
 
     def __init__(self, root: Path) -> None:
@@ -94,7 +124,13 @@ class ParquetCleanStore(CleanStore):
         green: pl.DataFrame,
         log: pl.DataFrame,
         report_markdown: str,
+        roaster_review: pl.DataFrame | None = None,
     ) -> None:
+        sheet = (
+            pl.DataFrame(schema=REVIEW_SHEET_SCHEMA)
+            if roaster_review is None
+            else roaster_review
+        )
         write_parquet(roasted, self._path("roasted"))
         write_parquet(green, self._path("green"))
         write_parquet(log, self._path("log"))
@@ -102,6 +138,7 @@ class ParquetCleanStore(CleanStore):
             self._root / "report.md",
             lambda tmp: tmp.write_text(report_markdown, encoding="utf-8"),
         )
+        write_atomically(self._sheet_path(), sheet.write_csv)
 
     @override
     def read_table(self, table: CleanTable) -> pl.DataFrame:
@@ -119,8 +156,43 @@ class ParquetCleanStore(CleanStore):
         return pl.read_parquet(path)
 
     @override
+    def read_roaster_review(self) -> pl.DataFrame:
+        path = self._sheet_path()
+        if not path.exists():
+            return pl.DataFrame(schema=REVIEW_SHEET_SCHEMA)
+        try:
+            saved = pl.read_csv(path, infer_schema=False)
+        except (pl.exceptions.ComputeError, UnicodeDecodeError) as exc:
+            msg = (
+                f'{path} can\'t be read ({exc}): save it as "CSV UTF-8" with'
+                " commas, or delete it and run coffee-review clean"
+            )
+            raise UnreadableReviewSheetError(msg) from exc
+        missing = [name for name in _SHEET_KEY_COLUMNS if name not in saved.columns]
+        if missing:
+            msg = (
+                f"{path} has no {', '.join(missing)} column (its header is"
+                f" {', '.join(saved.columns)!r}): save it as CSV with commas,"
+                " or delete it and run coffee-review clean"
+            )
+            raise UnreadableReviewSheetError(msg)
+        return saved.select(
+            pl.col(name).fill_null("")
+            if name in saved.columns
+            else pl.lit("").alias(name)
+            for name in REVIEW_SHEET_SCHEMA
+        )
+
+    @override
     def report_location(self) -> str:
         return str(self._root / "report.md")
+
+    @override
+    def roaster_review_location(self) -> str:
+        return str(self._sheet_path())
+
+    def _sheet_path(self) -> Path:
+        return self._root / "roaster_review.csv"
 
     @override
     def close(self) -> None:

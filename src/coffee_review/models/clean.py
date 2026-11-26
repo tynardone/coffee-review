@@ -425,6 +425,27 @@ ROASTED_SCHEMA = _polars_schema(CleanRoastedFrame)
 GREEN_SCHEMA = _polars_schema(CleanGreenFrame)
 LOG_SCHEMA = _polars_schema(CleanLogFrame)
 
+# The roaster review sheet (data/clean/roaster_review.csv): one row per roaster
+# pair waiting for a person; every column is text, since people edit it.
+REVIEW_SHEET_COLUMNS: tuple[str, ...] = (
+    "kind",
+    "spelling",
+    "reviews",
+    "places",
+    "first",
+    "last",
+    "candidate",
+    "candidate_reviews",
+    "candidate_places",
+    "candidate_first",
+    "candidate_last",
+    "decision",
+    "name",
+)
+REVIEW_SHEET_SCHEMA: dict[str, type[pl.String]] = dict.fromkeys(
+    REVIEW_SHEET_COLUMNS, pl.String
+)
+
 
 class CleanContractError(Exception):
     """A clean table broke its contract: a bug in a transform, not bad data."""

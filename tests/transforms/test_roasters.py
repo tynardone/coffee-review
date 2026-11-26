@@ -428,3 +428,13 @@ def test_spellings_from_no_frames_is_empty() -> None:
 
 def test_key_of_styled_letters_is_stable() -> None:  # NFKD turns 𝑨 into A
     assert roaster_key(roaster_key(":𝑨")) == roaster_key(":𝑨") == "a"
+
+
+def test_rows_giving_one_new_name_join_their_groups() -> None:
+    d = decide(
+        S("Kafe Alpha", 2, AU),
+        S("Kafe Alpa", 1, US),
+        listed={"Kafe Alpha": "Alpa Brand", "Kafe Alpa": "Alpa Brand"},
+    )
+    assert d["Kafe Alpha"] == NameDecision("Alpa Brand", ("listed_name",))
+    assert d["Kafe Alpa"] == NameDecision("Alpa Brand", ("listed_name",))

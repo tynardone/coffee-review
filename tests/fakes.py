@@ -13,7 +13,7 @@ import httpx
 import polars as pl
 
 from coffee_review.config import CoffeeSiteSettings
-from coffee_review.models.clean import LOG_SCHEMA
+from coffee_review.models.clean import LOG_SCHEMA, REVIEW_SHEET_SCHEMA
 from coffee_review.models.common import require_slug
 from coffee_review.models.scrape import ManifestRecord
 from coffee_review.storage.clean_store import CleanLayerMissingError
@@ -209,6 +209,7 @@ class InMemoryCleanStore:
     def __init__(self) -> None:
         self.tables: dict[str, pl.DataFrame] = {}
         self.report_markdown = ""
+        self.roaster_review = pl.DataFrame(schema=REVIEW_SHEET_SCHEMA)
         self.writes = 0
 
     def write(
@@ -217,9 +218,15 @@ class InMemoryCleanStore:
         green: pl.DataFrame,
         log: pl.DataFrame,
         report_markdown: str,
+        roaster_review: pl.DataFrame | None = None,
     ) -> None:
         self.tables = {"roasted": roasted, "green": green, "log": log}
         self.report_markdown = report_markdown
+        self.roaster_review = (
+            pl.DataFrame(schema=REVIEW_SHEET_SCHEMA)
+            if roaster_review is None
+            else roaster_review
+        )
         self.writes += 1
 
     def read_table(self, table: CleanTable) -> pl.DataFrame:
@@ -231,7 +238,13 @@ class InMemoryCleanStore:
     def read_previous_log(self) -> pl.DataFrame:
         return self.tables.get("log", pl.DataFrame(schema=LOG_SCHEMA))
 
+    def read_roaster_review(self) -> pl.DataFrame:
+        return self.roaster_review
+
     def report_location(self) -> str:
+        return "in memory"
+
+    def roaster_review_location(self) -> str:
         return "in memory"
 
     def close(self) -> None:

@@ -233,4 +233,5 @@ def test_review_note_says_how_to_undo_a_roaster_merge() -> None:
     markdown = render_clean_report(
         build_clean_report(roasted("a"), NO_GREEN, NO_LOG, NO_LOG, NAMES)
     )
-    assert "undone with a `distinct_roasters.csv` row" in markdown
+    assert "`coffee-review roasters apply`" in markdown
+    assert "to undo a wrong close spelling" in markdown

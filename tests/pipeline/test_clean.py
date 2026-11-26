@@ -303,3 +303,19 @@ def test_roaster_thresholds_come_from_settings() -> None:
         "La Mill",
         "Lamill",
     ]
+
+
+def test_clean_writes_the_review_sheet() -> None:
+    records = [
+        roasted("a", roaster="La Mill", roaster_location="Los Angeles, California"),
+        roasted("b", roaster="La Mill", roaster_location="Los Angeles, California"),
+        roasted("c", roaster="Lamill", roaster_location="Los Angeles, California"),
+    ]
+    clean = InMemoryCleanStore()
+
+    run_clean(parsed=parsed_with(*records), clean=clean)
+
+    sheet = clean.read_roaster_review()
+    assert sheet.select("kind", "spelling", "candidate").rows() == [
+        ("merged", "Lamill", "La Mill")
+    ]

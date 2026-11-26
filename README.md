@@ -112,7 +112,11 @@ Reads the parsed layer and writes the clean (silver) layer in about a second:
   and one name per roaster (spellings merged; see `transforms/roasters.py`);
 - `data/clean/cleaning_log.parquet`: one row for every rule applied to a value,
   with the original text;
-- `data/clean/report.md`: the report.
+- `data/clean/report.md`: the report;
+- `data/clean/roaster_review.csv`: roaster pairs for a person to decide. Type
+  `same` or `different` in its `decision` column, then
+  `uv run coffee-review roasters apply` and clean again
+  ([how it works](docs/explainers/roaster-names.md#settling-an-item)).
 
 Every run checks both tables against their contract (`models/clean.py`) and
 stops without writing anything if one breaks it, or if a value became empty

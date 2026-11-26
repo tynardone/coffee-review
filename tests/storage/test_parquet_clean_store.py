@@ -8,9 +8,11 @@ import polars as pl
 import pytest
 
 from coffee_review.config import Settings
+from coffee_review.models.clean import REVIEW_SHEET_COLUMNS
 from coffee_review.storage.clean_store import (
     CleanLayerMissingError,
     ParquetCleanStore,
+    UnreadableReviewSheetError,
     open_clean_store,
 )
 from tests.models.test_clean_contract import frame
@@ -69,3 +71,54 @@ def test_open_clean_store_uses_data_dir(tmp_path: Path) -> None:
     store.write(frame("roasted"), frame("green"), frame("log"), "")
 
     assert (tmp_path / "clean" / "report.md").exists()
+
+
+def test_sheet_read_by_column_name(tmp_path: Path) -> None:
+    (tmp_path / "roaster_review.csv").write_text(
+        "notes,candidate,spelling,kind,decision\nmine,B,A,merged,Same\n",
+        encoding="utf-8",
+    )
+
+    sheet = ParquetCleanStore(tmp_path).read_roaster_review()
+
+    assert sheet.columns == list(REVIEW_SHEET_COLUMNS)
+    row = sheet.row(0, named=True)
+    assert (row["kind"], row["spelling"], row["candidate"]) == ("merged", "A", "B")
+    assert (row["decision"], row["reviews"]) == ("Same", "")
+
+
+def test_sheet_is_a_csv_file(tmp_path: Path) -> None:
+    write_once(tmp_path)
+
+    assert (
+        (tmp_path / "roaster_review.csv")
+        .read_text(encoding="utf-8")
+        .startswith("kind,spelling,")
+    )
+
+
+def test_sheet_not_in_utf8_names_the_file(tmp_path: Path) -> None:
+    (tmp_path / "roaster_review.csv").write_bytes(
+        b"kind,spelling,candidate,decision\nmerged,Caf\xe9 X,Cafe X,same\n"
+    )
+
+    with pytest.raises(UnreadableReviewSheetError, match=r"roaster_review\.csv.*UTF-8"):
+        ParquetCleanStore(tmp_path).read_roaster_review()
+
+
+def test_ragged_sheet_names_the_file(tmp_path: Path) -> None:
+    (tmp_path / "roaster_review.csv").write_text(
+        "kind,spelling,candidate,decision\nmerged,A,B,same,extra\n", encoding="utf-8"
+    )
+
+    with pytest.raises(UnreadableReviewSheetError, match=r"roaster_review\.csv"):
+        ParquetCleanStore(tmp_path).read_roaster_review()
+
+
+def test_sheet_without_its_key_columns_is_unreadable(tmp_path: Path) -> None:
+    (tmp_path / "roaster_review.csv").write_text(
+        "kind;spelling;candidate;decision\nmerged;A;B;same\n", encoding="utf-8"
+    )
+
+    with pytest.raises(UnreadableReviewSheetError, match="spelling"):
+        ParquetCleanStore(tmp_path).read_roaster_review()
