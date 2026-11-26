@@ -13,6 +13,7 @@ import pytest
 from pydantic import ValidationError
 
 from coffee_review.config import (
+    CleanSettings,
     CoffeeSiteSettings,
     Settings,
     concurrency_for_rate,
@@ -146,3 +147,22 @@ def test_economic_start_must_be_a_first(
 
     with pytest.raises(ValidationError, match="must be the 1st of a month"):
         load_settings()
+
+
+def test_roaster_threshold_defaults() -> None:
+    clean = load_settings().clean
+    assert (
+        clean.roaster_merge_at,
+        clean.roaster_review_at,
+        clean.roaster_review_same_city_at,
+    ) == (0.90, 0.85, 0.80)
+
+
+def test_roaster_thresholds_must_be_ordered() -> None:
+    with pytest.raises(ValidationError, match="roaster_review_at"):
+        CleanSettings(roaster_merge_at=0.8, roaster_review_at=0.9)
+
+
+def test_roaster_threshold_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("COFFEE_REVIEW_CLEAN__ROASTER_MERGE_AT", "0.95")
+    assert load_settings().clean.roaster_merge_at == 0.95

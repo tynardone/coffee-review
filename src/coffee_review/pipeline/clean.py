@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING
 
 import polars as pl
 
+from coffee_review.config import CleanSettings
 from coffee_review.models.clean import GREEN_SCHEMA, ROASTED_SCHEMA, validate_clean
 from coffee_review.pipeline.clean_report import build_clean_report, render_clean_report
 from coffee_review.storage.clean_store import open_clean_store
@@ -26,6 +27,8 @@ from coffee_review.storage.parsed_store import open_parsed_store
 from coffee_review.transforms.dates import clean_harvest, clean_review_month
 from coffee_review.transforms.lookup_tables import (
     load_currencies,
+    load_distinct_roasters,
+    load_listed_roasters,
     load_places,
     load_roaster_currencies,
     load_units,
@@ -34,6 +37,13 @@ from coffee_review.transforms.lots import clean_lot_size
 from coffee_review.transforms.places import clean_origin, clean_roaster_location
 from coffee_review.transforms.price import clean_price
 from coffee_review.transforms.roast import clean_agtron, clean_roast_level
+from coffee_review.transforms.roasters import (
+    NameMap,
+    Thresholds,
+    build_name_map,
+    clean_roaster,
+    roaster_spellings,
+)
 from coffee_review.transforms.rules import (
     CLEANED_FIELDS,
     extract_log,
@@ -83,7 +93,7 @@ def clean(settings: Settings) -> CleanRunResult:
     try:
         clean_store = open_clean_store(settings)
         try:
-            return run_clean(parsed=parsed, clean=clean_store)
+            return run_clean(parsed=parsed, clean=clean_store, settings=settings.clean)
         finally:
             clean_store.close()
     finally:
@@ -94,6 +104,7 @@ def run_clean(
     *,
     parsed: ParsedStore,
     clean: CleanStore,
+    settings: CleanSettings | None = None,
     clock: Callable[[], float] = time.monotonic,
 ) -> CleanRunResult:
     """Clean both datasets, check them, and write them with the log and report.
@@ -103,6 +114,7 @@ def run_clean(
     Args:
         parsed: Where to read the parsed tables.
         clean: Where to write the clean tables, log and report.
+        settings: The roaster-name thresholds; the defaults when None.
         clock: Seconds counter for timing the run (tests pass a fake).
 
     Returns:
@@ -115,6 +127,10 @@ def run_clean(
     started = clock()
     roasted = _transform(parsed.read_table("roasted"), _clean_roasted)
     green = _transform(parsed.read_table("green"), _clean_green)
+    # Roaster names need every spelling at once, and the roasted locations.
+    names = _roaster_names(roasted, green, settings or CleanSettings())
+    roasted = clean_roaster(roasted.lazy(), names).collect()
+    green = clean_roaster(green.lazy(), names).collect()
     _check_nothing_lost(roasted, green)
     log = pl.concat([extract_log(roasted, "roasted"), extract_log(green, "green")])
     tables: dict[Dataset, pl.DataFrame] = {
@@ -126,7 +142,7 @@ def run_clean(
     validate_clean(log, "log")
 
     report = build_clean_report(
-        tables["roasted"], tables["green"], log, clean.read_previous_log()
+        tables["roasted"], tables["green"], log, clean.read_previous_log(), names
     )
     clean.write(tables["roasted"], tables["green"], log, render_clean_report(report))
     elapsed = clock() - started
@@ -145,6 +161,22 @@ def _transform(
     """Rename the fields to clean to ``raw_<field>``, then run the steps."""
     renames = {field: raw(field) for field in CLEANED_FIELDS if field in parsed.columns}
     return steps(parsed.rename(renames).lazy()).collect()
+
+
+def _roaster_names(
+    roasted: pl.DataFrame, green: pl.DataFrame, settings: CleanSettings
+) -> NameMap:
+    thresholds = Thresholds(
+        merge_at=settings.roaster_merge_at,
+        review_at=settings.roaster_review_at,
+        review_same_city_at=settings.roaster_review_same_city_at,
+    )
+    return build_name_map(
+        roaster_spellings(roasted, green),
+        load_listed_roasters(),
+        load_distinct_roasters(),
+        thresholds,
+    )
 
 
 def _clean_roasted(frame: pl.LazyFrame) -> pl.LazyFrame:

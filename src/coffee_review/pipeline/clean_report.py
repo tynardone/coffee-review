@@ -12,6 +12,7 @@ rendered as Markdown for ``data/clean/report.md``. It answers:
 
 from __future__ import annotations
 
+from collections import Counter
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, NamedTuple
 
@@ -23,6 +24,8 @@ from coffee_review.pipeline.markdown import cell
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
+    from coffee_review.transforms.roasters import NameMap
+
 # Rules that mean "a person should look": the value wasn't understood, or was
 # understood by a close spelling that might be wrong.
 REVIEW_RULES = (
@@ -32,12 +35,14 @@ REVIEW_RULES = (
     "ambiguous_currency",
     "unknown_unit",
     "close_spelling",
+    "possible_match",
 )
 # For a close spelling, the clean columns that show what it was placed as.
 PLACED_AS: Mapping[str, tuple[str, ...]] = {
     "coffee_origin": ("origin_country",),
     "roaster_location": ("roaster_region", "roaster_country"),
     "price": ("price_unit",),
+    "roaster": ("roaster",),
 }
 DISTRIBUTIONS: Mapping[str, str] = {
     "origin country": "origin_country",
@@ -86,6 +91,25 @@ class ReviewItem(NamedTuple):
     new: bool  # not in the previous run's log
 
 
+class RoasterNamesSummary(NamedTuple):
+    """What the roaster-name step did.
+
+    Attributes:
+        spellings: Distinct roaster spellings in the parsed tables.
+        roasters: Distinct roaster names after merging.
+        merged: Spellings merged into another, by the rule that merged them.
+        to_review: Spellings listed as a possible match for a person to decide.
+        unused_rows: Spellings in ``roasters.csv`` or ``distinct_roasters.csv``
+            that no review uses.
+    """
+
+    spellings: int
+    roasters: int
+    merged: dict[str, int]
+    to_review: int
+    unused_rows: tuple[str, ...]
+
+
 @dataclass(frozen=True)
 class CleanReport:
     """What one clean run did: totals, rules, things to review, coverage."""
@@ -96,6 +120,7 @@ class CleanReport:
     to_review: list[ReviewItem]
     coverage: dict[str, dict[str, int]]
     distributions: dict[str, list[tuple[str, int]]]
+    roaster_names: RoasterNamesSummary | None = None
 
     @property
     def new_to_review(self) -> dict[str, int]:
@@ -115,7 +140,12 @@ class CleanReport:
             f"clean finished: {roasted + green:,} rows"
             f" · {roasted:,} roasted, {green:,} green · {self.log_rows:,} log rows"
             f" · {len(self.to_review):,} to review ({new:,} new)"
-            f" · in {format_elapsed(elapsed_seconds)}"
+            + (
+                f" · {names.roasters:,} roasters from {names.spellings:,} spellings"
+                if (names := self.roaster_names)
+                else ""
+            )
+            + f" · in {format_elapsed(elapsed_seconds)}"
         )
 
 
@@ -124,6 +154,7 @@ def build_clean_report(
     green: pl.DataFrame,
     log: pl.DataFrame,
     previous_log: pl.DataFrame,
+    names: NameMap | None = None,
 ) -> CleanReport:
     """Summarise one clean run.
 
@@ -133,6 +164,8 @@ def build_clean_report(
         log: This run's cleaning log.
         previous_log: The last run's log, to mark what's new on the *To review*
             list; empty on a first run.
+        names: The roaster name map, for the candidates of a possible match
+            and the roaster-names summary.
 
     Returns:
         The report's contents, ready to render.
@@ -142,9 +175,25 @@ def build_clean_report(
         rows_by_dataset={name: table.height for name, table in tables.items()},
         log_rows=log.height,
         rules=_rules(log),
-        to_review=_to_review(tables, log, previous_log),
+        to_review=_to_review(tables, log, previous_log, names),
         coverage={name: _coverage(table) for name, table in tables.items()},
         distributions=_distributions(tables),
+        roaster_names=_roaster_names(names) if names else None,
+    )
+
+
+def _roaster_names(names: NameMap) -> RoasterNamesSummary:
+    decisions = names.decisions.values()
+    return RoasterNamesSummary(
+        spellings=len(names.decisions),
+        roasters=len({d.name for d in decisions}),
+        merged=dict(
+            Counter(
+                rule for d in decisions for rule in d.rules if rule != "possible_match"
+            )
+        ),
+        to_review=sum("possible_match" in d.rules for d in decisions),
+        unused_rows=names.unused_rows,
     )
 
 
@@ -168,6 +217,7 @@ def _to_review(
     tables: Mapping[str, pl.DataFrame],
     log: pl.DataFrame,
     previous_log: pl.DataFrame,
+    names: NameMap | None,
 ) -> list[ReviewItem]:
     flagged = log.filter(pl.col("rule").is_in(REVIEW_RULES))
     if flagged.is_empty():
@@ -187,9 +237,43 @@ def _to_review(
         )
     )
     return [
-        ReviewItem(field, rule, raw, count, placed_as, (field, rule, raw) not in seen)
+        ReviewItem(
+            field,
+            rule,
+            raw,
+            count,
+            _candidates(names, raw) if rule == "possible_match" else placed_as,
+            _is_new(field, rule, raw, seen, names),
+        )
         for field, rule, raw, count, placed_as in grouped.iter_rows()
     ]
+
+
+def _is_new(
+    field: str,
+    rule: str,
+    raw: str | None,
+    seen: set[tuple[str, str, str | None]],
+    names: NameMap | None,
+) -> bool:
+    """True when the previous run didn't list this item.
+
+    A possible match also counts as seen when its pair was listed from the
+    other side last run (review counts decide which side carries it).
+    """
+    if (field, rule, raw) in seen:
+        return False
+    if rule != "possible_match" or names is None:
+        return True
+    decision = names.decisions.get(raw or "")
+    other_sides = decision.candidates if decision else ()
+    return not any((field, rule, other) in seen for other in other_sides)
+
+
+def _candidates(names: NameMap | None, spelling: str | None) -> str | None:
+    """For a possible match: the names it might be, joined with ``; ``."""
+    decision = names.decisions.get(spelling or "") if names else None
+    return "; ".join(decision.candidates) if decision else None
 
 
 def _placed_as(
@@ -260,10 +344,11 @@ def render_clean_report(report: CleanReport) -> str:
         _totals_section(report),
         _rules_section(report),
         _review_section(report),
+        _roaster_names_section(report),
         *(_coverage_section(report, dataset) for dataset in report.coverage),
         _distributions_section(report),
     ]
-    return "\n\n".join("\n".join(section) for section in sections) + "\n"
+    return "\n\n".join("\n".join(section) for section in sections if section) + "\n"
 
 
 def _totals_section(report: CleanReport) -> list[str]:
@@ -303,6 +388,9 @@ def _review_section(report: CleanReport) -> list[str]:
         "Values that weren't understood, or were matched by a close spelling.",
         "Fix one by adding its spelling to a lookup table in",
         "`src/coffee_review/transforms/lookups/`, then run `coffee-review clean`.",
+        "A roaster's possible match is settled by a row in `roasters.csv` (the",
+        "same roaster) or `distinct_roasters.csv` (different roasters); a wrong",
+        "roaster close spelling is undone with a `distinct_roasters.csv` row.",
         "",
     ]
     if not report.to_review:
@@ -317,6 +405,32 @@ def _review_section(report: CleanReport) -> list[str]:
             f" | {item.rows:,} | {cell(item.placed_as) if item.placed_as else '–'}"
             f" | {'**new**' if item.new else ''} |"
         )
+    return lines
+
+
+def _roaster_names_section(report: CleanReport) -> list[str]:
+    names = report.roaster_names
+    if names is None:
+        return []
+    matches = "match" if names.to_review == 1 else "matches"
+    summary = (
+        f"{names.spellings:,} spellings became {names.roasters:,} roasters;"
+        f" {names.to_review:,} possible {matches} to review."
+    )
+    lines = ["## Roaster names", "", summary]
+    if names.merged:
+        lines += ["", "| Merged by | Spellings |", "|---|---|"]
+        lines += [
+            f"| {rule} | {count:,} |"
+            for rule, count in sorted(names.merged.items(), key=lambda kv: -kv[1])
+        ]
+    if names.unused_rows:
+        lines += [
+            "",
+            "Rows in `roasters.csv` or `distinct_roasters.csv` no review uses:",
+            "",
+            *(f"- `{cell(row)}`" for row in names.unused_rows),
+        ]
     return lines
 
 

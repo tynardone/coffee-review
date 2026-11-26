@@ -150,6 +150,31 @@ class EconomicSettings(BaseModel):
         return value
 
 
+class CleanSettings(BaseModel):
+    """How alike two roaster names must be to merge, or to be listed for review.
+
+    Scores are ``fuzz.ratio`` between matching keys, as 0–1 (see
+    ``transforms/roasters.py``).
+    """
+
+    roaster_merge_at: float = Field(default=0.90, ge=0, le=1)
+    roaster_review_at: float = Field(default=0.85, ge=0, le=1)
+    roaster_review_same_city_at: float = Field(default=0.80, ge=0, le=1)
+
+    @model_validator(mode="after")
+    def _in_order(self) -> Self:
+        if not (
+            self.roaster_review_same_city_at
+            <= self.roaster_review_at
+            <= self.roaster_merge_at
+        ):
+            raise ValueError(
+                "roaster thresholds must be in order: roaster_review_same_city_at"
+                " <= roaster_review_at <= roaster_merge_at"
+            )
+        return self
+
+
 class Settings(BaseSettings):
     """Every setting the project has, loaded from the environment and ``.env``.
 
@@ -169,6 +194,7 @@ class Settings(BaseSettings):
     forex_api: ForexApiSettings = Field(default_factory=ForexApiSettings)
     bls_api: BLSApiSettings = Field(default_factory=BLSApiSettings)
     economic: EconomicSettings = Field(default_factory=EconomicSettings)
+    clean: CleanSettings = Field(default_factory=CleanSettings)
 
     # Root of every data layer (raw, parsed, ...) and of run logs.
     data_dir: Path = Path("data")

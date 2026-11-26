@@ -3,13 +3,16 @@
 from __future__ import annotations
 
 import polars as pl
+from inline_snapshot import snapshot
 
 from coffee_review.models.clean import LOG_SCHEMA
 from coffee_review.pipeline.clean_report import (
     ReviewItem,
+    RoasterNamesSummary,
     build_clean_report,
     render_clean_report,
 )
+from coffee_review.transforms.roasters import NameDecision, NameMap
 from tests.models.test_clean_contract import GREEN_ROW, ROASTED_ROW, frame
 
 
@@ -142,3 +145,92 @@ def test_markdown_escapes_pipes() -> None:
     report = build_clean_report(roasted("a"), NO_GREEN, entries, NO_LOG)
 
     assert "`$5 \\| $7`" in render_clean_report(report)
+
+
+NAMES = NameMap(
+    {
+        "Boyd Coffee": NameDecision("Boyd Coffee", ()),
+        "Boyds": NameDecision("Boyds", ("possible_match",), ("Boyd Coffee", "Boyd's")),
+        "Lamill": NameDecision("La Mill", ("close_spelling",)),
+        "La Mill": NameDecision("La Mill", ()),
+    },
+    ("Gone Roasters",),
+)
+
+
+def test_possible_match_lists_its_candidates() -> None:
+    entries = log(("a", "roasted", "roaster", "possible_match", "Boyds"))
+
+    report = build_clean_report(roasted("a"), NO_GREEN, entries, NO_LOG, NAMES)
+
+    [item] = report.to_review
+    assert item.placed_as == "Boyd Coffee; Boyd's"
+
+
+def test_close_spelling_shows_merged_name() -> None:
+    entries = log(("a", "roasted", "roaster", "close_spelling", "Lamill"))
+
+    report = build_clean_report(
+        roasted("a", roaster="La Mill"), NO_GREEN, entries, NO_LOG, NAMES
+    )
+
+    [item] = report.to_review
+    assert item.placed_as == "La Mill"
+
+
+def test_roaster_names_summarised() -> None:
+    report = build_clean_report(roasted("a"), NO_GREEN, NO_LOG, NO_LOG, NAMES)
+
+    assert report.roaster_names == RoasterNamesSummary(
+        spellings=4,
+        roasters=3,
+        merged={"close_spelling": 1},
+        to_review=1,
+        unused_rows=("Gone Roasters",),
+    )
+
+
+def test_report_has_roaster_names_section() -> None:
+    report = build_clean_report(roasted("a"), NO_GREEN, NO_LOG, NO_LOG, NAMES)
+
+    markdown = render_clean_report(report)
+
+    section = markdown.split("## Roaster names")[1].split("\n## ")[0]
+    assert section == snapshot("""\
+
+
+4 spellings became 3 roasters; 1 possible match to review.
+
+| Merged by | Spellings |
+|---|---|
+| close_spelling | 1 |
+
+Rows in `roasters.csv` or `distinct_roasters.csv` no review uses:
+
+- `Gone Roasters`
+""")
+
+
+def test_possible_match_seen_from_the_other_side_is_not_new() -> None:
+    # Last run, "Boyd Coffee" carried the pair; this run "Boyds" does.
+    entries = log(("a", "roasted", "roaster", "possible_match", "Boyds"))
+    previous = log(("x", "roasted", "roaster", "possible_match", "Boyd Coffee"))
+
+    report = build_clean_report(roasted("a"), NO_GREEN, entries, previous, NAMES)
+
+    [item] = report.to_review
+    assert item.new is False
+
+
+def test_roaster_names_count_merges_by_rule() -> None:
+    report = build_clean_report(roasted("a"), NO_GREEN, NO_LOG, NO_LOG, NAMES)
+
+    assert report.roaster_names is not None
+    assert report.roaster_names.merged == {"close_spelling": 1}
+
+
+def test_review_note_says_how_to_undo_a_roaster_merge() -> None:
+    markdown = render_clean_report(
+        build_clean_report(roasted("a"), NO_GREEN, NO_LOG, NO_LOG, NAMES)
+    )
+    assert "undone with a `distinct_roasters.csv` row" in markdown

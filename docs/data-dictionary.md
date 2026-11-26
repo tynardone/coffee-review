@@ -138,7 +138,7 @@ One row per roasted review (espresso included).
 | `delisted` | Boolean | no | – | True when the review is no longer in the site's sitemaps. |
 | `sold_green` | Boolean | no | – | True when the title says the coffee was sold green (1997–1999). |
 | `title` | String | yes | – | The coffee's name as reviewed. |
-| `roaster` | String | yes | – | The roaster (green reviews: the importer or seller). |
+| `roaster` | String | yes | – | The roaster (green reviews: the importer or seller), one spelling per roaster; the cleaning log has the name as written. |
 | `roaster_url` | String | yes | – | The link on the roaster's logo. |
 | `review_month` | Date | yes | always the 1st | The month of the review, always stored as its 1st day (the site gives only month and year). |
 | `rating` | Int16 | yes | ≥ 50, ≤ 100 | Overall score, 50–100. Empty when not rated (NR). |
@@ -181,7 +181,7 @@ One row per green review.
 | `url` | String | no | – | The review page's address. |
 | `delisted` | Boolean | no | – | True when the review is no longer in the site's sitemaps. |
 | `title` | String | yes | – | The coffee's name as reviewed. |
-| `roaster` | String | yes | – | The roaster (green reviews: the importer or seller). |
+| `roaster` | String | yes | – | The roaster (green reviews: the importer or seller), one spelling per roaster; the cleaning log has the name as written. |
 | `roaster_url` | String | yes | – | The link on the roaster's logo. |
 | `review_month` | Date | yes | always the 1st | The month of the review, always stored as its 1st day (the site gives only month and year). |
 | `rating` | Int16 | yes | ≥ 50, ≤ 100 | Overall score, 50–100. Empty when not rated (NR). |
@@ -238,7 +238,10 @@ The values of `cleaning_log.rule`: every change the clean stage makes.
 | `not_disclosed` | "Not disclosed": the site doesn't say. The value is empty. |
 | `unplaced` | No known place found. The value is empty; listed in the report to review. |
 | `multiple_origins` | More than one country, or a blend: origin_country is "Multiple". |
-| `close_spelling` | Matched by a close spelling of a known place or unit (Calfornia → California); listed in the report to review. |
+| `close_spelling` | Matched by a close spelling of a known place or unit (Calfornia → California), or merged into a very close roaster name (Lamill → La Mill); listed in the report to review. |
+| `spelling_variant` | Another spelling of the same roaster name (case, accents, punctuation, words like Coffee Roasters). The kept spelling replaces it. |
+| `listed_name` | A roaster name set by hand in roasters.csv. |
+| `possible_match` | A roaster name close to another one, not merged: listed for a person to decide. |
 | `not_a_price` | Not a price (NA, Not Available, See website…). The price is empty. |
 | `no_quantity` | An amount with no quantity ("$15.00"). |
 | `unparsed` | No known shape. The value is empty; the text is in the log and the report. |

@@ -26,6 +26,7 @@ its own sake.
 | HTML parsing (M2) | selectolax | Fast, CSS selectors |
 | Tables (M3) | Polars | |
 | Table validation (M3) | pandera | Contracts at table boundaries |
+| Fuzzy matching (M5) | rapidfuzz | Roaster close spellings; fast, C-backed `fuzz.ratio` |
 | Storage format | Parquet | For parsed, clean, reference, final |
 | Querying | DuckDB | Inspection now; dashboard backend later |
 | Orchestration | Dagster | After the plain pipeline works |

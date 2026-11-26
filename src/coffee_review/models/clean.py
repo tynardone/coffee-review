@@ -49,6 +49,9 @@ type CleanRule = Literal[
     "unplaced",
     "multiple_origins",
     "close_spelling",
+    "spelling_variant",
+    "listed_name",
+    "possible_match",
     "not_a_price",
     "no_quantity",
     "unparsed",
@@ -94,7 +97,17 @@ RULE_DESCRIPTIONS: Mapping[str, str] = MappingProxyType(
         ),
         "close_spelling": (
             "Matched by a close spelling of a known place or unit (Calfornia → "
-            "California); listed in the report to review."
+            "California), or merged into a very close roaster name (Lamill → "
+            "La Mill); listed in the report to review."
+        ),
+        "spelling_variant": (
+            "Another spelling of the same roaster name (case, accents, punctuation, "
+            "words like Coffee Roasters). The kept spelling replaces it."
+        ),
+        "listed_name": "A roaster name set by hand in roasters.csv.",
+        "possible_match": (
+            "A roaster name close to another one, not merged: listed for a person "
+            "to decide."
         ),
         "not_a_price": (
             "Not a price (NA, Not Available, See website…). The price is empty."
@@ -171,7 +184,10 @@ class CleanRoastedFrame(pa.DataFrameModel):
         description="True when the title says the coffee was sold green (1997–1999)."
     )
     title: str = _optional("The coffee's name as reviewed.")
-    roaster: str = _optional("The roaster (green reviews: the importer or seller).")
+    roaster: str = _optional(
+        "The roaster (green reviews: the importer or seller), one spelling per "
+        "roaster; the cleaning log has the name as written."
+    )
     roaster_url: str = _optional("The link on the roaster's logo.")
     review_month: dt.date = pa.Field(
         description=(
@@ -293,7 +309,10 @@ class CleanGreenFrame(pa.DataFrameModel):
         description="True when the review is no longer in the site's sitemaps."
     )
     title: str = _optional("The coffee's name as reviewed.")
-    roaster: str = _optional("The roaster (green reviews: the importer or seller).")
+    roaster: str = _optional(
+        "The roaster (green reviews: the importer or seller), one spelling per "
+        "roaster; the cleaning log has the name as written."
+    )
     roaster_url: str = _optional("The link on the roaster's logo.")
     review_month: dt.date = pa.Field(
         description=(
