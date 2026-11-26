@@ -47,6 +47,7 @@ PLACED_AS: Mapping[str, tuple[str, ...]] = {
 }
 DISTRIBUTIONS: Mapping[str, str] = {
     "origin country": "origin_country",
+    "growing region": "origin_growing_region",
     "roaster country": "roaster_country",
     "currency": "price_currency",
     "unit": "price_unit",

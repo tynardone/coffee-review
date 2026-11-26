@@ -122,6 +122,13 @@ def test_distributions() -> None:
     assert report.distributions["currency"][0] == ("USD", 3)
 
 
+def test_growing_regions_shown_below_origin_countries() -> None:
+    report = build_clean_report(roasted("a", "b"), frame("green"), NO_LOG, NO_LOG)
+
+    assert list(report.distributions)[:2] == ["origin country", "growing region"]
+    assert report.distributions["growing region"] == [("Guji", 2)]
+
+
 def test_summary_line_exact() -> None:
     clean = roasted(*(f"r{i}" for i in range(9330)))
     green = frame("green", *(GREEN_ROW | {"slug": f"g{i}"} for i in range(110)))
