@@ -5,9 +5,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+import polars as pl
 import pytest
 
-from coffee_review.models.clean import LOG_SCHEMA
+from coffee_review.models.clean import LOG_SCHEMA, REVIEW_SHEET_COLUMNS
 from coffee_review.storage.clean_store import ParquetCleanStore
 from tests.fakes import InMemoryCleanStore
 from tests.models.test_clean_contract import ROASTED_ROW, frame
@@ -15,8 +16,6 @@ from tests.models.test_clean_contract import ROASTED_ROW, frame
 if TYPE_CHECKING:
     from collections.abc import Iterator
     from pathlib import Path
-
-    import polars as pl
 
     from coffee_review.storage.clean_store import CleanStore
 
@@ -83,3 +82,34 @@ def test_empty_tables_round_trip(store: CleanStore) -> None:
 
 def test_report_location(store: CleanStore) -> None:
     assert store.report_location()
+
+
+def sheet(**overrides: str) -> pl.DataFrame:
+    row = dict.fromkeys(REVIEW_SHEET_COLUMNS, "") | {
+        "kind": "possible_match",
+        "spelling": "Hula Daddy",
+        "reviews": "20",
+        "candidate": "Hula Daddy Kona Coffee",
+    }
+    return pl.DataFrame(
+        [row | overrides], schema=dict.fromkeys(REVIEW_SHEET_COLUMNS, pl.String)
+    )
+
+
+def test_review_sheet_round_trips(store: CleanStore) -> None:
+    roasted, green, log = tables()
+
+    store.write(roasted, green, log, "", sheet(decision="same"))
+
+    assert store.read_roaster_review().equals(sheet(decision="same"))
+
+
+def test_no_review_sheet_reads_empty(store: CleanStore) -> None:
+    empty = store.read_roaster_review()
+
+    assert empty.columns == list(REVIEW_SHEET_COLUMNS)
+    assert empty.height == 0
+
+
+def test_review_sheet_location(store: CleanStore) -> None:
+    assert store.roaster_review_location()

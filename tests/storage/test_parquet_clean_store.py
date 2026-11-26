@@ -8,6 +8,7 @@ import polars as pl
 import pytest
 
 from coffee_review.config import Settings
+from coffee_review.models.clean import REVIEW_SHEET_COLUMNS
 from coffee_review.storage.clean_store import (
     CleanLayerMissingError,
     ParquetCleanStore,
@@ -69,3 +70,27 @@ def test_open_clean_store_uses_data_dir(tmp_path: Path) -> None:
     store.write(frame("roasted"), frame("green"), frame("log"), "")
 
     assert (tmp_path / "clean" / "report.md").exists()
+
+
+def test_sheet_read_by_column_name(tmp_path: Path) -> None:
+    (tmp_path / "roaster_review.csv").write_text(
+        "notes,candidate,spelling,kind,decision\nmine,B,A,merged,Same\n",
+        encoding="utf-8",
+    )
+
+    sheet = ParquetCleanStore(tmp_path).read_roaster_review()
+
+    assert sheet.columns == list(REVIEW_SHEET_COLUMNS)
+    row = sheet.row(0, named=True)
+    assert (row["kind"], row["spelling"], row["candidate"]) == ("merged", "A", "B")
+    assert (row["decision"], row["reviews"]) == ("Same", "")
+
+
+def test_sheet_is_a_csv_file(tmp_path: Path) -> None:
+    write_once(tmp_path)
+
+    assert (
+        (tmp_path / "roaster_review.csv")
+        .read_text(encoding="utf-8")
+        .startswith("kind,spelling,")
+    )
