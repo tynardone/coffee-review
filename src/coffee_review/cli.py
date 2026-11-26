@@ -28,6 +28,7 @@ from coffee_review.pipeline.roaster_review import (
 )
 from coffee_review.pipeline.scrape import scrape
 from coffee_review.progress_display import RichRunProgress
+from coffee_review.storage.clean_store import UnreadableReviewSheetError
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -220,7 +221,12 @@ def roasters_apply_command() -> None:
     """
     try:
         result = apply_roaster_review(get_settings())
-    except (InvalidReviewSheetError, ReviewSheetMissingError, OSError) as exc:
+    except (
+        InvalidReviewSheetError,
+        ReviewSheetMissingError,
+        UnreadableReviewSheetError,
+        OSError,
+    ) as exc:
         typer.echo(f"roasters apply failed: {exc}", err=True)
         raise typer.Exit(EXIT_ERROR) from None
     typer.echo(result.describe())

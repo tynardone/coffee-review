@@ -68,6 +68,11 @@ class CleanStore(Protocol):
         Every column is text, in ``REVIEW_SHEET_COLUMNS`` order, whatever order
         a person saved them in; a missing column is blank. Empty when there's
         no sheet yet.
+
+        Raises:
+            UnreadableReviewSheetError: If the file isn't UTF-8 CSV, has ragged
+                rows, or lacks ``kind``, ``spelling``, ``candidate`` or
+                ``decision``; the message names the file.
         """
         ...
 
@@ -86,6 +91,15 @@ class CleanStore(Protocol):
 
 class CleanLayerMissingError(Exception):
     """There's no clean data to read: clean hasn't been run here yet."""
+
+
+# Without these, a sheet's decisions can't be read: refuse it rather than
+# reading every decision as blank (a semicolon-separated save, say).
+_SHEET_KEY_COLUMNS = ("kind", "spelling", "candidate", "decision")
+
+
+class UnreadableReviewSheetError(Exception):
+    """The roaster review sheet can't be read: fix or delete the file it names."""
 
 
 def open_clean_store(settings: Settings) -> CleanStore:
@@ -146,7 +160,22 @@ class ParquetCleanStore(CleanStore):
         path = self._sheet_path()
         if not path.exists():
             return pl.DataFrame(schema=REVIEW_SHEET_SCHEMA)
-        saved = pl.read_csv(path, infer_schema=False)
+        try:
+            saved = pl.read_csv(path, infer_schema=False)
+        except (pl.exceptions.ComputeError, UnicodeDecodeError) as exc:
+            msg = (
+                f'{path} can\'t be read ({exc}): save it as "CSV UTF-8" with'
+                " commas, or delete it and run coffee-review clean"
+            )
+            raise UnreadableReviewSheetError(msg) from exc
+        missing = [name for name in _SHEET_KEY_COLUMNS if name not in saved.columns]
+        if missing:
+            msg = (
+                f"{path} has no {', '.join(missing)} column (its header is"
+                f" {', '.join(saved.columns)!r}): save it as CSV with commas,"
+                " or delete it and run coffee-review clean"
+            )
+            raise UnreadableReviewSheetError(msg)
         return saved.select(
             pl.col(name).fill_null("")
             if name in saved.columns

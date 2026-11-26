@@ -18,7 +18,12 @@ from coffee_review.pipeline.roaster_review import (
     run_apply,
 )
 from coffee_review.storage.roaster_lookups import RoasterLookups
-from coffee_review.transforms.roasters import NameDecision, NameMap
+from coffee_review.transforms.roasters import (
+    NameDecision,
+    NameMap,
+    Spelling,
+    build_name_map,
+)
 from tests.fakes import InMemoryCleanStore
 
 if TYPE_CHECKING:
@@ -241,7 +246,10 @@ def test_same_writes_a_roasters_row() -> None:
 
 def test_same_uses_name_when_given() -> None:
     listed, _ = decisions_from_sheet(decided((*HULA_ROW, "same", "Hula Daddy Kona")))
-    assert listed == [("Hula Daddy", "Hula Daddy Kona")]
+    assert listed == [
+        ("Hula Daddy", "Hula Daddy Kona"),
+        ("Hula Daddy Kona Coffee", "Hula Daddy Kona"),
+    ]
 
 
 def test_same_uses_candidate_when_name_blank() -> None:
@@ -350,3 +358,50 @@ def test_result_describes_what_it_added() -> None:
         "added 1 row to roasters.csv and 0 to distinct_roasters.csv;"
         " 3 rows still undecided. Run `coffee-review clean` to use them."
     )
+
+
+# --- Review fixes ------------------------------------------------------------------
+
+
+def test_a_new_name_covers_both_sides() -> None:
+    row = ("possible_match", "Kafe Alpha", "Kafe Alpa", "same", "Alpa Brand")
+    listed, _ = decisions_from_sheet(decided(row))
+    assert listed == [("Kafe Alpha", "Alpa Brand"), ("Kafe Alpa", "Alpa Brand")]
+
+
+def test_keeping_the_spellings_own_name_covers_the_candidate() -> None:
+    row = ("possible_match", "Kafe Alpha", "Kafe Alpa", "same", "Kafe Alpha")
+    assert decisions_from_sheet(decided(row))[0] == [("Kafe Alpa", "Kafe Alpha")]
+
+
+def test_applied_same_settles_the_pair() -> None:
+    au, us = frozenset({("sydney", "Australia")}), frozenset({("", "United States")})
+    spellings = [Spelling("Kafe Alpha", 2, au), Spelling("Kafe Alpa", 1, us)]
+    row = ("possible_match", "Kafe Alpa", "Kafe Alpha", "same", "Alpa Brand")
+    listed, distinct = decisions_from_sheet(decided(row))
+
+    names = build_name_map(spellings, dict(listed), distinct)
+
+    assert {d.name for d in names.decisions.values()} == {"Alpa Brand"}
+    assert all("possible_match" not in d.rules for d in names.decisions.values())
+
+
+def test_chained_same_rows_are_invalid(tmp_path: Path) -> None:
+    sheet = decided(
+        ("possible_match", "Kafe Alpha", "Kafe Alfa", "same", ""),
+        ("possible_match", "Kafe Alfa", "Kafe Alpa", "same", ""),
+    )
+    files = lookups(tmp_path)
+
+    with pytest.raises(InvalidReviewSheetError, match="Kafe Alfa"):
+        run_apply(clean=store_with(sheet), lookups=files)
+    assert files.listed_rows() == []
+
+
+def test_renaming_an_already_listed_spelling_is_invalid(tmp_path: Path) -> None:
+    files = lookups(tmp_path)
+    files.add([("Hula Daddy", "Hula Daddy Kona Coffee")], [])
+    sheet = decided(("possible_match", "Hula Daddy", "Hula Daddies", "same", ""))
+
+    with pytest.raises(InvalidReviewSheetError, match="already"):
+        run_apply(clean=store_with(sheet), lookups=files)

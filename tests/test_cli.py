@@ -26,6 +26,7 @@ from coffee_review.pipeline.parse import ParseRunResult
 from coffee_review.pipeline.parse_report import build_parse_report
 from coffee_review.pipeline.roaster_review import ApplyResult, InvalidReviewSheetError
 from coffee_review.progress_display import RichRunProgress
+from coffee_review.storage.clean_store import UnreadableReviewSheetError
 from coffee_review.storage.parsed_store import ParsedLayerMissingError
 from coffee_review.storage.raw_store import ManifestSchemaError
 
@@ -429,3 +430,15 @@ def test_roasters_apply_error_exits_1(monkeypatch: pytest.MonkeyPatch) -> None:
 
     assert result.exit_code == 1
     assert "decision 'x'" in result.output
+
+
+def test_roasters_apply_unreadable_sheet_exits_1(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    error = UnreadableReviewSheetError("data/clean/roaster_review.csv isn't UTF-8")
+    monkeypatch.setattr(cli, "apply_roaster_review", ApplySpy(error))
+
+    result = runner.invoke(app, ["roasters", "apply"])
+
+    assert result.exit_code == 1
+    assert "isn't UTF-8" in result.output

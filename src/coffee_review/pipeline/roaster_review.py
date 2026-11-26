@@ -26,8 +26,11 @@ import polars as pl
 from coffee_review.models.clean import REVIEW_SHEET_COLUMNS, REVIEW_SHEET_SCHEMA
 from coffee_review.storage.clean_store import open_clean_store
 from coffee_review.storage.roaster_lookups import open_roaster_lookups
+from coffee_review.transforms.roasters import roaster_key
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from coffee_review.config import Settings
     from coffee_review.storage.clean_store import CleanStore
     from coffee_review.storage.roaster_lookups import RoasterLookups, Row
@@ -218,7 +221,9 @@ def decisions_from_sheet(sheet: pl.DataFrame) -> tuple[list[Row], list[Row]]:
                 f"{where}: two names for one spelling ({names[spelling]!r}, {name!r})"
             )
             continue
-        listed.append((spelling, name))
+        # Both sides become the kept name, so the pair is settled whichever
+        # name was chosen (a row covers only its own key and its name's).
+        listed += [(side, name) for side in (spelling, candidate) if side != name]
     if problems:
         raise InvalidReviewSheetError(
             "the review sheet has rows apply can't use; nothing was written:\n  "
@@ -261,6 +266,42 @@ def run_apply(*, clean: CleanStore, lookups: RoasterLookups) -> ApplyResult:
         )
         raise ReviewSheetMissingError(msg)
     listed, distinct = decisions_from_sheet(sheet)
+    _check_against_listed(lookups.listed_rows(), listed)
     listed_added, distinct_added = lookups.add(listed, distinct)
     undecided = sheet.filter(pl.col("decision").str.strip_chars() == "").height
     return ApplyResult(tuple(listed_added), tuple(distinct_added), undecided)
+
+
+def _check_against_listed(existing: Sequence[Row], new: Sequence[Row]) -> None:
+    """Refuse new ``roasters.csv`` rows that would make the next clean stop.
+
+    Rows are compared by matching key, as the clean stage reads them: a
+    spelling already listed under another name, and a chain (a name that is
+    itself a spelling renamed to something else), both raise
+    ``ConflictingListedNamesError`` on the next clean.
+
+    Raises:
+        InvalidReviewSheetError: Naming each conflicting row.
+    """
+    listed_as = {roaster_key(spelling): name for spelling, name in existing}
+    problems: list[str] = []
+    for spelling, name in new:
+        key = roaster_key(spelling)
+        if listed_as.get(key, name) != name:
+            problems.append(
+                f"{spelling!r} is already listed as {listed_as[key]!r} in"
+                f" roasters.csv, not {name!r}"
+            )
+        listed_as.setdefault(key, name)
+    for spelling, name in new:
+        renamed_to = listed_as.get(roaster_key(name), name)
+        if renamed_to != name:
+            problems.append(
+                f"{spelling!r} → {name!r}, but {name!r} is itself renamed to"
+                f" {renamed_to!r}: decide both to the same name"
+            )
+    if problems:
+        raise InvalidReviewSheetError(
+            "the review sheet would make roasters.csv contradict itself;"
+            " nothing was written:\n  " + "\n  ".join(problems)
+        )
