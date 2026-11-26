@@ -22,6 +22,7 @@ import polars as pl
 from coffee_review.config import CleanSettings
 from coffee_review.models.clean import GREEN_SCHEMA, ROASTED_SCHEMA, validate_clean
 from coffee_review.pipeline.clean_report import build_clean_report, render_clean_report
+from coffee_review.pipeline.roaster_review import build_review_sheet
 from coffee_review.storage.clean_store import open_clean_store
 from coffee_review.storage.parsed_store import open_parsed_store
 from coffee_review.transforms.dates import clean_harvest, clean_review_month
@@ -131,6 +132,7 @@ def run_clean(
     names = _roaster_names(roasted, green, settings or CleanSettings())
     roasted = clean_roaster(roasted.lazy(), names).collect()
     green = clean_roaster(green.lazy(), names).collect()
+    sheet = build_review_sheet(roasted, green, names, clean.read_roaster_review())
     _check_nothing_lost(roasted, green)
     log = pl.concat([extract_log(roasted, "roasted"), extract_log(green, "green")])
     tables: dict[Dataset, pl.DataFrame] = {
@@ -144,7 +146,9 @@ def run_clean(
     report = build_clean_report(
         tables["roasted"], tables["green"], log, clean.read_previous_log(), names
     )
-    clean.write(tables["roasted"], tables["green"], log, render_clean_report(report))
+    clean.write(
+        tables["roasted"], tables["green"], log, render_clean_report(report), sheet
+    )
     elapsed = clock() - started
     logger.info(report.summary_line(elapsed))
     _warn_about_new_values(report, clean.report_location())

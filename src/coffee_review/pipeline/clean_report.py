@@ -388,9 +388,11 @@ def _review_section(report: CleanReport) -> list[str]:
         "Values that weren't understood, or were matched by a close spelling.",
         "Fix one by adding its spelling to a lookup table in",
         "`src/coffee_review/transforms/lookups/`, then run `coffee-review clean`.",
-        "A roaster's possible match is settled by a row in `roasters.csv` (the",
-        "same roaster) or `distinct_roasters.csv` (different roasters); a wrong",
-        "roaster close spelling is undone with a `distinct_roasters.csv` row.",
+        "Roaster items are easiest in `data/clean/roaster_review.csv`: type `same`",
+        "or `different` in its `decision` column, then run",
+        "`coffee-review roasters apply` and `coffee-review clean`. (By hand: a row",
+        "in `roasters.csv` for the same roaster, `distinct_roasters.csv` for",
+        "different ones or to undo a wrong close spelling.)",
         "",
     ]
     if not report.to_review:
