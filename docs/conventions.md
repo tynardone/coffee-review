@@ -115,8 +115,9 @@ way in paths, module names and CLI commands.
   and "removed" reads like we deleted it ourselves.
 - **Classes only where there's state to hold**: HTTP clients, stores. Parsing and
   transforming are plain functions.
-- **Leading underscore** for module-private helpers (`_parse_retry_after`). Tests
-  may import them; other modules may not.
+- **Leading underscore** for module-private helpers (`_parse_retry_after`). Other
+  modules may not import them; tests should rarely need to (see
+  [Tests](#tests)).
 - **Errors end in `Error`** and say what to do: `MissingApiKeyError` names the
   env var to set.
 
@@ -144,6 +145,32 @@ convention); the rest is on us.
   other docs tools expect.
 
 ## Tests
+
+### What to test
+
+**Test the public interface, and let private code be covered through it.**
+A test of a public function checks behavior we've promised to keep. Private
+names are free to change, so a test that reaches into one breaks on a
+refactor even when nothing observable changed, and that noise makes people
+reluctant to refactor.
+
+1. **Write tests against the public interface first.**
+2. **Check coverage** (`uv run pytest --cov`). Private code no public-path test
+   reaches is either dead or a sign of a missing test case for a branch of the
+   public behavior.
+3. **Test a private function directly only when it's complex and awkward to
+   reach:** substantial self-contained logic with many edge cases (a tricky
+   parser, a date-cutoff rule, a matching rule), or a public path that needs
+   files, a database or the network to set up. Characterizing legacy code
+   before changing it is the other good reason. Such a test is coupled to an
+   implementation detail and may need updating on a refactor; that's the
+   accepted cost.
+4. **If you keep wanting more direct tests of one private function, promote
+   it**: make it public, or give it its own module with a real interface. Then
+   testing it directly is no longer an exception, and the dependency is
+   explicit.
+
+### How tests are written
 
 - `tests/` mirrors `src/coffee_review/`: `clients/http.py` is tested in
   `tests/clients/test_http.py`.
