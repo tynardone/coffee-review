@@ -32,8 +32,8 @@ def test_normalise_label() -> None:
     assert normalise_label(" Roast  Level :") == "roast level"
 
 
-# Every label from the spec's alias table, as it appears on pages.
-SPEC_LABELS = [
+# Every label the site has used, as it appears on pages.
+KNOWN_LABELS = [
     ("Review Date", "review_date"),
     ("Roaster Location", "roaster_location"),
     ("Coffee Origin", "coffee_origin"),
@@ -58,7 +58,7 @@ SPEC_LABELS = [
 
 
 @pytest.mark.parametrize(
-    ("label", "field"), SPEC_LABELS, ids=[label for label, _ in SPEC_LABELS]
+    ("label", "field"), KNOWN_LABELS, ids=[label for label, _ in KNOWN_LABELS]
 )
 def test_every_spec_alias(label: str, field: str) -> None:
     assert canonical_label(f"{label}:") == field

@@ -8,7 +8,7 @@ The first design set the scraper to 1 request per second with 2 concurrent
 requests. That was a cautious guess, not based on evidence: a full pass of
 about 9,400 reviews would take about 2.6 hours.
 
-Tyler's experience scraping the same site for v1 put a full pass at about 30
+The first version of this project scraped the same site in about 30
 minutes, which means roughly 5 requests per second. The site handled that
 without pushing back.
 

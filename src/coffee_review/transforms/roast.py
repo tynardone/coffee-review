@@ -1,6 +1,6 @@
 """Roast level, and the two Agtron readings.
 
-Agtron (see docs/agtron.md) measures roast colour: the higher the number, the
+Agtron (see docs/reading-a-review.md) measures roast colour: the higher the number, the
 lighter the roast. Coffee Review prints two readings, whole bean then ground
 (``55/68``). Ground coffee is lighter inside, so its number is usually higher.
 

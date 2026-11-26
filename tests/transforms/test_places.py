@@ -368,7 +368,8 @@ def test_near_spelling_of_a_region_is_not_a_garbled_country() -> None:
     ],
 )
 def test_region_keeps_its_direction_words(text: str, region: str) -> None:
-    # Tyler, Task 12: "North Sumatra" is a province and "West Guji" a zone.
+    # "North Sumatra" is a province and "West Guji" a zone: the direction is
+    # part of the name.
     assert origin(text).region == region
 
 

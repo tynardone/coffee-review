@@ -175,8 +175,8 @@ def test_green_review_cannot_hold_roasted_fields() -> None:
         GreenReview(slug="x", url=URL, delisted=False, aroma="9")  # type: ignore[call-arg]
 
 
-def test_dataset_columns_match_spec() -> None:
-    # Copied from the spec's "Datasets and tables" section, without slug, url,
+def test_dataset_columns_in_published_order() -> None:
+    # The published column order (docs/data-dictionary.md), without slug, url,
     # delisted, sold_green and extra_count.
     assert RoastedReview.columns == (
         "title", "roaster", "roaster_url", "rating", "review_date",

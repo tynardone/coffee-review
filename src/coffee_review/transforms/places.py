@@ -183,7 +183,8 @@ def place_origin(
             region_parts.append(match.leftover)
         if match.place.kind != "country":  # an island, region or state is detail
             # Its standard name, keeping any direction words as written:
-            # "North Sumatra" is a province, "West Guji" a zone (Tyler, Task 12).
+            # "North Sumatra" is a province and "West Guji" a zone, so the
+            # direction is part of the name.
             region_parts.append(_with_directions(match.text or part, match.place.name))
     if not countries:
         return OriginResult(None, None, ("unplaced",))
