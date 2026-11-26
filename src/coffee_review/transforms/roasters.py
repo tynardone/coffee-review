@@ -22,9 +22,10 @@ from __future__ import annotations
 
 import re
 import unicodedata
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from functools import cache
 from itertools import product
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Literal, NamedTuple
 
 import polars as pl
 from rapidfuzz import fuzz, process
@@ -61,21 +62,32 @@ FILLER_WORDS = frozenset(
 # difference scores high on a short name ("jbc" and "jbd").
 MIN_COMPARED_LENGTH = 4
 # rapidfuzz scores 0–100; ours are 0–1, rounded so that a score of exactly a
-# threshold counts (rapidfuzz's own 0–1 cutoffs drop 0.8 at a cutoff of 0.8).
+# threshold counts (rapidfuzz's own 0–1 cutoffs drop 0.8 at a cutoff of 0.8,
+# and ``0.29 * 100`` is 28.999…).
 SCORE_PLACES = 9
 
+# --- The matching key ------------------------------------------------------------
+
+# Latin letters that aren't an accent on another letter, so dropping accents
+# would delete them (``ß`` is handled by casefolding: it becomes ``ss``).
+_SPELLED_OUT = str.maketrans(
+    {"ø": "o", "ł": "l", "æ": "ae", "œ": "oe", "đ": "d", "ð": "d", "þ": "th", "ı": "i"}
+)
 _NOT_ALPHANUMERIC = re.compile(r"[^a-z0-9]+")
 
 
 def _words(text: str) -> list[str]:
-    """Lower-case ASCII words: accents dropped, ``&`` as ``and``, ``'`` removed."""
+    """Lower-case ASCII words: ``Großmann & Søn's`` → ``grossmann and sons``."""
+    folded = text.casefold().translate(_SPELLED_OUT)
     ascii_text = (
-        unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode("ascii")
+        unicodedata.normalize("NFKD", folded).encode("ascii", "ignore").decode("ascii")
     )
-    lower = ascii_text.lower().replace("&", " and ").replace("'", "")
-    return _NOT_ALPHANUMERIC.sub(" ", lower).split()
+    # NFKD can make new capitals (``𝑨`` → ``A``), so lower case again.
+    tidied = ascii_text.lower().replace("&", " and ").replace("'", "")
+    return _NOT_ALPHANUMERIC.sub(" ", tidied).split()
 
 
+@cache
 def roaster_key(name: str) -> str:
     """A roaster name in a form that ignores what never tells roasters apart.
 
@@ -83,13 +95,11 @@ def roaster_key(name: str) -> str:
     made only of filler words keeps them all: ``The Coffee Company`` stays
     ``the coffee company``. A name with no Latin letters or digits (``黑貓咖啡``)
     is kept whole, in lower case, so two such names never share a key.
+    Cached: the name map asks for the same keys many times.
     """
     words = _words(name)
-    if not words:  # no Latin letters: fold case (``ß`` → ``ss``) and keep it whole
-        folded = " ".join(unicodedata.normalize("NFKC", name).casefold().split())
-        words = _words(folded)
-        if not words:
-            return folded
+    if not words:
+        return " ".join(unicodedata.normalize("NFKC", name).casefold().split())
     kept = [word for word in words if word not in FILLER_WORDS]
     return " ".join(kept or words)
 
@@ -102,11 +112,7 @@ def normalise_city(city: str) -> str:
     return " ".join(word for word in _words(city) if word != "city")
 
 
-class ConflictingListedNamesError(ValueError):
-    """Two ``roasters.csv`` rows give one roaster different names: keep one row."""
-
-
-# --- The name map --------------------------------------------------------------
+# --- The name map: what it takes and gives ---------------------------------------
 
 
 @dataclass(frozen=True)
@@ -160,16 +166,20 @@ class NameDecision:
 
 @dataclass(frozen=True)
 class NameMap:
-    """Every spelling's decision, and the hand-kept rows that matched nothing.
+    """Every spelling's decision, and the hand-kept rows that do nothing.
 
     Attributes:
         decisions: Keyed by the spelling as written.
         unused_rows: Spellings in ``roasters.csv`` or ``distinct_roasters.csv``
-            that no review uses (sorted).
+            whose rows do nothing in this data (sorted).
     """
 
     decisions: Mapping[str, NameDecision]
     unused_rows: tuple[str, ...]
+
+
+class ConflictingListedNamesError(ValueError):
+    """Two ``roasters.csv`` rows give one roaster different names: keep one row."""
 
 
 def build_name_map(
@@ -192,12 +202,16 @@ def build_name_map(
 
     Returns:
         A decision for every spelling with a name, and the unused rows.
+
+    Raises:
+        ConflictingListedNamesError: If two ``roasters.csv`` rows give one
+            roaster two names.
     """
     named = [s for s in spellings if s.name.strip()]
     by_key: dict[str, list[Spelling]] = {}
     for spelling in sorted(named, key=_by_reviews_then_name):
         by_key.setdefault(roaster_key(spelling.name), []).append(spelling)
-    apart = _distinct_pairs(distinct)
+    apart = _DistinctRows.from_rows(distinct)
 
     groups = _Groups(named)
     reviews = _merge_shared_keys(groups, by_key)
@@ -208,64 +222,16 @@ def build_name_map(
     decisions = {s.name: _decide(s, groups, listed_keys) for s in named}
     for carrier, candidates in _open_reviews(groups, reviews, apart).items():
         decision = decisions[carrier]
-        decisions[carrier] = NameDecision(
-            decision.name,
-            (*decision.rules, "possible_match"),
-            tuple(sorted(candidates)),
+        decisions[carrier] = replace(
+            decision,
+            rules=(*decision.rules, "possible_match"),
+            candidates=tuple(sorted(candidates)),
         )
 
     return NameMap(decisions, _unused_rows(by_key, listed, distinct))
 
 
-def _unused_rows(
-    by_key: Mapping[str, list[Spelling]],
-    listed: Mapping[str, str],
-    distinct: Sequence[tuple[str, str]],
-) -> tuple[str, ...]:
-    """Hand-kept spellings that do nothing, sorted.
-
-    A ``roasters.csv`` row does nothing when neither its spelling nor its
-    roaster is in the data; a ``distinct_roasters.csv`` side, when its
-    spelling isn't.
-    """
-    unused_listed = {
-        spelling
-        for spelling, name in listed.items()
-        if not {roaster_key(spelling), roaster_key(name)} & by_key.keys()
-    }
-    unused_distinct = {
-        side for pair in distinct for side in pair if roaster_key(side) not in by_key
-    }
-    return tuple(sorted(unused_listed | unused_distinct))
-
-
-type _Label = tuple[Literal["key", "spelling"], str]
-
-
-def _distinct_pairs(distinct: Sequence[tuple[str, str]]) -> set[frozenset[_Label]]:
-    """Each ``distinct_roasters.csv`` row as the two things it keeps apart.
-
-    Usually two keys, so the row covers every spelling of each. When both sides
-    share a key (``Alchemy`` and ``Coffee Alchemy``), the row is about those two
-    spellings only, so a third spelling of the key is still listed.
-    """
-    pairs: set[frozenset[_Label]] = set()
-    for first, second in distinct:
-        if roaster_key(first) == roaster_key(second):
-            pairs.add(frozenset({("spelling", first), ("spelling", second)}))
-        else:
-            pairs.add(
-                frozenset({("key", roaster_key(first)), ("key", roaster_key(second))})
-            )
-    return pairs
-
-
-def _labels(groups: _Groups, name: str) -> set[_Label]:
-    """What a distinct row can name a group by: its keys and its spellings."""
-    members = groups.members(name)
-    return {("key", roaster_key(s.name)) for s in members} | {
-        ("spelling", s.name) for s in members
-    }
+# --- The name map: how it works, in the order build_name_map uses it ------------
 
 
 def _by_reviews_then_name(spelling: Spelling) -> tuple[int, str]:
@@ -277,7 +243,7 @@ class _Groups:
     """Which spellings are one roaster so far: a union-find over spelling names.
 
     Each group is known by its root spelling and answers questions about all
-    of its members: their countries, cities, reviews and kept name. Which
+    of its members: their countries, places, reviews and kept name. Which
     spelling is the root doesn't matter: the kept name is worked out from the
     members (or the ``roasters.csv`` name), never from the root.
     """
@@ -315,6 +281,11 @@ class _Groups:
     def listed_as(self, name: str) -> str | None:
         return self._listed_as.get(self.root(name))
 
+    def listed_differently(self, a: str, b: str) -> bool:
+        """``roasters.csv`` gave the two groups different names."""
+        first, second = self.listed_as(a), self.listed_as(b)
+        return bool(first and second and first != second)
+
     def lead(self, name: str) -> Spelling:
         """The member with the most reviews (ties: first alphabetically)."""
         return min(self.members(name), key=_by_reviews_then_name)
@@ -331,7 +302,8 @@ class _Groups:
     def countries(self, name: str) -> set[str]:
         return {country for s in self.members(name) for _, country in s.places}
 
-    def cities(self, name: str) -> set[tuple[str, str]]:
+    def city_places(self, name: str) -> set[tuple[str, str]]:
+        """The ``(city, country)`` pairs whose city is known."""
         return {place for s in self.members(name) for place in s.places if place[0]}
 
     def generic(self, name: str) -> bool:
@@ -344,6 +316,52 @@ class _Groups:
         """Both groups have known countries, and they share none."""
         first, second = self.countries(a), self.countries(b)
         return bool(first and second and not first & second)
+
+
+type _Label = tuple[Literal["key", "spelling"], str]
+
+
+@dataclass(frozen=True)
+class _DistinctRows:
+    """``distinct_roasters.csv``: pairs a person said are different roasters.
+
+    A row usually keeps two keys apart, so it covers every spelling of each.
+    When both sides share a key (``Alchemy`` and ``Coffee Alchemy``), it's
+    about those two spellings only, so a third spelling of the key is still
+    listed for review.
+    """
+
+    pairs: frozenset[frozenset[_Label]]
+
+    @classmethod
+    def from_rows(cls, rows: Sequence[tuple[str, str]]) -> _DistinctRows:
+        return cls(frozenset(_row_labels(first, second) for first, second in rows))
+
+    def cover(self, groups: _Groups, a: str, b: str) -> bool:
+        """A row is about these two groups."""
+        return any(
+            frozenset(pair) in self.pairs
+            for pair in product(_group_labels(groups, a), _group_labels(groups, b))
+        )
+
+
+def _row_labels(first: str, second: str) -> frozenset[_Label]:
+    if roaster_key(first) == roaster_key(second):
+        return frozenset({("spelling", first), ("spelling", second)})
+    return frozenset({("key", roaster_key(first)), ("key", roaster_key(second))})
+
+
+def _group_labels(groups: _Groups, name: str) -> set[_Label]:
+    """What a row can name a group by: its keys and its spellings."""
+    members = groups.members(name)
+    return {("key", roaster_key(s.name)) for s in members} | {
+        ("spelling", s.name) for s in members
+    }
+
+
+def _kept_apart(groups: _Groups, apart: _DistinctRows, a: str, b: str) -> bool:
+    """A person said these are different roasters, in either CSV."""
+    return groups.listed_differently(a, b) or apart.cover(groups, a, b)
 
 
 type _Review = tuple[str, str]  # two spellings a person should look at
@@ -387,24 +405,37 @@ def _merge_listed(
     for spelling, name in listed.items():
         keys = {roaster_key(spelling), roaster_key(name)}
         covered = [s.name for key in keys for s in by_key.get(key, [])]
-        named = {groups.listed_as(s) for s in covered} - {None, name}
-        if named:
+        if not covered:
+            continue
+        other_names = {
+            other
+            for s in covered
+            if (other := groups.listed_as(s)) is not None and other != name
+        }
+        if other_names:
             msg = (
                 f"roasters.csv names one roaster both {name!r} and"
-                f" {', '.join(map(repr, sorted(n for n in named if n)))}"
+                f" {', '.join(map(repr, sorted(other_names)))}"
                 " (through shared spellings); keep one name"
             )
             raise ConflictingListedNamesError(msg)
-        for other in covered:
+        for other in covered[1:]:
             groups.merge(covered[0], other)
-        if covered:
-            groups.name_as(covered[0], name)
+        groups.name_as(covered[0], name)
+
+
+class _ClosePair(NamedTuple):
+    """Two spellings whose keys are close, and how close (0–1)."""
+
+    score: float
+    a: str
+    b: str
 
 
 def _merge_close_spellings(
     groups: _Groups,
     by_key: Mapping[str, list[Spelling]],
-    apart: set[frozenset[_Label]],
+    apart: _DistinctRows,
     thresholds: Thresholds,
 ) -> list[_Review]:
     """Merge close spellings that may merge; return the ones to review.
@@ -414,14 +445,15 @@ def _merge_close_spellings(
     countries.
     """
     reviews: list[_Review] = []
-    for score, a, b in _close_pairs(by_key, thresholds.review_same_city_at):
-        if groups.same(a, b) or _kept_apart(groups, a, b, apart):
+    for pair in _close_pairs(by_key, thresholds.review_same_city_at):
+        a, b = pair.a, pair.b
+        if groups.same(a, b) or _kept_apart(groups, apart, a, b):
             continue
         match _outcome(
-            score,
+            pair.score,
             thresholds,
             conflict=groups.conflict(a, b),
-            same_city=bool(groups.cities(a) & groups.cities(b)),
+            same_city=bool(groups.city_places(a) & groups.city_places(b)),
             generic=groups.generic(a) or groups.generic(b),
         ):
             case "merge":
@@ -429,6 +461,34 @@ def _merge_close_spellings(
             case "review":
                 reviews.append((a, b))
     return reviews
+
+
+def _close_pairs(
+    by_key: Mapping[str, list[Spelling]], floor: float
+) -> list[_ClosePair]:
+    """Every pair of spellings whose keys score at least ``floor``, best first."""
+    pairs = [
+        _ClosePair(score, first.name, second.name)
+        for score, key, other in _similar_keys(list(by_key), floor)
+        for first, second in product(by_key[key], by_key[other])
+    ]
+    return sorted(pairs, key=lambda p: (-p.score, p.a, p.b))
+
+
+def _similar_keys(keys: list[str], floor: float) -> Iterator[tuple[float, str, str]]:
+    """Each pair of keys scoring at least ``floor``, as (score, key, other).
+
+    Keys shorter than ``MIN_COMPARED_LENGTH`` aren't compared.
+    """
+    compared = sorted(key for key in keys if len(key) >= MIN_COMPARED_LENGTH)
+    # fuzz.ratio is 0–100; the cutoff sits just below the floor, so the rounded
+    # score decides, and a score of exactly a threshold counts.
+    cutoff = floor * 100 - 10**-SCORE_PLACES
+    for i, key in enumerate(compared):
+        for other, score, _ in process.extract(
+            key, compared[i + 1 :], scorer=fuzz.ratio, score_cutoff=cutoff, limit=None
+        ):
+            yield round(score / 100, SCORE_PLACES), key, other
 
 
 def _outcome(
@@ -455,50 +515,6 @@ def _outcome(
     return None
 
 
-def _close_pairs(
-    by_key: Mapping[str, list[Spelling]], floor: float
-) -> list[tuple[float, str, str]]:
-    """Every pair of spellings whose keys score at least ``floor``, best first."""
-    pairs = [
-        (score, first.name, second.name)
-        for score, key, other in _similar_keys(list(by_key), floor)
-        for first, second in product(by_key[key], by_key[other])
-    ]
-    return sorted(pairs, key=lambda pair: (-pair[0], pair[1], pair[2]))
-
-
-def _similar_keys(keys: list[str], floor: float) -> Iterator[tuple[float, str, str]]:
-    """Each pair of keys scoring at least ``floor``, as (score, key, other).
-
-    Keys shorter than ``MIN_COMPARED_LENGTH`` aren't compared.
-    """
-    compared = sorted(key for key in keys if len(key) >= MIN_COMPARED_LENGTH)
-    for i, key in enumerate(compared):
-        later = compared[i + 1 :]
-        # fuzz.ratio is 0–100; the cutoff sits just below, so the rounded score
-        # decides, and a score of exactly a threshold counts.
-        cutoff = floor * 100 - 10**-SCORE_PLACES
-        for other, score, _ in process.extract(
-            key, later, scorer=fuzz.ratio, score_cutoff=cutoff, limit=None
-        ):
-            yield round(score / 100, SCORE_PLACES), key, other
-
-
-def _kept_apart(groups: _Groups, a: str, b: str, apart: set[frozenset[_Label]]) -> bool:
-    """True when a person said these are different roasters.
-
-    A ``distinct_roasters.csv`` row covers the pair (see ``_distinct_pairs``),
-    or ``roasters.csv`` gave them different names.
-    """
-    first, second = groups.listed_as(a), groups.listed_as(b)
-    if first and second and first != second:
-        return True
-    return any(
-        frozenset(pair) in apart
-        for pair in product(_labels(groups, a), _labels(groups, b))
-    )
-
-
 def _decide(spelling: Spelling, groups: _Groups, listed_keys: set[str]) -> NameDecision:
     """The name a spelling becomes, and the rule that explains it.
 
@@ -518,7 +534,7 @@ def _decide(spelling: Spelling, groups: _Groups, listed_keys: set[str]) -> NameD
 
 
 def _open_reviews(
-    groups: _Groups, reviews: Iterable[_Review], apart: set[frozenset[_Label]]
+    groups: _Groups, reviews: Iterable[_Review], apart: _DistinctRows
 ) -> dict[str, set[str]]:
     """The pairs still apart at the end: carrier spelling → the names it may be.
 
@@ -528,7 +544,7 @@ def _open_reviews(
     """
     result: dict[str, set[str]] = {}
     for a, b in reviews:
-        if groups.same(a, b) or _kept_apart(groups, a, b, apart):
+        if groups.same(a, b) or _kept_apart(groups, apart, a, b):
             continue
         kept, other = sorted(
             (a, b), key=lambda s: (-groups.reviews(s), groups.kept_name(s))
@@ -540,6 +556,28 @@ def _open_reviews(
     return result
 
 
+def _unused_rows(
+    by_key: Mapping[str, list[Spelling]],
+    listed: Mapping[str, str],
+    distinct: Sequence[tuple[str, str]],
+) -> tuple[str, ...]:
+    """Hand-kept spellings that do nothing, sorted.
+
+    A ``roasters.csv`` row does nothing when neither its spelling nor its
+    roaster is in the data; a ``distinct_roasters.csv`` side, when its
+    spelling isn't.
+    """
+    unused_listed = {
+        spelling
+        for spelling, name in listed.items()
+        if not {roaster_key(spelling), roaster_key(name)} & by_key.keys()
+    }
+    unused_distinct = {
+        side for pair in distinct for side in pair if roaster_key(side) not in by_key
+    }
+    return tuple(sorted(unused_listed | unused_distinct))
+
+
 # --- From the tables, and back ---------------------------------------------------
 
 
@@ -549,6 +587,8 @@ def roaster_spellings(*frames: pl.DataFrame) -> list[Spelling]:
     Reads ``raw_roaster``, and ``roaster_city`` and ``roaster_country`` where a
     frame has them (green reviews don't). Blank names are skipped.
     """
+    if not frames:
+        return []
     rows = pl.concat([_spelling_columns(frame) for frame in frames]).filter(
         pl.col("raw_roaster").str.strip_chars() != ""
     )
@@ -580,22 +620,18 @@ def _places(rows: pl.DataFrame) -> frozenset[tuple[str, str]]:
     )
 
 
+_RULES = pl.List(pl.String)
+
+
 def clean_roaster(frame: pl.LazyFrame, names: NameMap) -> pl.LazyFrame:
     """``raw_roaster`` to one name per roaster, with the rule that explains it.
 
     A spelling the map doesn't know (or a blank one) is kept as written.
     """
     decisions = pl.LazyFrame(
-        {
-            "_spelling": list(names.decisions),
-            "_name": [d.name for d in names.decisions.values()],
-            "_rules": [list(d.rules) for d in names.decisions.values()],
-        },
-        schema={
-            "_spelling": pl.String,
-            "_name": pl.String,
-            "_rules": pl.List(pl.String),
-        },
+        [(s, d.name, list(d.rules)) for s, d in names.decisions.items()],
+        schema={"_spelling": pl.String, "_name": pl.String, "_rules": _RULES},
+        orient="row",
     )
     return (
         frame.join(
@@ -607,7 +643,9 @@ def clean_roaster(frame: pl.LazyFrame, names: NameMap) -> pl.LazyFrame:
         )
         .with_columns(
             pl.coalesce("_name", raw("roaster")).alias("roaster"),
-            pl.col("_rules").fill_null([]).alias(rule_column("roaster")),
+            pl.col("_rules")
+            .fill_null(pl.lit([], dtype=_RULES))
+            .alias(rule_column("roaster")),
         )
         .drop("_name", "_rules")
     )

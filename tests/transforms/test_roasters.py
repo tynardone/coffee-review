@@ -407,3 +407,24 @@ def test_groups_listed_under_different_names_stay_apart() -> None:  # 0.923
     )
     assert d["La Mill"] == NameDecision("La Mill Coffee", ("listed_name",))
     assert d["Lamill"] == NameDecision("Lamill Roasters", ("listed_name",))
+
+
+@pytest.mark.parametrize(
+    ("a", "b"),
+    [
+        ("Großmann Kaffee", "Grossmann Kaffee"),
+        ("Østerbro Kaffe", "Osterbro Kaffe"),
+        ("Łódź Roasters", "Lodz Roasters"),
+        ("Kaffæ", "Kaffae"),
+    ],
+)
+def test_latin_letters_without_accents_are_spelled_out(a: str, b: str) -> None:
+    assert roaster_key(a) == roaster_key(b)
+
+
+def test_spellings_from_no_frames_is_empty() -> None:
+    assert roaster_spellings() == []
+
+
+def test_key_of_styled_letters_is_stable() -> None:  # NFKD turns 𝑨 into A
+    assert roaster_key(roaster_key(":𝑨")) == roaster_key(":𝑨") == "a"
