@@ -10,6 +10,7 @@ requires-python = ">=3.14"
 dependencies = [
     "aiolimiter>=1.3.0",
     "httpx>=0.28.1",
+    "marimo[recommended]>=0.26.0",
     "pandera[polars]>=0.36.0",
     "polars>=2.1.0",
     "pydantic-settings>=2.16.3",
@@ -74,6 +75,8 @@ convention = "google"
 # Tests and scripts are documented by their names and module docstrings.
 "tests/**" = ["D"]
 "scripts/**" = ["D"]
+# marimo notebooks: every cell is a function, and none need docstrings.
+"notebooks/**" = ["D"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
