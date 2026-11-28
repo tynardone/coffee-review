@@ -21,16 +21,19 @@ repos:
         name: ruff check
         entry: uv run ruff check --fix
         language: system
+        exclude: ^notebooks/  # marimo notebooks aren't held to the project's lint
         types: [python]
       - id: ruff-format
         name: ruff format
         entry: uv run ruff format
         language: system
+        exclude: ^notebooks/  # marimo notebooks aren't held to the project's lint
         types_or: [python, markdown]  # code blocks in docs too, as CI checks
       - id: mypy
         name: mypy
         entry: uv run mypy
         language: system
+        exclude: ^notebooks/  # marimo notebooks aren't held to the project's lint
         types: [python]
         pass_filenames: false
       - id: import-linter

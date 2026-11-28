@@ -13,8 +13,8 @@ UNITS = load_units()
 @pytest.mark.parametrize(
     ("quantity", "spelling", "grams"),
     [
-        (12, "ounces", 340.194),
-        (1, "pound", 453.592),
+        (12, "ounces", 340.19),
+        (1, "pound", 453.59),
         (1, "Kilogram", 1000.0),
         (250, "g.", 250.0),
     ],

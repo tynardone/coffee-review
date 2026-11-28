@@ -81,4 +81,4 @@ def to_grams(quantity: float, unit: Unit) -> float | None:
     Returns:
         The weight in grams, or None for counts and volumes.
     """
-    return None if unit.grams is None else quantity * unit.grams
+    return None if unit.grams is None else round(quantity * unit.grams, 2)

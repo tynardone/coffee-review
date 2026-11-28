@@ -40,6 +40,10 @@ dev = [
     "ruff>=0.17.6",
 ]
 
+[tool.ruff]
+# marimo notebooks are scratch work, not held to the project's lint or format.
+extend-exclude = ["notebooks"]
+
 [tool.ruff.lint]
 extend-select = [
     "F",        # Pyflakes rules
@@ -75,8 +79,6 @@ convention = "google"
 # Tests and scripts are documented by their names and module docstrings.
 "tests/**" = ["D"]
 "scripts/**" = ["D"]
-# marimo notebooks: every cell is a function, and none need docstrings.
-"notebooks/**" = ["D"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -128,3 +130,9 @@ forbidden_modules = ["httpx", "sqlite3"]
 strict = true
 plugins = ["pydantic.mypy"]
 files = ["src", "tests"]
+exclude = ["^notebooks/"]
+
+[[tool.mypy.overrides]]
+# marimo notebooks: cells are untyped functions; mypy leaves them alone.
+module = "notebooks.*"
+ignore_errors = true
